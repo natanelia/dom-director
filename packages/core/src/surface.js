@@ -1,4 +1,4 @@
-import {DirectorError, requireValue} from './errors.js';
+import {DirectorError, requireValue, diagnostic} from './errors.js';
 import {IDENTITY, rect, pose, fit, interpolate} from './geometry.js';
 import {StyleJournal} from './journal.js';
 const owners = new WeakMap();
@@ -19,8 +19,9 @@ export function createSurface({viewport, scene, overlay, kind='managed-dom', all
   requireValue(viewport?.nodeType===1 && scene?.nodeType===1 && overlay?.nodeType===1,
     'INVALID_SURFACE', 'Viewport, scene and independent overlay elements are required.');
   const doc=scene.ownerDocument, win=doc.defaultView;
-  requireValue(win && viewport.ownerDocument===doc && overlay.ownerDocument===doc && viewport.contains(scene) &&
+  requireValue(win && viewport.ownerDocument===doc && overlay.ownerDocument===doc && viewport!==scene && viewport.contains(scene) &&
     !scene.contains(overlay) && !overlay.contains(scene), 'INVALID_SURFACE', 'Use a scene inside its viewport and a separate overlay.');
+  requireValue(Object.values(insets).every(value=>Number.isFinite(value)&&value>=0),'INVALID_SAFE_AREA','Insets must be finite and nonnegative.');
   requireValue(['managed-dom','overlay-only'].includes(kind), 'INVALID_SURFACE', 'Unknown surface strategy.');
   requireValue(!owners.has(scene), 'SURFACE_BUSY', 'Another controller owns this scene.');
   let strategy=kind, destroyed=false, camera={...IDENTITY}, revision=0, cameraRevision=0;
@@ -39,7 +40,7 @@ export function createSurface({viewport, scene, overlay, kind='managed-dom', all
   }
   owners.set(scene, true);
   const live=()=>requireValue(!destroyed,'DESTROYED','The surface has been destroyed.');
-  const invalidate=()=>{ if (!destroyed) {revision++;for(const listener of [...listeners]) listener(revision);} };
+  const invalidate=()=>{ if (!destroyed) {revision++;for(const listener of [...listeners]){try{listener(revision);}catch{/* Host observers are isolated. */}}} };
   function on(target,name,fn,options) {target.addEventListener(name,fn,options);cleanup.push(()=>target.removeEventListener(name,fn,options));}
   const resize=new win.ResizeObserver(invalidate);resize.observe(viewport);resize.observe(scene);cleanup.push(()=>resize.disconnect());
   let signature=scene.style.cssText;
@@ -48,6 +49,7 @@ export function createSurface({viewport, scene, overlay, kind='managed-dom', all
   });
   mutation.observe(scene,{childList:true,subtree:true,attributes:true});cleanup.push(()=>mutation.disconnect());
   on(doc,'scroll',invalidate,true);on(win,'resize',invalidate);
+  if(doc.fonts)on(doc.fonts,'loadingdone',invalidate);
   if(win.visualViewport){on(win.visualViewport,'resize',invalidate);on(win.visualViewport,'scroll',invalidate);}
   function snapshot(targets=[]) {
     live();requireValue(scene.isConnected&&viewport.isConnected&&overlay.isConnected,'SURFACE_REMOVED','Surface nodes must remain connected.');
@@ -64,8 +66,21 @@ export function createSurface({viewport, scene, overlay, kind='managed-dom', all
     rect(box);
     const bounds=targets.map(target=>{
       requireValue(target?.nodeType===1&&target.ownerDocument===doc&&target.isConnected,'TARGET_MISSING','A target is unavailable.');
+      const css=win.getComputedStyle(target);
+      requireValue(css.visibility!=='hidden'&&css.visibility!=='collapse'&&target.getClientRects().length>0,'TARGET_HIDDEN','Target is not visible.');
       const client=rect(target.getBoundingClientRect()), member=scene.contains(target)&&!topLayer(target)&&strategy==='managed-dom';
-      if(member)checkChain(target,scene,win,true);
+      if(member){
+        checkChain(target,scene,win,true);
+        for(let ancestor=parentOf(target);ancestor&&ancestor!==scene;ancestor=parentOf(ancestor)){
+          const style=win.getComputedStyle(ancestor),box=ancestor.getBoundingClientRect();
+          const factor=ancestor.offsetWidth?box.width/ancestor.offsetWidth:scale;
+          const left=box.left+ancestor.clientLeft*factor,top=box.top+ancestor.clientTop*factor;
+          const clipsX=/(hidden|clip|auto|scroll)/u.test(style.overflowX),clipsY=/(hidden|clip|auto|scroll)/u.test(style.overflowY);
+          requireValue((!clipsX||(client.x>=left-.5&&client.x+client.width<=left+ancestor.clientWidth*factor+.5))&&
+            (!clipsY||(client.y>=top-.5&&client.y+client.height<=top+ancestor.clientHeight*factor+.5)),
+            'TARGET_CLIPPED','Reveal a clipped scroll target through an approved host operation before focusing it.');
+        }
+      }
       const point=member?inverse.transformPoint({x:client.x,y:client.y}):client;
       return {element:target,space:member?'scene':'client',revision,cameraRevision,
         rect:member?{x:point.x,y:point.y,width:client.width/scale,height:client.height/scale}:client};
@@ -92,9 +107,9 @@ export function createCamera(options) {
   const preference=win.matchMedia('(prefers-reduced-motion: reduce)');
   let active=null, frame=null, destroyed=false, dirty=true;
   const unsubscribe=surface.subscribe(()=>{dirty=true;});
-  function cancel(reason='interrupted') {
+  function cancel(reason='interrupted',issue=null) {
     if(frame!==null)scheduler.cancel(frame);frame=null;
-    if(active){const old=active;active=null;old.signal?.removeEventListener('abort',old.abort);old.resolve({status:reason,pose:surface.pose});}
+    if(active){const old=active;active=null;old.signal?.removeEventListener('abort',old.abort);old.resolve({status:reason,pose:surface.pose,...(issue?{diagnostic:issue}:{})});}
   }
   function endPose(target, framing) {
     if(target===null)return {...IDENTITY};
@@ -112,14 +127,19 @@ export function createCamera(options) {
     try {
       if(dirty){
         const to=endPose(run.target,run.framing);
-        run.duration=Math.max(0,run.duration-(now-run.start));
-        run.from=surface.pose;run.start=now;run.to=to;dirty=false;
+        if(!run.correction)run.correction={from:surface.pose,start:now,duration:Math.min(200,Math.max(0,run.duration-(now-run.start)))};
+        run.to=to;dirty=false;
       }
       const progress=run.duration===0?1:Math.min(1,(now-run.start)/run.duration);
-      surface.apply(interpolate(run.from,run.to,progress,run.easing));
+      let next=interpolate(run.from,run.to,progress,run.easing);
+      if(run.correction){
+        const correction=run.correction,t=correction.duration?Math.min(1,(now-correction.start)/correction.duration):1;
+        next=interpolate(correction.from,next,t,run.easing);if(t>=1)run.correction=null;
+      }
+      surface.apply(next);
       if(progress>=1){cancel('completed');return;}
       frame=scheduler.request(tick);
-    }catch(error){cancel('interrupted');options.onDiagnostic?.(error.diagnostic);}
+    }catch(error){const issue=diagnostic(error);cancel('interrupted',issue);try{options.onDiagnostic?.(issue);}catch{/* Diagnostic observers are isolated. */}}
   }
   function move(target, {durationMs=700,easing='gentle',signal,...framing}={}) {
     requireValue(!destroyed,'DESTROYED','The camera has been destroyed.');

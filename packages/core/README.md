@@ -53,6 +53,42 @@ non-finite values, or excessive size is rejected. Host object input must be ordi
 plain data, not accessors, class instances, or proxies. Treat JSON text as the
 untrusted transport boundary; host resolver functions are separately trusted code.
 
-The presentation session is currently an internal model: its barriers cannot
-execute host work without an explicit host adapter. Its DOM facade is the next
-implementation slice. Declaration of a capability is not authorization.
+## Declarative playback
+
+```js
+import {createDirector, mountControls} from './packages/core/src/index.js';
+const director = createDirector({
+  surface: {viewport, scene, overlay},
+  targets: {
+    'dashboard.overview': () => document.querySelector('#overview'),
+    'dashboard.filters': {label: 'Filters', resolve: () => document.querySelector('#filters')},
+  },
+});
+const result = director.load(script); // A canonical tour, not the prototype demo cue format.
+if (!result.ok) console.warn(result.diagnostics);
+const controls = mountControls(director, controlsContainer);
+// Alternatively wire host controls to director.play(), pause(), seek({sceneId,timeMs}),
+// setRate(), choose(), next(), stop(), setReducedMotion(), and focusTarget().
+// Observe semantic transitions with on(); opt into frame samples with onFrame().
+// Cleanup: controls.destroy(); director.destroy();
+```
+
+`inspect()` returns scene-local time, visited path, waiting reasons and command
+revision. `describe()` returns the authored transcript/scene descriptions, not action
+arguments. `waitForCompletion(runId, {signal})` resolves for that run only. Commands
+return `{ok, value, revision}` or `{ok: false, diagnostics, revision}`. A malformed
+surface is a construction error. No action executor is enabled by default.
+
+Target `bounds()` adapters return `{x,y,width,height,space:'scene'|'client'}`.
+`dynamic: true` opts into fresh measurements for targets moving without DOM changes.
+`registry.invalidate()` is the cheaper explicit host notification. Secret targets
+cannot be resolved. Private targets require `createTargetRegistry(entries,
+{privateTargets:['approved.id']})`, supplied as the director's `registry`.
+
+A clipped target returns `TARGET_CLIPPED`: reveal it through a host-approved operation,
+then retry. For modal/top-layer content, the host must place the overlay in a compatible
+top-layer container; a normal document overlay cannot paint above a native dialog.
+
+The minimal real consumer is `examples/browser/index.html`. Build the schemas, serve
+the repository root, then open that path. The richer Orbit prototype is not yet
+using the SDK; its current playback fix is preserved until the integration milestone.
