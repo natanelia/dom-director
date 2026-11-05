@@ -55,3 +55,33 @@ test('cue data is contiguous within one millisecond rounding',()=>{
  assert.ok(Math.abs(scenes.at(-1).startMs+scenes.at(-1).durationMs-data.durationMs)<=1);
 });
 test('time formatting',()=>{assert.equal(M.formatTime(65789),'01:05');assert.equal(M.formatTime(65789,true),'01:05.789');assert.equal(M.formatTime(-3),'00:00');});
+
+test('media clock accepts normal, coarse and rounded readings',()=>{
+ const clock=M.createMediaClock(0,100,1);
+ assert.equal(clock.sample(0,110),0);
+ assert.equal(clock.sample(250,350),250);
+ assert.equal(clock.sample(240,360),250); // small rounding cannot rewind
+ assert.equal(clock.sample(500,600),500);
+});
+test('media clock rejects instant end, regressions and invalid values',()=>{
+ for(const value of [45367,Infinity,NaN,-1]){
+  assert.equal(M.createMediaClock(0,100).sample(value,116),null);
+ }
+ const clock=M.createMediaClock(10000,100);
+ assert.equal(clock.sample(0,120),null);
+ assert.equal(clock.sample(10100,200),10100); // bad sample did not poison state
+ assert.equal(clock.sample(10200,190),null);
+});
+test('media clock rejects gradual fast-forward as well as single jumps',()=>{
+ const clock=M.createMediaClock(0,0);
+ assert.equal(clock.sample(200,16),200);
+ assert.equal(clock.sample(400,32),null);
+});
+test('media clock supports explicit seek origins and playback rates',()=>{
+ for(const rate of [.75,1,1.25,1.5]){
+  const clock=M.createMediaClock(30000,1000,rate);
+  assert.equal(clock.sample(30000+500*rate,1500),30000+500*rate);
+ }
+ for(const args of [[NaN,0,1],[0,Infinity,1],[0,0,0],[0,0,-1]])
+  assert.throws(()=>M.createMediaClock(...args));
+});

@@ -9,8 +9,9 @@
   const mediaQuery = matchMedia('(prefers-reduced-motion: reduce)');
   const state = { time:0, playing:false, started:false, manual:false, awaiting:false, guideHold:false,
     mode:'watch', cc:true, sound:false, reduced:mediaQuery.matches, speed:1, approved:false,
-    clock:'audio', ease:'cinematic', epoch:0, index:-1, lastCaption:'', lastCode:'', lastUiUpdate:-Infinity };
-  let raf = 0, wallStart = 0, clockStart = 0, toastTimeout = 0;
+    clock:'text', audioUnavailable:false, ease:'cinematic', epoch:0, index:-1, lastCaption:'', lastCode:'', lastUiUpdate:-Infinity };
+  let raf = 0, wallStart = 0, clockStart = 0, toastTimeout = 0, playTimeout = 0;
+  let mediaClock = null;
   let pose = {x:0,y:0,scale:1}, geometry = {}, view = {width:1120,height:600};
   const targets = { routes:$('map-target'), review:$('review-target'), metrics:$('metrics-target'), approve:$('approve-route') };
   const hints = {
@@ -59,7 +60,7 @@
       : state.manual ? 'You’re directing now · play to resume'
       : state.time >= total ? 'That’s a wrap. Your app is still live.'
       : state.guideHold ? 'Your pace · next scene when you’re ready'
-      : state.playing ? (state.clock === 'text' ? 'Playing · text-only clock' : 'Playing · one shared timeline')
+      : state.playing ? (state.clock === 'text' ? 'Playing · captioned timeline' : 'Playing · narration-synced timeline')
       : state.started ? 'Paused · explore or press play' : 'Ready when you are';
     $('player-state').replaceChildren(Object.assign(document.createElement('i'),{}),document.createTextNode(label));
     stage.dataset.state = state.awaiting ? 'waiting' : state.manual ? 'interactive' : state.playing ? 'playing' : 'paused';
@@ -121,23 +122,45 @@
     const code = JSON.stringify({ target:s.target, zoom:s.zoom, easing:state.ease, cursor:s.cursor, mode:state.mode, captions:state.cc },null,2);
     if(code!==state.lastCode){$('live-code').textContent=code;state.lastCode=code;}
   }
-  function pause() {
-    state.epoch++;
-    if(state.playing) {
-      state.time = M.clamp(state.clock==='audio' ? audio.currentTime*1000 : clockStart+(performance.now()-wallStart)*state.speed,0,total);
+  function scheduleTick() {
+    cancelAnimationFrame(raf);
+    raf = state.playing ? requestAnimationFrame(tick) : 0;
+  }
+  function anchorClock() {
+    clockStart = state.time; wallStart = performance.now();
+    mediaClock = M.createMediaClock(state.time, wallStart, state.speed);
+  }
+  function readClock() {
+    const now = performance.now();
+    if (state.clock === 'audio') {
+      const time = mediaClock.sample(audio.currentTime * 1000, now);
+      if (time !== null) return M.clamp(time, 0, total);
+      // Keep the last rendered position, not the decoder's invalid position.
+      startTextClock('Narration timing was interrupted. Continuing with captions.');
+      return state.time;
     }
+    return M.clamp(clockStart + (now - wallStart) * state.speed, 0, total);
+  }
+  function pause() {
+    if (state.playing) state.time = readClock();
+    state.epoch++; clearTimeout(playTimeout);
     state.playing=false;audio.pause();cancelAnimationFrame(raf);raf=0;displayControls();
   }
   function startTextClock(message) {
-    audio.pause(); state.clock='text'; state.sound=false;
+    // Invalidate a pending play() before pausing media. A late resolution must
+    // never revive audio or install a second animation loop after this handoff.
+    state.epoch++; clearTimeout(playTimeout);
+    state.clock='text'; state.sound=false; state.audioUnavailable=true;
+    audio.pause(); audio.muted=true;
     $('sound').disabled=true;
-    $('sound').setAttribute('aria-label','Narration unavailable; text-only playback');
-    clockStart=state.time;wallStart=performance.now();
+    $('sound').setAttribute('aria-label','Narration unavailable; captioned playback');
+    anchorClock();
     if(message) toast(message);
-    displayControls();
+    displayControls(); scheduleTick();
   }
   async function play() {
     if(state.awaiting){toast('Approve the checkpoint first, or switch to Watch.');return;}
+    if(state.playing)return;
     if(state.guideHold) {
       const next=scenes[state.index+1];
       if(next) state.time=next.startMs;
@@ -145,46 +168,55 @@
     }
     if(state.time>=total-10) state.time=0;
     state.started=true;state.manual=false;state.playing=true;
+    // Silent playback must not depend on a muted media decoder, its loading
+    // policy, or its ended event. Opting into sound explicitly transfers time
+    // authority to guarded media samples from this same presentation position.
+    state.clock=state.sound&&!state.audioUnavailable?'audio':'text';
     const epoch=++state.epoch;
-    clockStart=state.time;wallStart=performance.now();
+    anchorClock(); render(true); displayControls();
     if(state.clock==='audio'){
-      try {audio.currentTime=state.time/1000;audio.playbackRate=state.speed;audio.muted=!state.sound;const attempt=audio.play();
+      playTimeout=setTimeout(()=>{
+        if(epoch===state.epoch&&state.playing&&state.clock==='audio')
+          startTextClock('Narration did not start. Continuing with captions.');
+      },2500);
+      try {
+        audio.currentTime=state.time/1000;audio.playbackRate=state.speed;audio.muted=false;
+        const attempt=audio.play();
         if(attempt) await attempt;
-        // A pause, mode switch or user takeover wins over an old play promise.
-        if(epoch!==state.epoch){if(!state.playing) audio.pause();return;}
+        if(epoch!==state.epoch){if(!state.playing||state.clock!=='audio')audio.pause();return;}
+        clearTimeout(playTimeout);
       }catch(error){
         if(epoch!==state.epoch)return;
         startTextClock('Narration unavailable. Continuing with captions and the same visual timeline.');
+        return;
       }
     }
     if(epoch!==state.epoch)return;
-    render(true);displayControls();cancelAnimationFrame(raf);raf=requestAnimationFrame(tick);
+    scheduleTick();
   }
   function tick() {
     if(!state.playing)return;
     const previousIndex=M.sceneAt(scenes,state.time);
-    let next=state.clock==='audio'?audio.currentTime*1000:clockStart+(performance.now()-wallStart)*state.speed;
-    next=M.clamp(next,0,total);
+    const next=readClock();
     const limit=M.seekLimit(next,scenes,state.mode,state.approved);
     if(next>=limit && limit<next && state.mode!=='watch') {
       state.time=limit; state.playing=false; state.awaiting=true; audio.pause();
-      audio.currentTime=limit/1000;state.epoch++;render(true);displayControls();
+      clearTimeout(playTimeout);cancelAnimationFrame(raf);raf=0;state.epoch++;render(true);displayControls();
       announce('Your turn. Approve the checkpoint to continue.');return;
     }
     if(state.mode==='guide' && previousIndex<scenes.length-1 && next>=scenes[previousIndex+1].startMs){
-      state.time=scenes[previousIndex+1].startMs-1;state.guideHold=true;state.playing=false;audio.pause();audio.currentTime=state.time/1000;state.epoch++;
+      state.time=scenes[previousIndex+1].startMs-1;state.guideHold=true;state.playing=false;audio.pause();clearTimeout(playTimeout);cancelAnimationFrame(raf);raf=0;state.epoch++;
       render(true);displayControls();return;
     }
     state.time=next;render();
-    if(state.time>=total-30){state.time=total;state.playing=false;audio.pause();render(true);displayControls();return;}
-    raf=requestAnimationFrame(tick);
+    if(state.time>=total){state.time=total;state.playing=false;state.epoch++;clearTimeout(playTimeout);audio.pause();cancelAnimationFrame(raf);raf=0;render(true);displayControls();return;}
+    scheduleTick();
   }
   function seek(time,resume=state.playing) {
     pause();state.started=true;state.manual=false;state.guideHold=false;
     const requested=M.clamp(time,0,total);
     state.time=M.seekLimit(requested,scenes,state.mode,state.approved);
     state.awaiting=state.mode!=='watch'&&!state.approved&&requested>=scenes.find(s=>s.gate).startMs+1700;
-    try{audio.currentTime=state.time/1000;}catch{ /* First interaction may precede metadata. play() handles it. */ }
     render(true);displayControls();
     if(resume&&!state.awaiting)void play();
   }
@@ -256,16 +288,18 @@
   });
   $('chapter-audio').addEventListener('click',()=>{scrollToDemo();seek(scenes[2].startMs,true);});
   $('sound').addEventListener('click',()=>{
-    state.sound=!state.sound;audio.muted=!state.sound;displayControls();
-    if(state.sound)toast('Prototype voice: locally generated synthetic narration.');
+    const resume=state.playing, enable=!state.sound;
+    pause();state.sound=enable;audio.muted=!enable;render(true);displayControls();
+    if(enable)toast('Prototype voice: locally generated synthetic narration.');
+    if(resume)void play();
   });
   $('captions').addEventListener('click',()=>{state.cc=!state.cc;render(true);displayControls();});
   $('rate').addEventListener('click',()=>{
     const choices=[1,1.25,1.5,.75];
-    // Reanchor the wall clock before changing rate; media owns its own time mapping.
-    if(state.clock==='text'&&state.playing){state.time=clockStart+(performance.now()-wallStart)*state.speed;clockStart=state.time;wallStart=performance.now();}
-    state.speed=choices[(choices.indexOf(state.speed)+1)%choices.length];audio.playbackRate=state.speed;
+    const resume=state.playing;pause();
+    state.speed=choices[(choices.indexOf(state.speed)+1)%choices.length];
     $('rate').textContent=`${state.speed}×`;$('rate').setAttribute('aria-label',`Playback speed: ${state.speed} times`);
+    if(resume)void play();
   });
   $('motion-toggle').addEventListener('click',()=>{state.reduced=!state.reduced;render(true);displayControls();});
   mediaQuery.addEventListener('change',event=>{state.reduced=event.matches;render(true);displayControls();});
@@ -296,9 +330,17 @@
   });
   document.addEventListener('visibilitychange',()=>{if(document.hidden&&state.playing){pause();render(true);}});
   audio.addEventListener('ended',()=>{
-    if(state.clock!=='audio')return;state.time=total;state.playing=false;state.epoch++;cancelAnimationFrame(raf);render(true);displayControls();
+    // ended is a media event, not permission to skip the remaining script.
+    // Ignore stale events after pause/seek and let tick() enforce guide gates.
+    if(state.clock!=='audio'||!state.playing||!audio.ended)return;
+    startTextClock(state.time<total-250
+      ? 'Narration ended early. Continuing with captions.' : '');
+    render(true);displayControls();
   });
-  audio.addEventListener('error',()=>{if(state.clock!=='text')startTextClock('Audio could not load. The captioned walkthrough still works.');});
+  audio.addEventListener('error',()=>{
+    if(state.clock==='audio')startTextClock('Audio could not load. The captioned walkthrough still works.');
+    else{state.audioUnavailable=true;state.sound=false;$('sound').disabled=true;displayControls();}
+  });
   audio.addEventListener('waiting',()=>{if(state.playing&&state.clock==='audio')$('player-state').textContent='Buffering · the camera waits with the audio';});
   audio.addEventListener('playing',displayControls);
   const resize=new ResizeObserver(measure);resize.observe(stage);
