@@ -21,3 +21,12 @@ PY
 fi
 # This bounds infrastructure setup only, not test execution or assertions.
 timeout 480 python3 -m playwright install --with-deps "$browser"
+if [[ "${GITHUB_ACTIONS:-}" == 'true' && "$browser" == 'firefox' ]]; then
+  # Real audio tests need a working output device on the headless Linux runner.
+  # Use a user-owned null sink, not fake media clocks or disabled autoplay policy.
+  timeout 180 sudo apt-get install --yes --no-install-recommends pulseaudio
+  pulseaudio --start --exit-idle-time=-1
+  pactl load-module module-null-sink sink_name=director_test_output
+  pactl set-default-sink director_test_output
+  pactl list short sinks
+fi
