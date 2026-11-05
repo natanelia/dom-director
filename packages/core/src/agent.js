@@ -9,6 +9,7 @@ export const AGENT_COMMANDS = Object.freeze(['getCapabilities','discoverTargets'
 const mutating = new Set(['load','play','seek']);
 const safety = new Set(['pause','stop']);
 const ID = /^[A-Za-z][A-Za-z0-9._-]{0,79}$/u;
+const validId = value => typeof value==='string' && ID.test(value);
 const owners = new WeakMap();
 const MAX_REPLY = 65536, RESERVATION = MAX_REPLY + 160;
 const utf8Size = value => new TextEncoder().encode(JSON.stringify(value)).length;
@@ -31,12 +32,12 @@ function catalogData(input) {
   requireValue(data&&Array.isArray(data.actions)&&Array.isArray(data.conditions)&&data.actions.length<=100&&data.conditions.length<=100,
     'AGENT_OPTIONS','Capability catalogs must be bounded lists.');
   const actions=data.actions.map(a=>{
-    requireValue(ID.test(a.id)&&typeof a.label==='string'&&a.label.length<=200&&['read','ephemeral','persistent'].includes(a.impact),
+    requireValue(validId(a.id)&&typeof a.label==='string'&&a.label.length>0&&a.label.length<=200&&['read','ephemeral','persistent'].includes(a.impact),
       'AGENT_OPTIONS','Invalid action metadata.');
     return {id:a.id,label:a.label,impact:a.impact};
   });
   const conditions=data.conditions.map(c=>{
-    requireValue(ID.test(c.id)&&typeof c.label==='string'&&c.label.length<=200&&['acknowledgment','ui','domain','server'].includes(c.evidence),
+    requireValue(validId(c.id)&&typeof c.label==='string'&&c.label.length>0&&c.label.length<=200&&['acknowledgment','ui','domain','server'].includes(c.evidence),
       'AGENT_OPTIONS','Invalid condition metadata.');
     return {id:c.id,label:c.label,evidence:c.evidence};
   });
@@ -49,10 +50,10 @@ export function createAgentBridge(director, {
   clientId, authorize=()=>false, commands=AGENT_COMMANDS, targetIds=[], capabilities={actions:[],conditions:[]},
   maxRequests=128, maxPending=8, maxRetainedBytes=4194304, timeoutMs=5000,
 }={}) {
-  requireValue(director&&ID.test(director.sessionId)&&['inspect','load','play','pause','seek','stop'].every(key=>typeof director[key]==='function')&&
+  requireValue(director&&validId(director.sessionId)&&['inspect','load','play','pause','seek','stop'].every(key=>typeof director[key]==='function')&&
     typeof director.registry?.catalog==='function','AGENT_OPTIONS','A director with semantic targets is required.');
-  requireValue(ID.test(clientId)&&typeof authorize==='function'&&Array.isArray(commands)&&commands.every(c=>AGENT_COMMANDS.includes(c))&&
-    Array.isArray(targetIds)&&targetIds.length<=1000&&targetIds.every(id=>ID.test(id))&&
+  requireValue(validId(clientId)&&typeof authorize==='function'&&Array.isArray(commands)&&commands.every(c=>AGENT_COMMANDS.includes(c))&&
+    Array.isArray(targetIds)&&targetIds.length<=1000&&targetIds.every(validId)&&
     Number.isInteger(maxRequests)&&maxRequests>0&&maxRequests<=512&&Number.isInteger(maxPending)&&maxPending>0&&maxPending<=16&&
     Number.isSafeInteger(maxRetainedBytes)&&maxRetainedBytes>=RESERVATION&&maxRetainedBytes<=33554432&&
     Number.isFinite(timeoutMs)&&timeoutMs>0&&timeoutMs<=30000,'AGENT_OPTIONS','Invalid bounded agent policy.');
@@ -180,7 +181,7 @@ export async function proposeTargetRepair(input,options={},approvedCatalog=[]){
     const {alias,replacement,reason}=cloneData(options);
     const result=compile(input);if(!result.ok)return result;
     const script=result.plan.script;
-    requireValue(ID.test(alias)&&Object.hasOwn(script.targets,alias)&&ID.test(replacement)&&typeof reason==='string'&&reason.length>0&&reason.length<=1000,
+    requireValue(validId(alias)&&Object.hasOwn(script.targets,alias)&&validId(replacement)&&typeof reason==='string'&&reason.length>0&&reason.length<=1000,
       'REPAIR_INVALID','A declared alias, replacement ID and bounded reason are required.');
     const catalog=cloneData(approvedCatalog);
     requireValue(Array.isArray(catalog)&&catalog.length<=1000&&catalog.filter(t=>t.id===replacement&&(!t.sensitivity||t.sensitivity==='public')).length===1&&catalog.filter(t=>t.id===replacement).length===1,
