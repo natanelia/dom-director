@@ -1,5 +1,5 @@
 """End-to-end checks against the staged public SDK site, not the old prototype."""
-import os,json,threading,unittest
+import os,json,threading,unittest,time,math
 from pathlib import Path
 from http.server import SimpleHTTPRequestHandler,ThreadingHTTPServer
 from functools import partial
@@ -25,6 +25,19 @@ class PublicSDKTests(unittest.TestCase):
     def tearDown(self):
         self.page.close();self.assertEqual(self.errors,[])
     def position(self):return float(self.page.locator('#seek').input_value())
+    def progress(self,entry):
+        self.page.locator(entry).click();start=time.monotonic();previous=0;first=None
+        while time.monotonic()-start<2.5:
+            self.page.wait_for_timeout(50);position=self.position();elapsed=time.monotonic()-start
+            state=self.page.locator('#stage').get_attribute('data-status')
+            self.assertTrue(math.isfinite(position));self.assertGreaterEqual(position,previous-.02)
+            self.assertLessEqual(position,elapsed+.35,'Playback outran elapsed time')
+            self.assertLess(position,3);self.assertIn(state,('playing','buffering'))
+            self.assertEqual(self.page.locator('#stage').get_attribute('data-scene'),'overview')
+            if first is None and position>.1:first=position
+            elif first is not None and position>first+.2:return position
+            previous=position
+        self.fail(f'Playback did not sustain progress within 2.5s: {position}, {state}')
     def mode(self,value):
         self.page.locator('[data-mode="'+value+'"]').click()
         self.page.wait_for_function("mode=>document.querySelector('#stage').dataset.mode===mode",arg=value)
@@ -40,9 +53,7 @@ class PublicSDKTests(unittest.TestCase):
     def test_every_play_entry_advances_without_jumping(self):
         for entry in ['#hero-play','#stage-play','#play','#footer-play']:
             self.page.goto(self.url);self.page.wait_for_function("document.querySelector('#stage').dataset.runtime==='sdk'")
-            self.page.locator(entry).click();self.page.wait_for_timeout(800)
-            self.assertGreater(self.position(),.1,entry);self.assertLess(self.position(),3,entry)
-            self.assertEqual(self.page.locator('#stage').get_attribute('data-scene'),'overview')
+            self.progress(entry)
             self.page.locator('#play').click();before=self.position();self.page.wait_for_timeout(200);self.assertAlmostEqual(self.position(),before,delta=.03)
     def test_complete_watch_traverses_all_scenes_without_approving(self):
         self.page.locator('#stage-play').click()
@@ -81,11 +92,11 @@ class PublicSDKTests(unittest.TestCase):
         self.assertNotEqual(self.page.locator('#stage').get_attribute('data-scene'),'outro')
         self.assertEqual(self.page.locator('#flag-count').inner_text(),'01')
     def test_media_is_opt_in_and_bad_end_does_not_finish_tour(self):
-        self.page.locator('#sound').click();self.page.locator('#stage-play').click();self.page.wait_for_timeout(600)
-        self.assertGreater(self.position(),.1);self.assertLess(self.position(),3)
+        self.page.locator('#sound').click();before=self.progress('#stage-play')
+        self.assertEqual(self.page.locator('#stage').get_attribute('data-clock'),'audio')
         self.assertTrue(any('.mp3' in r for r in self.requests))
         self.page.evaluate("""()=>{const a=testAudio.at(-1);Object.defineProperty(a,'ended',{get:()=>true});Object.defineProperty(a,'duration',{get:()=>0});a.dispatchEvent(new Event('ended'));}""")
-        self.page.wait_for_timeout(250);self.assertLess(self.position(),3)
+        self.page.wait_for_timeout(250);self.assertLess(self.position(),before+.8)
         self.assertEqual(self.page.locator('#stage').get_attribute('data-clock'),'text')
     def test_mobile_reduced_motion_keeps_real_task_reachable(self):
         self.page.set_viewport_size({'width':390,'height':844});self.page.emulate_media(reduced_motion='reduce');self.mode('try');self.handoff()
