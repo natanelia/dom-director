@@ -57,6 +57,26 @@ const DemoModel = (() => {
     const gate = scenes.find(s => s.gate);
     return mode !== 'watch' && !approved && gate ? Math.min(time, gate.startMs + 1700) : time;
   }
-  return { WIDTH, HEIGHT, clamp, easing, overview, fit, mix, project, sceneAt, formatTime, sample, seekLimit };
+  // Media is authoritative only while its samples stay plausible. Explicit seeks
+  // create a new clock; decoder jumps are not treated as user seeks. Tolerances
+  // allow coarse/rounded media clocks without permitting a scene-sized leap.
+  function createMediaClock(startTime, startWall, rate = 1) {
+    if (![startTime, startWall, rate].every(Number.isFinite) || startTime < 0 || rate <= 0)
+      throw new Error('DEMO_CLOCK_INVALID: finite origin and positive rate required.');
+    let previousTime = startTime, previousWall = startWall;
+    return {
+      sample(time, now) {
+        if (!Number.isFinite(time) || !Number.isFinite(now) || time < 0 || now < previousWall)
+          return null;
+        if (time < previousTime - 100 ||
+            time > startTime + (now - startWall) * rate + 250 ||
+            time > previousTime + (now - previousWall) * rate + 250)
+          return null;
+        if (time > previousTime) { previousTime = time; previousWall = now; }
+        return previousTime;
+      }
+    };
+  }
+  return { WIDTH, HEIGHT, clamp, easing, overview, fit, mix, project, sceneAt, formatTime, sample, seekLimit, createMediaClock };
 })();
 if (typeof module !== 'undefined' && module.exports) module.exports = DemoModel;

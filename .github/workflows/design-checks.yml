@@ -14,7 +14,7 @@ concurrency:
 
 jobs:
   design:
-    name: Design contracts and 79 tests
+    name: Design contracts and tests
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
@@ -32,9 +32,13 @@ jobs:
         run: python3 -m unittest discover -s tests -v
 
   demo:
-    name: Demo model and Chromium tests
+    name: Demo model and ${{ matrix.browser }} HTTP tests
     runs-on: ubuntu-24.04
     timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        browser: [chromium, webkit]
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
@@ -52,11 +56,15 @@ jobs:
         run: |
           python3 demo/build.py
           git diff --exit-code -- demo/index.html
-      - name: Run 10 pure-model tests
+      - name: Run pure-model tests
         run: node --test demo/tests/model.test.cjs
       - name: Install pinned browser-test dependencies
+        env:
+          BROWSER_ENGINE: ${{ matrix.browser }}
         run: |
           python3 -m pip install -r demo/requirements-browser.txt
-          python3 -m playwright install --with-deps chromium
-      - name: Run 14 Chromium fixture tests
+          python3 -m playwright install --with-deps "$BROWSER_ENGINE"
+      - name: Run HTTP playback and interaction regressions
+        env:
+          BROWSER_ENGINE: ${{ matrix.browser }}
         run: python3 demo/tests/browser_test.py

@@ -8,13 +8,13 @@ Open [index.html](index.html) in a browser, or serve this directory with a stati
 python3 -m http.server 8080 --directory demo
 ```
 
-From the repository root, that command serves the demo at `http://localhost:8080`. The HTML is self-contained: no build, remote fonts, libraries, accounts or external services are required to view it. Browser/embedding policies can still restrict local-file scripts or media; a normal static host is the intended publication path. A static host has **not** been deployed in this deliverable.
+From the repository root, that command serves the demo at `http://localhost:8080`. The HTML is self-contained: no build, remote fonts, libraries, accounts or external services are required to view it. Browser/embedding policies can still restrict local-file scripts or media; a normal static host is the intended publication path. The public demo is hosted at https://natanelia.github.io/dom-director/.
 
 ## What to try
 
 Press **Roll the demo**, use **Take the wheel**, or select **Try it** to stop at a real checkpoint. Approving it changes the actual fixture state. Scrubbing backward does not repeat or undo the approval. **Guide me** waits at each chapter. Captions, transcript, narration mute, playback rate, easing selection, reduced motion and the live cue inspector are functional.
 
-Narration is an embedded, locally generated eSpeak placeholder, muted by default. It is not a final production voice or a cloud TTS integration. All route geometry and metrics are fictional. The visible cursor is a labeled visual simulation, not trusted input.
+Narration is an embedded, locally generated eSpeak placeholder, off by default. Silent playback uses a monotonic visual clock; enabling Sound transfers authority to validated audio timestamps. Early media endings or invalid timestamps fall back to captioned playback without skipping the story. It is not a final production voice or a cloud TTS integration. All route geometry and metrics are fictional. The visible cursor is a labeled visual simulation, not trusted input.
 
 ## Scope
 
@@ -41,12 +41,13 @@ python3 demo/build.py
 node --test demo/tests/model.test.cjs
 # Optional browser test dependency, separate from the design checker:
 python3 -m pip install -r demo/requirements-browser.txt
-python3 -m playwright install chromium
+python3 -m playwright install --with-deps chromium webkit
 python3 demo/tests/browser_test.py
+BROWSER_ENGINE=webkit python3 demo/tests/browser_test.py
 # Or use an existing browser:
 BROWSER_EXECUTABLE=/usr/bin/chromium python3 demo/tests/browser_test.py
 ```
 
-The browser tests render the complete document in memory. The evidence does not imply that local-file navigation or a public deployment was tested. Media autoplay rejection and delayed play completion are explicitly exercised.
+Browser tests serve the bundle over local HTTP at a project-site path. Use `DEMO_TRANSPORT=memory` only where local navigation is blocked; this fallback is not HTTP evidence. Tests check upper and lower playback-time bounds, every play button, mobile taps, camera interpolation, media faults, cancellation, sound handoff, replay, and guide gates. See [playback repair evidence](PLAYBACK-FIX.md).
 
 No publication, repository mutation, analytics or persistent storage happens when the demo runs. Exporting JSON requires the visitor to click Export. There is no remote agent transport.
