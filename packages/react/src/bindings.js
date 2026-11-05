@@ -22,7 +22,7 @@ export function createReactBindings(React, core) {
         current.current = instance;setDirector(instance);setError(null);
       } catch (cause) {
         const value = core.DirectorError && cause instanceof core.DirectorError ? cause.diagnostic :
-          Object.freeze({code:'REACT_PREPARE_FAILED',message:'The walkthrough could not be prepared.',phase:'react',severity:'error'});
+          Object.freeze({code:'REACT_PREPARE_FAILED',message:'The walkthrough could not be prepared.',phase:'integration',severity:'error',path:'',recoveries:Object.freeze(['stop'])});
         report(value);
       }
       return () => {
