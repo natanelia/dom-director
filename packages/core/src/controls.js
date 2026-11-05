@@ -26,6 +26,8 @@ export function mountControls(director,container){
   const rateLabel=doc.createElement('label');rateLabel.textContent='Speed ';
   const rate=doc.createElement('select');rate.setAttribute('aria-label','Playback speed');
   for(const value of [.5,.75,1,1.25,1.5,2]){const option=doc.createElement('option');option.value=String(value);option.textContent=value+'×';rate.append(option);}rate.value='1';rateLabel.append(rate);toolbar.append(rateLabel);
+  button('sound','Enable narration',()=>director.setNarrationEnabled(!director.inspect().narration?.enabled));
+  button('captions','Captions on',()=>director.setCaptions(!director.inspect().captionsEnabled));
   button('motion','Reduce motion',()=>director.setReducedMotion(!director.inspect().reducedMotion));
   on(rate,'change',()=>report(director.setRate(Number(rate.value))));
   on(progress,'input',()=>report(director.seek({sceneId:director.inspect().sceneId,timeMs:Number(progress.value)})));
@@ -53,12 +55,14 @@ export function mountControls(director,container){
     buttons.play.disabled=!available;buttons.stop.disabled=!available;progress.disabled=!available;rate.disabled=!available;
     buttons.play.textContent=['playing','buffering'].includes(state.status)?'Pause':'Play';
     buttons.play.setAttribute('aria-label',['playing','buffering'].includes(state.status)?'Pause walkthrough':'Play walkthrough');
+    buttons.sound.hidden=!state.narration;buttons.sound.disabled=!available||!state.narration?.available;buttons.sound.textContent=state.narration?.enabled?'Continue without sound':'Enable narration';buttons.sound.setAttribute('aria-pressed',String(!!state.narration?.enabled));
+    buttons.captions.setAttribute('aria-pressed',String(state.captionsEnabled!==false));buttons.captions.textContent=state.captionsEnabled===false?'Captions off':'Captions on';caption.hidden=state.captionsEnabled===false;
     buttons.next.hidden=!state.reasons?.includes('step');buttons.next.disabled=!available;
     buttons.motion.textContent=state.reducedMotion?'Motion reduced':'Reduce motion';buttons.motion.setAttribute('aria-pressed',String(!!state.reducedMotion));
     progress.max=String(state.durationMs||0);progress.value=String(state.timeMs||0);progress.setAttribute('aria-valuetext',`${time(state.timeMs)} of ${time(state.durationMs)} in this scene`);
     position.value=`${time(state.timeMs)} / ${time(state.durationMs)} · current scene`;
     rate.value=String(state.rate||1);
-    const scene=info?.scenes.find(scene=>scene.id===state.sceneId),message=state.waitingFor?.instruction||`${scene?.title||'Walkthrough'}: ${state.status}${state.incomplete?' · some steps were skipped':''}`;
+    const scene=info?.scenes.find(scene=>scene.id===state.sceneId),message=state.waitingFor?.instruction||`${scene?.title||'Walkthrough'}: ${state.narration?.error?'Narration unavailable. Continue without sound or retry.':state.status}${state.incomplete?' · some steps were skipped':''}`;
     if(message!==lastStatus){status.textContent=message;lastStatus=message;}
     const text=state.caption||scene?.summary||'';if(text!==lastText){caption.textContent=text;lastText=text;}
     const signature=JSON.stringify(state.choices||[]);if(signature!==choiceSignature){

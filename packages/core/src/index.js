@@ -6,3 +6,4 @@ export {createTargetRegistry} from './targets.js';
 export {createDirector} from './director.js';
 export {sampleVisual} from './visual.js';
 export {mountControls} from './controls.js';
+export {NarrationClock,captionsToVTT} from './narration.js';
