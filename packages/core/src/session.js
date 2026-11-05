@@ -8,7 +8,7 @@ export class Session {
     this.plan=plan;this.clock=clock||new TimelineClock(now);this.mode=mode;this.barriers=barriers;
     this.onEvent=onEvent;this.onFrame=onFrame;this.runId='run.'+(++serial);this.revision=0;this.sequence=0;
     this.path=[{sceneId:plan.entryScene,visitId:'visit.1'}];this.cursor=0;this.time=0;
-    this.reasons=new Set(['user']);this.resolved=new Set();this.pending=null;this.epoch=0;this.controlEpoch=0;this.destroyed=false;this.ready=true;
+    this.reasons=new Set(['user']);this.resolved=new Set();this.skipped=new Set();this.pending=null;this.epoch=0;this.controlEpoch=0;this.destroyed=false;this.ready=true;
     this.clock.setScene(this.scene);this.emit('prepared');
   }
   get scene(){return this.plan.scenes[this.path[this.cursor].sceneId];}
@@ -19,7 +19,7 @@ export class Session {
   inspect(){return Object.freeze({runId:this.runId,revision:this.revision,status:this.status,mode:this.mode,
     sceneId:this.scene.id,visitId:this.path[this.cursor].visitId,timeMs:this.time,durationMs:this.scene.durationMs,rate:this.clock.rate,
     path:this.path.slice(0,this.cursor+1).map(v=>({...v})),waitingFor:this.pending?{cueId:this.pending.cue.id,kind:this.pending.cue.kind}:null,
-    choices:this.reasons.has('choice')?(this.scene.choices||[]).map(c=>({...c})):[],reasons:[...this.reasons],nominalDurationMs:this.path.slice(0,this.cursor+1).reduce((n,v)=>n+this.plan.scenes[v.sceneId].durationMs,0)});}
+    incomplete:this.skipped.size>0,choices:this.reasons.has('choice')?(this.scene.choices||[]).map(c=>({...c})):[],reasons:[...this.reasons],nominalDurationMs:this.path.slice(0,this.cursor+1).reduce((n,v)=>n+this.plan.scenes[v.sceneId].durationMs,0)});}
   emit(type,detail={}){this.revision++;try{this.onEvent(Object.freeze({type,sequence:++this.sequence,...this.inspect(),detail}));}catch{/* Host observers cannot break cleanup or playback. */}}
   frame(){if(!this.destroyed)this.onFrame(this.inspect());}
   key(cue,visit=this.path[this.cursor]){return visit.visitId+'/'+cue.id;}
@@ -65,12 +65,15 @@ export class Session {
     const context={runId:this.runId,sceneId:this.scene.id,visitId:this.path[this.cursor].visitId,mode:this.mode,script:this.plan.script,revision:this.revision};
     Promise.resolve().then(()=>{requireValue(!controller.signal.aborted&&epoch===this.epoch,'CANCELLED','Operation was cancelled.');return this.barriers.enter(cue,context,controller.signal);}).then(result=>{
       if(this.destroyed||epoch!==this.epoch||controller.signal.aborted)return;
-      requireValue(result?.completed===true||result?.skipScene===true,'BARRIER_UNRESOLVED','Host did not establish successful completion.');
+      const skipping=result?.skipScene===true;
+      requireValue((result?.completed===true)!==skipping,'BARRIER_UNRESOLVED','Host must establish completion or an explicit skip, not both.');
+      if(skipping)requireValue(cue.kind==='gate'&&cue.onTimeout==='skip-scene','INVALID_SKIP','This cue cannot skip a scene.');
+      if(skipping)this.skipped.add(this.key(cue));
       this.resolved.add(this.key(cue));this.pending=null;this.reasons.delete('barrier');
       const control=this.controlEpoch;
-      this.emit(cue.kind==='gate'?'condition-satisfied':'action-completed',{cueId:cue.id});
+      this.emit(skipping?'condition-skipped':cue.kind==='gate'?'condition-satisfied':'action-completed',{cueId:cue.id});
       if(this.destroyed||control!==this.controlEpoch)return;
-      if(result.skipScene){requireValue(cue.kind==='gate'&&cue.onTimeout==='skip-scene','INVALID_SKIP','This cue cannot skip a scene.');if(this.scene.next)this.enter(this.scene.next);else this.reasons.add('complete');}
+      if(skipping){if(this.scene.next)this.enter(this.scene.next);else this.reasons.add('complete');}
       if(this.running){this.clock.setTime(this.time);this.clock.start();}this.frame();
     }).catch(error=>{
       if(this.destroyed||epoch!==this.epoch||controller.signal.aborted)return;
