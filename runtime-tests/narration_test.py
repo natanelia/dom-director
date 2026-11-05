@@ -32,6 +32,7 @@ class NarrationTests(BrowserFixture):
         self.assertAlmostEqual(self.page.evaluate('director.inspect().timeMs'),100,delta=1)
     def test_jump_holds_then_explicit_silent_handoff_continues(self):
         self.page.evaluate('director.setNarrationEnabled(true);director.play()');self.page.wait_for_timeout(40)
+        state=self.page.evaluate('director.inspect()')
         self.page.evaluate('audio.currentTime=500');self.page.wait_for_timeout(70)
         state=self.page.evaluate('director.inspect()')
         self.assertLess(state['timeMs'],200);self.assertEqual(state['narration']['error'],'MEDIA_CLOCK_INVALID')
@@ -71,9 +72,13 @@ class NarrationTests(BrowserFixture):
         source='data:audio/mpeg;base64,'+base64.b64encode((ROOT/'demo/assets/narration.mp3').read_bytes()).decode()
         self.page.evaluate('''source=>{director.destroy();director=sdk.createDirector({surface:options(),targets:{'app.save':()=>document.querySelector('#target')},narration:{enabled:true,resolveAsset:()=>source}});director.load(tour);window.controls=sdk.mountControls(director,document.body);}''',source)
         self.page.locator('[data-command="play"]').click()
-        self.page.wait_for_function('director.inspect().timeMs>250',timeout=5000)
+        try:
+            self.page.wait_for_function('director.inspect().timeMs>250||director.inspect().narration.error',timeout=5000)
+        except Exception as error:
+            self.fail(f'Real audio did not advance: {self.page.evaluate("director.inspect()")}; {error}')
         state=self.page.evaluate('director.inspect()')
-        self.assertLess(state['timeMs'],3000);self.assertIsNone(state['narration']['error'])
+        self.assertIsNone(state['narration']['error'],state)
+        self.assertGreater(state['timeMs'],250,state);self.assertLess(state['timeMs'],3000,state)
         self.assertEqual(state['narration']['authority'],'audio');self.assertGreater(state['narration']['samples'],0)
         self.assertLess(state['narration']['p95SkewMs'],100)
         print('Prepared audio clock/DOM skew:',state['narration'],flush=True)
