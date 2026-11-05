@@ -1,5 +1,5 @@
 """Narration input, caption controls, cancellation and real media checks."""
-import base64
+import base64, io, math, struct, wave
 from harness import BrowserFixture, ROOT
 from player_test import TOUR
 class NarrationTests(BrowserFixture):
@@ -32,7 +32,6 @@ class NarrationTests(BrowserFixture):
         self.assertAlmostEqual(self.page.evaluate('director.inspect().timeMs'),100,delta=1)
     def test_jump_holds_then_explicit_silent_handoff_continues(self):
         self.page.evaluate('director.setNarrationEnabled(true);director.play()');self.page.wait_for_timeout(40)
-        state=self.page.evaluate('director.inspect()')
         self.page.evaluate('audio.currentTime=500');self.page.wait_for_timeout(70)
         state=self.page.evaluate('director.inspect()')
         self.assertLess(state['timeMs'],200);self.assertEqual(state['narration']['error'],'MEDIA_CLOCK_INVALID')
@@ -68,17 +67,36 @@ class NarrationTests(BrowserFixture):
         self.page.evaluate('director.setNarrationEnabled(true);director.play();director.pause();audio.play=()=>new Promise(resolve=>window.resolveAudio=resolve);director.play();director.destroy();resolveAudio()')
         self.page.wait_for_timeout(50)
         self.assertTrue(self.page.evaluate('audio.paused'));self.assertEqual(self.page.locator('[data-director-overlay]').count(),0)
-    def test_real_audio_sync(self):
-        source='data:audio/mpeg;base64,'+base64.b64encode((ROOT/'demo/assets/narration.mp3').read_bytes()).decode()
-        self.page.evaluate('''source=>{director.destroy();director=sdk.createDirector({surface:options(),targets:{'app.save':()=>document.querySelector('#target')},narration:{enabled:true,resolveAsset:()=>source}});director.load(tour);window.controls=sdk.mountControls(director,document.body);}''',source)
+    def check_real_audio(self,source,allow_unsupported=False):
+        self.page.evaluate("""source=>{director.destroy();director=sdk.createDirector({surface:options(),targets:{'app.save':()=>document.querySelector('#target')},narration:{enabled:true,resolveAsset:()=>source,createAudio:()=>{window.realAudio=new Audio();return realAudio;}}});director.load(tour);window.controls=sdk.mountControls(director,document.body);}""",source)
         self.page.locator('[data-command="play"]').click()
         try:
             self.page.wait_for_function('director.inspect().timeMs>250||director.inspect().narration.error',timeout=5000)
         except Exception as error:
             self.fail(f'Real audio did not advance: {self.page.evaluate("director.inspect()")}; {error}')
         state=self.page.evaluate('director.inspect()')
+        if allow_unsupported and state['narration']['error']:
+            code=self.page.evaluate('realAudio.error?.code')
+            self.assertEqual(state['narration']['error'],'MEDIA_ERROR',state)
+            self.assertIn(code,[3,4],f'Expected a decode/unsupported-source error, got {code}')
+            self.assertLess(state['timeMs'],250,state)
+            self.page.locator('[data-command="sound"]').click()
+            self.page.wait_for_function('director.inspect().timeMs>250',timeout=2000)
+            self.assertEqual(self.page.evaluate('director.inspect().narration.authority'),'text')
+            print('Native MP3 unavailable; confirmed bounded hold and user-selected caption recovery:',code,flush=True)
+            return
         self.assertIsNone(state['narration']['error'],state)
         self.assertGreater(state['timeMs'],250,state);self.assertLess(state['timeMs'],3000,state)
         self.assertEqual(state['narration']['authority'],'audio');self.assertGreater(state['narration']['samples'],0)
         self.assertLess(state['narration']['p95SkewMs'],100)
         print('Prepared audio clock/DOM skew:',state['narration'],flush=True)
+    def test_real_audio_sync(self):
+        # PCM has no external compressed-codec dependency. This test requires
+        # actual decoding and advancing media authority on every browser.
+        buffer=io.BytesIO()
+        with wave.open(buffer,'wb') as audio:
+            audio.setnchannels(1);audio.setsampwidth(2);audio.setframerate(8000)
+            audio.writeframes(b''.join(struct.pack('<h',int(1000*math.sin(2*math.pi*440*i/8000))) for i in range(40000)))
+        self.check_real_audio('data:audio/wav;base64,'+base64.b64encode(buffer.getvalue()).decode())
+    def test_bundled_mp3_playback_or_explicit_decode_recovery(self):
+        self.check_real_audio('data:audio/mpeg;base64,'+base64.b64encode((ROOT/'demo/assets/narration.mp3').read_bytes()).decode(),allow_unsupported=True)

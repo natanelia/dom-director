@@ -36,9 +36,19 @@ export class NarrationClock {
     this.media=media;
     const listen=(type,fn)=>{media.addEventListener(type,fn);this.cleanups.push(()=>media.removeEventListener(type,fn));};
     const active=()=>!this.dead&&this.running&&this.authority==='audio'&&this.media===media&&!this.error;
-    listen('waiting',()=>{if(active()){this.buffering=true;this.progressWall=this.now();this.notify('narration-buffering');}});
+    listen('waiting',()=>{if(active()&&!this.buffering){this.buffering=true;this.progressWall=this.now();this.notify('narration-buffering');}});
     listen('playing',()=>{if(active()){this.buffering=false;this.origin=this.last;this.wall=this.now();this.progressWall=this.wall;this.notify('narration-playing');}});
-    listen('ended',()=>{if(active()&&media.ended)this.fault('MEDIA_ENDED');});
+    listen('ended',()=>{
+      if(!active()||!media.ended)return;
+      const end=media.duration*1000,value=media.currentTime*1000;
+      // A legitimate shorter narration can hand back to visual time, but an
+      // end event alone is not proof that any unrendered scene has completed.
+      if(Number.isFinite(end)&&end>0&&Number.isFinite(value)&&Math.abs(value-end)<=100&&
+         Math.abs(end-this.last)<=250&&value<=this.origin+(this.now()-this.wall)*this.rate+200){
+        this.epoch++;this.clearTimeout();this.authority='text';this.buffering=false;
+        this.text.setTime(this.last);this.text.start();this.notify('narration-completed');
+      }else this.fault('MEDIA_ENDED');
+    });
     listen('error',()=>{if(active())this.fault('MEDIA_ERROR');});
     media.preload='metadata';media.volume=this.volume;media.src=source;
   }
