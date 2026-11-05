@@ -2,3 +2,7 @@ export {DirectorError} from './errors.js';
 export {IDENTITY, fit, rect, pose, union, project, interpolate, easing} from './geometry.js';
 export {createSurface, createCamera} from './surface.js';
 export {compile, preview, SCHEMA_VERSION} from './compiler.js';
+export {createTargetRegistry} from './targets.js';
+export {createDirector} from './director.js';
+export {sampleVisual} from './visual.js';
+export {mountControls} from './controls.js';

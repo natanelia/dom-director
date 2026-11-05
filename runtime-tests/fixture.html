@@ -5,7 +5,7 @@ body{margin:40px}#viewport{width:720px;height:400px;position:relative;overflow:h
 #overlay{position:fixed;inset:0;pointer-events:none}#portal{position:fixed;left:10px;top:10px}#scroller{position:absolute;left:20px;top:20px;width:140px;height:100px;overflow:auto}
 </style>
 <div id="viewport"><div id="scene"><div id="scroller"><div style="height:400px">Scrollable content</div></div><button id="target">Real target</button><input id="input" aria-label="Real input" style="position:absolute;left:10px;top:180px"></div></div>
-<div id="overlay"></div><button id="portal">Portal</button><button id="exit">Exit</button><dialog id="dialog"><button id="modal-target">Dialog target</button></dialog><div popover id="popover">Popover</div>
+<div id="controls"></div><div id="overlay"></div><button id="portal">Portal</button><button id="exit">Exit</button><dialog id="dialog"><button id="modal-target">Dialog target</button></dialog><div popover id="popover">Popover</div>
 <script type="module">
 import * as sdk from '../packages/core/src/index.js';window.sdk=sdk;window.clicks=0;document.querySelector('#target').onclick=()=>window.clicks++;
 window.options=()=>({viewport:document.querySelector('#viewport'),scene:document.querySelector('#scene'),overlay:document.querySelector('#overlay')});

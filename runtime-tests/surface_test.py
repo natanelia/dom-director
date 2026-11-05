@@ -1,41 +1,8 @@
-"""Synthetic real-browser surface tests. No production DOM or credentials."""
-import os, threading, unittest, base64, json
-from pathlib import Path
-from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
-from functools import partial
-from playwright.sync_api import sync_playwright
-ROOT=Path(__file__).resolve().parents[1]
-class Quiet(SimpleHTTPRequestHandler):
-    def log_message(self,*args): pass
-class SurfaceTests(unittest.TestCase):
-    @classmethod
-    def setUpClass(cls):
-        cls.server=ThreadingHTTPServer(('127.0.0.1',0),partial(Quiet,directory=str(ROOT)))
-        cls.thread=threading.Thread(target=cls.server.serve_forever,daemon=True);cls.thread.start()
-        cls.p=sync_playwright().start();engine=os.environ.get('BROWSER_ENGINE','chromium')
-        args={'headless':True}
-        if os.environ.get('BROWSER_EXECUTABLE'):args['executable_path']=os.environ['BROWSER_EXECUTABLE']
-        cls.browser=getattr(cls.p,engine).launch(**args)
-        print('Runtime browser:',engine,cls.browser.version,flush=True)
-    @classmethod
-    def tearDownClass(cls):
-        cls.browser.close();cls.p.stop();cls.server.shutdown();cls.server.server_close();cls.thread.join()
-    def setUp(self):
-        self.page=self.browser.new_page(viewport={'width':1200,'height':900});self.errors=[]
-        self.page.on('pageerror',lambda e:self.errors.append(str(e)))
-        if os.environ.get('RUNTIME_TRANSPORT')=='memory':
-            imports={}
-            for module in (ROOT/'packages/core/src').glob('*.js'):
-                source=module.read_text().replace("from './", "from '@runtime/")
-                imports['@runtime/'+module.name]='data:text/javascript;base64,'+base64.b64encode(source.encode()).decode()
-            html=(ROOT/'runtime-tests/fixture.html').read_text().replace('../packages/core/src/index.js','@runtime/index.js')
-            mapping='<script type="importmap">'+json.dumps({'imports':imports})+'</script>'
-            self.page.set_content(html.replace('<script type="module">',mapping+'<script type="module">'))
-        else:
-            self.page.goto(f'http://127.0.0.1:{self.server.server_port}/runtime-tests/fixture.html')
-        self.page.wait_for_function('window.ready===true')
-    def tearDown(self):
-        self.page.close();self.assertEqual(self.errors,[])
+"""Browser surface integration regressions."""
+import unittest
+from harness import BrowserFixture
+
+class SurfaceTests(BrowserFixture):
     def test_focus_hit_testing_layout_and_restore(self):
         before=self.page.locator('#scene').evaluate('(el)=>[el.offsetWidth,el.offsetHeight]')
         self.page.evaluate('window.camera=sdk.createCamera(options())')
@@ -86,6 +53,24 @@ class SurfaceTests(unittest.TestCase):
         self.page.emulate_media(reduced_motion='reduce')
         self.assertEqual(self.page.evaluate("(()=>{const c=sdk.createCamera(options());try{c.focus(()=>null)}catch(e){return e.diagnostic.code}finally{c.destroy()}})()"),'TARGET_MISSING')
         self.assertEqual(self.page.evaluate("(()=>{const c=sdk.createCamera({...options(),kind:'overlay-only'});try{c.focus(null)}catch(e){return e.diagnostic.code}finally{c.destroy()}})()"),'TARGET_MISSING')
+    def test_continuous_invalidations_do_not_freeze_camera(self):
+        self.page.evaluate("()=>{window.camera=sdk.createCamera(options());void camera.focus(document.querySelector('#target'),{durationMs:700});window.mover=setInterval(()=>camera.surface.invalidate(),16)}")
+        self.page.wait_for_timeout(400);self.assertGreater(self.page.evaluate('camera.surface.pose.scale'),1.1)
+        self.page.evaluate('clearInterval(mover);camera.destroy()')
+    def test_clipped_scroll_target_requires_explicit_reveal(self):
+        self.page.evaluate("()=>{const target=document.createElement('button');target.id='clipped';target.textContent='Hidden below fold';document.querySelector('#scroller').append(target);window.camera=sdk.createCamera(options())}")
+        self.assertEqual(self.page.evaluate("(()=>{try{camera.focus(document.querySelector('#clipped'),{durationMs:0})}catch(e){return e.diagnostic.code}})()"),'TARGET_CLIPPED')
+        self.page.evaluate("document.querySelector('#scroller').scrollTop=9999")
+        self.assertEqual(self.page.evaluate("camera.focus(document.querySelector('#clipped'),{durationMs:0})")['status'],'completed')
+    def test_bad_insets_and_observer_errors_do_not_leak_ownership(self):
+        self.assertEqual(self.page.evaluate("(()=>{try{sdk.createCamera({...options(),insets:{left:-1}})}catch(e){return e.diagnostic.code}})()"),'INVALID_SAFE_AREA')
+        self.page.evaluate("()=>{const c=sdk.createCamera(options());c.surface.subscribe(()=>{throw new Error('host error')});c.surface.invalidate();c.destroy();}")
+    def test_scene_overview_can_fit_a_narrow_viewport(self):
+        self.page.evaluate("document.querySelector('#viewport').style.width='320px';window.camera=sdk.createCamera(options())")
+        result=self.page.evaluate("camera.focus(document.querySelector('#scene'),{durationMs:0,minScale:.1})")
+        self.assertEqual(result['status'],'completed')
+        self.assertLess(result['pose']['scale'],1)
+        self.page.evaluate('camera.destroy()')
     def test_lifecycle_100_cycles_releases_lease_and_styles(self):
         self.assertTrue(self.page.evaluate('''async()=>{for(let i=0;i<100;i++){const c=sdk.createCamera(options());await c.focus(document.querySelector('#target'),{durationMs:0});c.destroy();}return document.querySelector('#scene').style.transform==='';}'''))
 if __name__=='__main__':unittest.main(verbosity=2)
