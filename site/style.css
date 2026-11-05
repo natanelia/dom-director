@@ -1,0 +1,23 @@
+/* The original visual language, with a responsive baseline and SDK-owned overlays. */
+.sdk-site .stage{height:600px;aspect-ratio:auto;max-height:none}
+.sdk-site .scene{width:100%;height:600px}
+.sdk-site .caption{position:relative;left:auto;bottom:auto;transform:none;max-width:none;width:100%;margin:0;border-radius:0;border-top:1px solid #46533c;box-shadow:none}
+#sdk-overlay{position:fixed;inset:0;pointer-events:none;--director-accent:#f37958}
+.sdk-tools{display:flex;flex-wrap:wrap;gap:10px;align-items:center;padding:12px 0;border-top:1px solid var(--line);font-size:11px}
+.sdk-tools button,.sdk-tools a{border:1px solid var(--line);border-radius:5px;background:var(--paper);color:var(--ink);padding:8px 12px;text-decoration:none}
+.sdk-tools button:disabled{opacity:.5;cursor:default}
+.sdk-site [data-director-overlay] [data-kind=cursor]{font-size:34px!important}
+.sdk-site .voice,.sdk-site #exit-tour{min-height:30px}
+@media(max-width:900px){.sdk-site .app-sidebar{width:140px}.sdk-site .app-grid{margin:0 14px;gap:10px}.sdk-site .app-heading{padding-left:14px;padding-right:14px}}
+@media(max-width:700px){
+ .sdk-site .stage{height:500px}.sdk-site .scene{height:500px}.sdk-site .app-sidebar,.sdk-site .app-topbar{display:none}
+ .sdk-site .app-heading{height:55px;padding:8px 12px}.sdk-site .app-heading h2{font-size:20px}.sdk-site .app-eyebrow{font-size:7px;margin:0 0 2px}
+ .sdk-site .app-grid{grid-template-columns:minmax(0,1fr);grid-template-rows:150px 174px 78px;margin:0 12px;gap:10px}
+ .sdk-site .map-card{height:150px}.sdk-site .map-header{height:30px;padding:0 9px}.sdk-site .city-map{height:120px;width:100%;display:block}.sdk-site .map-footer{display:none}
+ .sdk-site .review-card{height:174px;padding:12px;display:grid;grid-template-columns:1fr 1fr;gap:5px 10px;align-items:center}
+ .sdk-site .review-card .checkpoint-icon,.sdk-site .review-card>p,.sdk-site .review-detail,.sdk-site .review-card .sandbox-fineprint{display:none}
+ .sdk-site .review-card .card-kicker{grid-column:1/-1;margin:0}.sdk-site .review-card h3{font-size:20px}.sdk-site .review-check{font-size:10px;margin:0}
+ .sdk-site .approve-button{grid-column:1/-1;width:100%;height:44px;margin:0;font-size:12px}
+ .sdk-site .metrics{gap:7px}.sdk-site .metric{padding:9px 8px}.sdk-site .metric>span{font-size:6px}.sdk-site .metric strong{font-size:24px}.sdk-site .metric strong small{font-size:6px}.sdk-site .metric svg{display:none}
+ .sdk-site .caption{max-width:none;padding:12px 15px}.sdk-site .transport{row-gap:12px}.sdk-tools{font-size:10px}
+}
