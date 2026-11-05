@@ -1,0 +1,52 @@
+name: Prepare tested playback repair
+on:
+  push:
+    branches: [fix/demo-playback-clock]
+    paths: ['.repair/playback.patch', '.github/workflows/prepare-playback.yml']
+permissions:
+  contents: write
+jobs:
+  prepare:
+    if: github.repository == 'natanelia/dom-director' && github.ref == 'refs/heads/fix/demo-playback-clock'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: '3.13'
+      - name: Apply exact locally tested source repair
+        run: |
+          git apply --check --unidiff-zero .repair/playback.patch
+          git apply --unidiff-zero .repair/playback.patch
+          python3 - <<'PY'
+          import hashlib
+          from pathlib import Path
+          expected = {
+            'demo/src/app.js': '441c39eb5d099f7b79d3e300f09ecab8432defbf4f157713e211c36b9b73fe04',
+            'demo/src/model.js': '072cd09603ff008fc13fe900b1ea1a6d001b031c35eb17caee4d296ad4a46741',
+            'demo/tests/browser_test.py': 'a2d9d35c10b7283d3196bad2b00025f19a2ba93eab1eb8d19ea5cab1d39ad60c',
+            'demo/tests/model.test.cjs': 'bf1fd7aaf5944176f649a5386d6d1bc277bb583076b841f6549524cc67855a82',
+            'demo/README.md': '5ea47f0882bc9846d957cd787b872bef52f49a69eae0915648ad24621a17d429',
+            'demo/PLAYBACK-FIX.md': '974e323fef5aeddfc561419218baac84230dd7bd14ac4eda175be584664b6abd'
+          }
+          for name, digest in expected.items():
+              assert hashlib.sha256(Path(name).read_bytes()).hexdigest() == digest, name
+          print('All six files match the locally tested repair.')
+          PY
+      - name: Regenerate self-contained demo and validate
+        run: |
+          python3 demo/build.py
+          node --check demo/src/app.js
+          node --check demo/src/model.js
+          node --test demo/tests/model.test.cjs
+          python3 -m pip install -r requirements-dev.txt
+          python3 tools/check_design.py
+          python3 -m unittest discover -s tests -q
+      - name: Commit only repair files to feature branch
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -- demo/src/app.js demo/src/model.js demo/tests/browser_test.py demo/tests/model.test.cjs demo/README.md demo/PLAYBACK-FIX.md demo/index.html
+          git commit -m 'fix(demo): guard playback clocks and prevent instant completion'
+          git push origin HEAD:fix/demo-playback-clock
