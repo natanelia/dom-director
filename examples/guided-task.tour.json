@@ -1,1 +1,78 @@
-{"schemaVersion":"0.1.0-draft.1","id":"validation-guide","title":"Select a valid item","locale":"en","entryScene":"select","modes":["guide"],"capabilities":["condition:selection.valid"],"targets":{"inspector":{"ref":"editor.inspector"},"summary":{"ref":"editor.summary"}},"defaults":{"easing":"gentle","maxScale":3,"motion":"respect-user","captions":"on"},"scenes":[{"id":"select","title":"Choose a valid item","summary":"Select an item and correct any validation errors. You remain in control.","durationMs":2200,"cues":[{"id":"inspector-frame","kind":"camera","at":0,"durationMs":600,"maxScale":1.6,"target":"inspector"},{"id":"selection-gate","kind":"gate","at":1200,"conditionRef":"selection.valid","timeoutMs":60000,"onTimeout":"pause","instruction":"Select an item that passes validation, or pause and read the instructions."}],"next":"review"},{"id":"review","title":"Review the result","summary":"The host reports that the selection is valid. No save is performed.","durationMs":2500,"cues":[{"id":"summary-frame","kind":"camera","at":0,"durationMs":600,"target":"summary"},{"id":"summary-note","kind":"annotation","at":600,"durationMs":1800,"target":"summary","text":"Review the validated selection. Saving remains your choice."}]}]}
+{
+  "schemaVersion": "0.1.0-draft.1",
+  "id": "validation-guide",
+  "title": "Select a valid item",
+  "locale": "en",
+  "entryScene": "select",
+  "modes": [
+    "guide"
+  ],
+  "capabilities": [
+    "condition:selection.valid"
+  ],
+  "targets": {
+    "inspector": {
+      "ref": "editor.inspector"
+    },
+    "summary": {
+      "ref": "editor.summary"
+    }
+  },
+  "defaults": {
+    "easing": "gentle",
+    "maxScale": 3,
+    "motion": "respect-user",
+    "captions": "on"
+  },
+  "scenes": [
+    {
+      "id": "select",
+      "title": "Choose a valid item",
+      "summary": "Select an item and correct any validation errors. You remain in control.",
+      "durationMs": 2200,
+      "cues": [
+        {
+          "id": "inspector-frame",
+          "kind": "camera",
+          "at": 0,
+          "durationMs": 600,
+          "maxScale": 1.6,
+          "target": "inspector"
+        },
+        {
+          "id": "selection-gate",
+          "kind": "gate",
+          "at": 1200,
+          "conditionRef": "selection.valid",
+          "timeoutMs": 60000,
+          "onTimeout": "pause",
+          "instruction": "Select an item that passes validation, or pause and read the instructions."
+        }
+      ],
+      "next": "review"
+    },
+    {
+      "id": "review",
+      "title": "Review the result",
+      "summary": "The host reports that the selection is valid. No save is performed.",
+      "durationMs": 2500,
+      "cues": [
+        {
+          "id": "summary-frame",
+          "kind": "camera",
+          "at": 0,
+          "durationMs": 600,
+          "target": "summary"
+        },
+        {
+          "id": "summary-note",
+          "kind": "annotation",
+          "at": 600,
+          "durationMs": 1800,
+          "target": "summary",
+          "text": "Review the validated selection. Saving remains your choice."
+        }
+      ]
+    }
+  ]
+}

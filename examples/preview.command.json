@@ -1,1 +1,102 @@
-{"protocolVersion":"0.1.0-draft.1","requestId":"req-preview","sessionId":"session-demo","command":"preview","params":{"mode":"static","script":{"schemaVersion":"0.1.0-draft.1","id":"dashboard-intro","title":"Explore the dashboard","locale":"en","entryScene":"overview","modes":["watch","guide"],"capabilities":[],"targets":{"overview":{"ref":"dashboard.overview"},"filters":{"ref":"dashboard.filters"}},"defaults":{"easing":"gentle","maxScale":3,"motion":"respect-user","captions":"on"},"scenes":[{"id":"overview","title":"Start with the whole view","summary":"The overview shows your current workspace.","durationMs":3000,"cues":[{"id":"show-overview","kind":"camera","at":0,"durationMs":700,"maxScale":1.5,"target":"overview"},{"id":"overview-label","kind":"annotation","at":700,"durationMs":2000,"target":"overview","text":"This is your workspace overview."}],"next":"filters"},{"id":"filters","title":"Narrow the view","summary":"Filters change the items shown. This explanation does not apply a filter.","durationMs":3500,"cues":[{"id":"show-filters","kind":"camera","at":0,"durationMs":700,"paddingPx":48,"maxScale":2.5,"target":"filters"},{"id":"point-filters","kind":"cursor","at":800,"durationMs":600,"target":"filters","gesture":"point"},{"id":"highlight-filters","kind":"highlight","at":700,"durationMs":1800,"target":"filters","style":"outline"},{"id":"back-to-overview","kind":"camera","at":2600,"durationMs":700,"reset":true}]}]}}}
+{
+  "protocolVersion": "0.1.0-draft.1",
+  "requestId": "req-preview",
+  "sessionId": "session-demo",
+  "command": "preview",
+  "params": {
+    "mode": "static",
+    "script": {
+      "schemaVersion": "0.1.0-draft.1",
+      "id": "dashboard-intro",
+      "title": "Explore the dashboard",
+      "locale": "en",
+      "entryScene": "overview",
+      "modes": [
+        "watch",
+        "guide"
+      ],
+      "capabilities": [],
+      "targets": {
+        "overview": {
+          "ref": "dashboard.overview"
+        },
+        "filters": {
+          "ref": "dashboard.filters"
+        }
+      },
+      "defaults": {
+        "easing": "gentle",
+        "maxScale": 3,
+        "motion": "respect-user",
+        "captions": "on"
+      },
+      "scenes": [
+        {
+          "id": "overview",
+          "title": "Start with the whole view",
+          "summary": "The overview shows your current workspace.",
+          "durationMs": 3000,
+          "cues": [
+            {
+              "id": "show-overview",
+              "kind": "camera",
+              "at": 0,
+              "durationMs": 700,
+              "maxScale": 1.5,
+              "target": "overview"
+            },
+            {
+              "id": "overview-label",
+              "kind": "annotation",
+              "at": 700,
+              "durationMs": 2000,
+              "target": "overview",
+              "text": "This is your workspace overview."
+            }
+          ],
+          "next": "filters"
+        },
+        {
+          "id": "filters",
+          "title": "Narrow the view",
+          "summary": "Filters change the items shown. This explanation does not apply a filter.",
+          "durationMs": 3500,
+          "cues": [
+            {
+              "id": "show-filters",
+              "kind": "camera",
+              "at": 0,
+              "durationMs": 700,
+              "paddingPx": 48,
+              "maxScale": 2.5,
+              "target": "filters"
+            },
+            {
+              "id": "point-filters",
+              "kind": "cursor",
+              "at": 800,
+              "durationMs": 600,
+              "target": "filters",
+              "gesture": "point"
+            },
+            {
+              "id": "highlight-filters",
+              "kind": "highlight",
+              "at": 700,
+              "durationMs": 1800,
+              "target": "filters",
+              "style": "outline"
+            },
+            {
+              "id": "back-to-overview",
+              "kind": "camera",
+              "at": 2600,
+              "durationMs": 700,
+              "reset": true
+            }
+          ]
+        }
+      ]
+    }
+  }
+}

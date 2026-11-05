@@ -1,1 +1,72 @@
-{"schemaVersion":"0.1.0-draft.1","id":"fixture-preview","title":"Preview a change in a synthetic fixture","locale":"en","entryScene":"preview","modes":["watch","try"],"capabilities":["action:fixture.setPreview","condition:fixture.previewReady"],"targets":{"preview":{"ref":"fixture.preview"},"result":{"ref":"fixture.result"}},"defaults":{"easing":"gentle","maxScale":3,"motion":"respect-user","captions":"on"},"scenes":[{"id":"preview","title":"Demonstrate a fixture change","summary":"This named action is permitted only in the host-provided isolated fixture.","durationMs":3000,"cues":[{"id":"preview-frame","kind":"camera","at":0,"durationMs":500,"target":"preview"},{"id":"preview-action","kind":"action","at":800,"actionRef":"fixture.setPreview","args":{"value":"Example label"},"timeoutMs":5000},{"id":"preview-result-gate","kind":"gate","at":1600,"conditionRef":"fixture.previewReady","timeoutMs":10000,"onTimeout":"pause","instruction":"Wait for the host to confirm the synthetic preview."},{"id":"fixture-result-frame","kind":"camera","at":1900,"durationMs":600,"target":"result"}]}]}
+{
+  "schemaVersion": "0.1.0-draft.1",
+  "id": "fixture-preview",
+  "title": "Preview a change in a synthetic fixture",
+  "locale": "en",
+  "entryScene": "preview",
+  "modes": [
+    "watch",
+    "try"
+  ],
+  "capabilities": [
+    "action:fixture.setPreview",
+    "condition:fixture.previewReady"
+  ],
+  "targets": {
+    "preview": {
+      "ref": "fixture.preview"
+    },
+    "result": {
+      "ref": "fixture.result"
+    }
+  },
+  "defaults": {
+    "easing": "gentle",
+    "maxScale": 3,
+    "motion": "respect-user",
+    "captions": "on"
+  },
+  "scenes": [
+    {
+      "id": "preview",
+      "title": "Demonstrate a fixture change",
+      "summary": "This named action is permitted only in the host-provided isolated fixture.",
+      "durationMs": 3000,
+      "cues": [
+        {
+          "id": "preview-frame",
+          "kind": "camera",
+          "at": 0,
+          "durationMs": 500,
+          "target": "preview"
+        },
+        {
+          "id": "preview-action",
+          "kind": "action",
+          "at": 800,
+          "actionRef": "fixture.setPreview",
+          "args": {
+            "value": "Example label"
+          },
+          "timeoutMs": 5000
+        },
+        {
+          "id": "preview-result-gate",
+          "kind": "gate",
+          "at": 1600,
+          "conditionRef": "fixture.previewReady",
+          "timeoutMs": 10000,
+          "onTimeout": "pause",
+          "instruction": "Wait for the host to confirm the synthetic preview."
+        },
+        {
+          "id": "fixture-result-frame",
+          "kind": "camera",
+          "at": 1900,
+          "durationMs": 600,
+          "target": "result"
+        }
+      ]
+    }
+  ]
+}
