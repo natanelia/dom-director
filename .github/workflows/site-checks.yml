@@ -33,7 +33,9 @@ jobs:
           python3 site-tests/build_test.py
       - name: Build allowlisted public site with prepared audio
         run: |
-          ffmpeg -version | head -n 1
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends ffmpeg
+          ffmpeg -version
           python3 tools/build_site.py
       - name: Install browser with bounded downloads
         env:
