@@ -23,14 +23,14 @@ jobs:
       - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
         with:
           python-version: '3.13'
+      - name: Embed canonical runtime schemas
+        run: python3 tools/build_runtime.py
       - name: Pure runtime tests
         run: node --test packages/core/test/*.test.js
-      - name: Install browser
+      - name: Install browser with bounded official-mirror downloads
         env:
           BROWSER_ENGINE: ${{ matrix.browser }}
-        run: |
-          python3 -m pip install -r demo/requirements-browser.txt
-          python3 -m playwright install --with-deps "$BROWSER_ENGINE"
+        run: bash tools/install_test_browser.sh
       - name: Browser integration
         env:
           BROWSER_ENGINE: ${{ matrix.browser }}

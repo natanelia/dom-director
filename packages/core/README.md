@@ -4,6 +4,10 @@ Framework-neutral ES modules. No runtime dependencies, network requests, automat
 DOM reparenting, or publication credentials. Package publication is deliberately
 disabled; the name is a local candidate, not a claim of registry availability.
 
+From a source checkout, run `python3 tools/build_runtime.py` once from the repository
+root to embed the canonical schemas. The camera-only `src/surface.js` entry does
+not require this build. Packed runtime artifacts include the generated schemas.
+
 ```js
 import {createCamera} from './packages/core/src/index.js';
 const camera = createCamera({
@@ -37,3 +41,18 @@ Reduced motion resets to the non-moving overview. Focus never steals keyboard fo
 Run pure tests: `node --test packages/core/test/*.test.js`.
 Run actual HTTP fixtures: `python3 runtime-tests/surface_test.py` after installing
 the repository's Playwright test dependencies and the selected browser.
+
+## Data-only compilation
+
+`compile(jsonTextOrPlainObject)` returns a frozen plan or bounded diagnostics.
+It uses the canonical draft schema, resolves narration anchors, validates graph
+reachability and track conflicts, and never resolves a target or fetches an asset.
+`preview` lists the planned scenes and capabilities without copying action arguments.
+JSON text with duplicate keys, reserved keys, invalid Unicode, excessive nesting,
+non-finite values, or excessive size is rejected. Host object input must be ordinary
+plain data, not accessors, class instances, or proxies. Treat JSON text as the
+untrusted transport boundary; host resolver functions are separately trusted code.
+
+The presentation session is currently an internal model: its barriers cannot
+execute host work without an explicit host adapter. Its DOM facade is the next
+implementation slice. Declaration of a capability is not authorization.
