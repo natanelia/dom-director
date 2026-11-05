@@ -8,3 +8,4 @@ export {sampleVisual} from './visual.js';
 export {mountControls} from './controls.js';
 export {NarrationClock,captionsToVTT} from './narration.js';
 export {createGuidance} from './guidance.js';
+export {createCheckpointStore} from './checkpoints.js';
