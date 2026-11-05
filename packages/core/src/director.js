@@ -7,21 +7,23 @@ import {DirectorError,requireValue,diagnostic} from './errors.js';
 import {freezeData} from './json.js';
 import {IDENTITY} from './geometry.js';
 import {createFrameLoop} from './frame-loop.js';
+import {NarrationClock,captionsToVTT} from './narration.js';
 let serial=0;
 class PlanError extends DirectorError {constructor(diagnostics){super('COMPILE_FAILED','Script validation failed.','compile');this.diagnostics=diagnostics;}}
 /** Browser host facade. Expected command failures return structured Results. */
-export function createDirector({surface:surfaceOptions,targets={},registry:createRegistry,mode='watch',scheduler,barriers,clock}={}){
+export function createDirector({surface:surfaceOptions,targets={},registry:createRegistry,mode='watch',scheduler,barriers,clock,narration}={}){
+  requireValue(!narration||(!clock&&typeof narration.resolveAsset==='function'),'MEDIA_OPTIONS','Provide a narration resolver or a custom clock, not both.');
   const surface=createSurface(surfaceOptions),doc=surface.scene.ownerDocument,win=doc.defaultView;
   let renderer,registry;
   try{registry=createRegistry||createTargetRegistry(targets);renderer=createRenderer(surface,registry);}catch(error){surface.destroy();throw error;}
   const timing=scheduler||{now:()=>win.performance.now(),request:fn=>win.requestAnimationFrame(fn),cancel:id=>win.cancelAnimationFrame(id)};
   const preferences=win.matchMedia('(prefers-reduced-motion: reduce)'),listeners=new Set(),frames=new Set(),cleanups=[];
-  let session=null,plan=null,info=null,destroyed=false,reduced=preferences.matches,revision=0,lastVisual=null,focusRecord=null;
+  let session=null,plan=null,info=null,destroyed=false,reduced=preferences.matches,revision=0,lastVisual=null,focusRecord=null,captions=true,mediaClock=null;
   const sessionId='director.'+(++serial);
   function safeNotify(set,event){for(const listener of [...set]){try{listener(event);}catch{/* Application subscribers are isolated. */}}}
   const loop=createFrameLoop(timing,()=>!destroyed&&session?.running,()=>session.tick(),error=>session.fail(error));
   function schedule(){loop.sync();}
-  function render(state){if(!plan||destroyed)return;try{lastVisual=renderer.render(plan,state,{reduced,animate:session?.running});safeNotify(frames,{...state,caption:lastVisual.caption});}catch(error){session?.fail(error);schedule();}}
+  function render(state){if(!plan||destroyed)return;try{lastVisual=renderer.render(plan,state,{reduced,animate:session?.running});mediaClock?.observePresentation(state.timeMs);safeNotify(frames,{...state,caption:captions?lastVisual.caption:''});}catch(error){session?.fail(error);schedule();}}
   function event(value){revision++;safeNotify(listeners,{...value,sessionId,revision});schedule();}
   function live(){requireValue(!destroyed,'DESTROYED','The director has been destroyed.');}
   function loaded(){live();requireValue(session,'NOT_LOADED','Load a script before controlling playback.');}
@@ -40,7 +42,11 @@ export function createDirector({surface:surfaceOptions,targets={},registry:creat
       for(const target of Object.values(result.plan.script.targets))requireValue(registry.has(target.ref),'TARGET_UNREGISTERED','The script names an unregistered host target.');
       session?.destroy();renderer.clear();plan=result.plan;
       info=freezeData({id:plan.script.id,title:plan.script.title,locale:plan.script.locale,modes:[...plan.script.modes],scenes:plan.script.scenes.map(scene=>({id:scene.id,title:scene.title,summary:scene.summary,durationMs:scene.durationMs,transcript:scene.narration?.transcript||scene.summary,captions:scene.narration?.cues||[]}))});
-      session=new Session(plan,{now:timing.now,mode,barriers,clock,onEvent:event,onFrame:render});
+      mediaClock=narration?new NarrationClock({...narration,now:timing.now,
+        createAudio:narration.createAudio||(()=>new win.Audio()),
+        resolveAsset:id=>narration.resolveAsset(id,plan.script.assets?.[id]),
+        onChange:(type,media)=>{if(session&&!destroyed){session.emit(type,{media});render(session.inspect());}}}):null;
+      session=new Session(plan,{now:timing.now,mode,barriers,clock:mediaClock||clock,onEvent:event,onFrame:render});
       render(session.inspect());requireValue(session.status!=='error','PREPARE_FAILED','The initial visual state could not be prepared.');return session.inspect();
     });},
     play(){return command(()=>{loaded();requireValue(!doc.hidden,'PAGE_HIDDEN','Playback requires a visible page.');renderer.invalidate();renderer.render(plan,session.inspect(),{reduced});session.reasons.delete('error');const result=session.play();schedule();return result;});},
@@ -51,8 +57,12 @@ export function createDirector({surface:surfaceOptions,targets={},registry:creat
     next(){return command(()=>{loaded();const value=session.next();schedule();return value;});},
     extendWait(){return command(()=>{loaded();session.extendWait();return session.inspect();});},
     stop(){return command(()=>{loaded();const value=session.stop();renderer.clear();surface.apply(IDENTITY);schedule();return value;});},
+    setNarrationEnabled(value){return command(()=>{loaded();requireValue(mediaClock,'MEDIA_UNAVAILABLE','No narration adapter is configured.');mediaClock.setEnabled(value);schedule();return api.inspect();});},
+    setVolume(value){return command(()=>{loaded();requireValue(mediaClock,'MEDIA_UNAVAILABLE','No narration adapter is configured.');mediaClock.setVolume(value);return api.inspect();});},
+    setCaptions(value){return command(()=>{requireValue(typeof value==='boolean','INVALID_OPTION','Caption preference must be boolean.');captions=value;if(session){session.emit('captions-changed');render(session.inspect());}return api.inspect();});},
+    exportCaptions(sceneId){return command(()=>{loaded();const scene=plan.scenes[sceneId||session.scene.id];requireValue(scene,'SCENE_REFERENCE','Scene is not defined.');return captionsToVTT(scene.narration?.cues||[]);});},
     describe(){return info;},
-    inspect(){return {sessionId,revision,status:destroyed?'destroyed':session?.status||'idle',...(session?.inspect()||{}),revision,caption:lastVisual?.caption||'',reducedMotion:reduced,geometryReads:renderer.geometryReads};},
+    inspect(){return {sessionId,revision,status:destroyed?'destroyed':session?.status||'idle',...(session?.inspect()||{}),revision,caption:captions?(lastVisual?.caption||''):'',captionsEnabled:captions,narration:mediaClock?.inspect()||null,reducedMotion:reduced,geometryReads:renderer.geometryReads};},
     on(listener){live();listeners.add(listener);return()=>listeners.delete(listener);},
     onFrame(listener){live();frames.add(listener);return()=>frames.delete(listener);},
     waitForCompletion(runId,{signal}={}){
