@@ -2,24 +2,31 @@
 
 **Updated: 5 November 2026. Scope: design artifacts, offline validation tooling, and a separate fixture demo.**
 
-## Local results
+## Results
 
-**PASS: 79 design-tool unit tests, 10 demo-model tests, and 14 Chromium fixture tests.** These suites were rerun before importing the project into the private GitHub repository. The design checker also passed. The 103 tests are distinct test methods, not an inflated sum of data-driven subcases.
+**PASS: 79 design-tool unit tests, 10 demo-model tests, and 14 Chromium fixture tests.** These suites passed locally before import and in the [GitHub import-validation run](https://github.com/natanelia/dom-director/actions/runs/41954752262). The design checker and bundled-demo freshness check passed too. The 103 tests are distinct test methods, not an inflated sum of data-driven subcases.
+
+The import also verified SHA-256 hashes of the validator and test source, canonical content hashes of all schemas and JSON examples, and the exact original 112-requirement manifest. JSON was reformatted without changing its contents.
 
 Repository design checks cover three JSON Schemas, six example tours, two agent-command examples, one diagnostic example, the narration caption sidecar, local Markdown file paths, 112 requirement records, and 19 backlog items including the flagship-demo workstream. Requirements have exactly one primary backlog mapping and the dependency graph is acyclic. All reusable-runtime requirements remain `proposed`; planned acceptance-test identifiers are not implemented runtime tests.
 
 The separate demo's test setup and limitations are recorded in [demo/VALIDATION.md](../demo/VALIDATION.md). A fixture-specific player does not establish that the proposed reusable SDK exists.
 
-## Commands run for the repository import
+## Commands
 
 ```sh
 python3 tools/check_design.py
-python3 -m unittest discover -s tests -q
+python3 -m unittest discover -s tests -v
+python3 demo/build.py
+node --check demo/src/model.js
+node --check demo/src/app.js
 node --test demo/tests/model.test.cjs
-BROWSER_EXECUTABLE=/usr/bin/chromium python3 demo/tests/browser_test.py
+python3 demo/tests/browser_test.py
 ```
 
-The local environment uses Python 3.13, the pinned `jsonschema`/`referencing` development dependencies, Node 22, and system Chromium through Playwright. Browser tests render the complete document in memory; they do not establish that a hosted site or a real mobile device was tested.
+The local environment uses Python 3.13, the pinned `jsonschema`/`referencing` development dependencies, Node 22, and system Chromium through Playwright. Local browser execution supplied `BROWSER_EXECUTABLE=/usr/bin/chromium`. GitHub used Ubuntu 24.04, Python 3.13, and the Chromium installed by pinned Playwright 1.57.0. The workflow logs provide the actual runner details.
+
+Browser tests render the complete document in memory; they do not establish that a hosted site or a real mobile device was tested.
 
 ## What the design tests establish
 
@@ -37,6 +44,8 @@ The local link checker verifies file paths, not heading anchors or external webs
 
 ## GitHub and publication status
 
-The owner created the private `natanelia/dom-director` repository. The source import uses normal non-forced commits. GitHub successfully ran the initial demo bootstrap, generating its bundled HTML and narration and passing the 24 demo tests. The full design/CI results must be read from the actual [Actions runs](https://github.com/natanelia/dom-director/actions); local results are not a substitute for those results.
+The owner created the private `natanelia/dom-director` repository. The source import used normal non-forced commits. The initial [demo bootstrap](https://github.com/natanelia/dom-director/actions/runs/41952512249) generated the bundled HTML and narration and passed the 24 demo tests. The subsequent import-validation run linked above passed all 103 tests.
 
-No public demo site, npm package, release, or change to repository visibility is part of this import. Temporary asset-import workflows are removed after their bounded work, leaving read-only validation CI.
+Both temporary import workflows have been removed. The remaining read-only validation workflow reruns the suites on pushes and pull requests. Check the latest [Actions runs](https://github.com/natanelia/dom-director/actions) for the result associated with any later commit; an earlier green run does not certify later changes.
+
+No public demo site, npm package, release, or change to repository visibility is part of this import.
