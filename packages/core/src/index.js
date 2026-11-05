@@ -9,3 +9,4 @@ export {mountControls} from './controls.js';
 export {NarrationClock,captionsToVTT} from './narration.js';
 export {createGuidance} from './guidance.js';
 export {createCheckpointStore} from './checkpoints.js';
+export {createAgentBridge, proposeTargetRepair, AGENT_COMMANDS, AGENT_PROTOCOL_VERSION} from './agent.js';
