@@ -82,8 +82,18 @@ class PlayerTests(BrowserFixture):
         before=self.page.evaluate('director.inspect().geometryReads');self.page.wait_for_timeout(250)
         after=self.page.evaluate('director.inspect().geometryReads');self.assertLessEqual(after-before,1)
     def test_dynamic_target_keeps_camera_advancing_and_completion_cleans_up(self):
-        self.prepare();self.page.evaluate("director.play();window.mover=setInterval(()=>{document.querySelector('#target').style.left=(480+Math.sin(performance.now()/100)*10)+'px';director.registry.invalidate()},16)")
-        self.page.wait_for_timeout(320);pose=self.page.evaluate('director.surface.pose');self.assertGreater(pose['scale'],1.01)
+        self.prepare()
+        self.page.evaluate("window.diagnostics=[];director.on(event=>{if(event.detail?.diagnostic)window.diagnostics.push(event.detail.diagnostic)})")
+        result=self.page.evaluate('director.play()')
+        self.assertTrue(result['ok'],result)
+        self.page.evaluate("window.mover=setInterval(()=>{document.querySelector('#target').style.left=(480+Math.sin(performance.now()/100)*10)+'px';director.registry.invalidate()},16)")
+        self.page.wait_for_timeout(320)
+        state=self.page.evaluate('director.inspect()')
+        details={'play':result,'state':state,'diagnostics':self.page.evaluate('window.diagnostics')}
+        pose=self.page.evaluate('director.surface.pose')
+        self.assertEqual(state['status'],'playing',details)
+        self.assertGreater(state['timeMs'],150,details)
+        self.assertGreater(pose['scale'],1.01,details)
         self.page.evaluate('clearInterval(mover);director.pause()')
         result=self.page.evaluate("async()=>{const pending=director.waitForCompletion(director.inspect().runId);director.stop();return await pending}")
         self.assertEqual(result['status'],'cancelled')
@@ -101,6 +111,29 @@ class PlayerTests(BrowserFixture):
     def test_transcript_remains_readable_when_initial_target_is_missing(self):
         self.page.evaluate("window.director=create();document.querySelector('#target').remove();director.load(tour);window.controls=sdk.mountControls(director,document.querySelector('#controls'))")
         self.page.locator('[data-director-controls] summary').click();self.assertIn('Find Save.',self.page.locator('[data-director-controls] details').inner_text())
+    def test_prior_route_targets_can_unmount_after_scene_completion(self):
+        self.page.evaluate("""() => {
+          const second=document.createElement('button');second.id='second';second.textContent='New route';
+          second.style.cssText='position:absolute;left:240px;top:160px;width:100px;height:60px';
+          document.querySelector('#scene').append(second);
+          const script=structuredClone(tour);script.targets.second={ref:'app.second'};
+          script.scenes[0].durationMs=150;script.scenes[0].next='second';
+          script.scenes[0].cues=[{id:'first-focus',kind:'camera',at:0,durationMs:100,target:'save',maxScale:2}];delete script.scenes[0].narration;
+          script.scenes.push({id:'second',title:'Second',summary:'New route',durationMs:2000,cues:[{id:'second-focus',kind:'camera',at:0,durationMs:100,target:'second',maxScale:2}]});
+          window.director=sdk.createDirector({surface:options(),targets:{'app.save':()=>document.querySelector('#target'),'app.second':()=>document.querySelector('#second')}});
+          if(!director.load(script).ok)throw new Error('load failed');
+          director.on(event=>{if(event.type==='scene-completed'&&event.sceneId==='intro')document.querySelector('#target').remove()});
+          director.play();
+        }""")
+        self.page.wait_for_timeout(500)
+        state=self.page.evaluate('director.inspect()')
+        self.assertEqual(state['sceneId'],'second',state)
+        self.assertEqual(state['status'],'playing',state)
+    def test_unsupported_mode_preserves_current_script(self):
+        self.prepare()
+        result=self.page.evaluate("()=>{const bad=structuredClone(tour);bad.modes=['guide'];return director.load(bad)}")
+        self.assertFalse(result['ok'])
+        self.assertTrue(self.page.evaluate('director.play().ok'))
     def test_unregistered_reference_preserves_current_script(self):
         self.prepare();result=self.page.evaluate("()=>{const bad=structuredClone(tour);bad.targets.save.ref='missing';return director.load(bad)}")
         self.assertFalse(result['ok']);self.assertEqual(self.page.evaluate('director.inspect().sceneId'),'intro')

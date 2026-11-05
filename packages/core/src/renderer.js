@@ -11,7 +11,7 @@ export function createRenderer(surface,registry){
       !/(paint|layout|strict|content)/u.test(css.contain), 'OVERLAY_UNSUPPORTED','Overlay ancestors must not create a transformed fixed-position containing block.');
   }
   root.dataset.directorOverlay='';root.style.cssText='position:fixed;inset:0;pointer-events:none;z-index:2147483000';surface.overlay.append(root);
-  const cache=createGeometryCache(surface,registry);let lastRevision='',lastPose=IDENTITY,correction=null,lastVisit='';
+  const endpoints=new Map(),cache=createGeometryCache(surface,registry);let lastRevision='',lastPose=IDENTITY,correction=null,lastVisit='';
   function nodeFor(cue){
     let node=nodes.get(cue.id);if(node)return node;
     node=doc.createElement('div');node.dataset.cue=cue.id;node.dataset.kind=cue.kind;
@@ -31,12 +31,20 @@ export function createRenderer(surface,registry){
   return {get geometryReads(){return cache.reads;},invalidate(){cache.invalidate();},
     render(plan,snapshot,{reduced=false,animate=false}={}){
       const refs=[];
-      for(const visit of snapshot.path){const scene=plan.scenes[visit.sceneId],time=visit.visitId===snapshot.visitId?snapshot.timeMs:scene.durationMs;refs.push(...neededTargets(scene,time));}
+      for(const visit of snapshot.path){
+        if(visit.visitId!==snapshot.visitId&&endpoints.has(visit.visitId))continue;
+        const scene=plan.scenes[visit.sceneId],time=visit.visitId===snapshot.visitId?snapshot.timeMs:scene.durationMs;refs.push(...neededTargets(scene,time));
+      }
       const ids=refs.map(alias=>plan.script.targets[alias].ref),measurement=cache.measure(ids),bounds=Object.create(null);
       for(const alias of refs)bounds[alias]=measurement.bounds[plan.script.targets[alias].ref];
       let initial=IDENTITY,result;
-      for(const visit of snapshot.path){const scene=plan.scenes[visit.sceneId],time=visit.visitId===snapshot.visitId?snapshot.timeMs:scene.durationMs;
-        result=sampleVisual(scene,time,bounds,measurement.box,{initial,reduced:reduced||surface.kind==='overlay-only',defaults:plan.script.defaults});initial=result.camera;}
+      for(const visit of snapshot.path){
+        const scene=plan.scenes[visit.sceneId],current=visit.visitId===snapshot.visitId,time=current?snapshot.timeMs:scene.durationMs;
+        // Completed visits do not require targets from a previous route to remain mounted.
+        if(!current&&endpoints.has(visit.visitId)){initial=endpoints.get(visit.visitId);continue;}
+        result=sampleVisual(scene,time,bounds,measurement.box,{initial,reduced:reduced||surface.kind==='overlay-only',defaults:plan.script.defaults});initial=result.camera;
+        if(!current)endpoints.set(visit.visitId,{...initial});
+      }
       const revision=String(measurement.geometryRevision);
       if(animate&&!reduced&&!correction&&lastRevision&&revision!==lastRevision&&snapshot.visitId===lastVisit)
         correction={from:lastPose,start:snapshot.timeMs};
@@ -45,6 +53,7 @@ export function createRenderer(surface,registry){
       lastRevision=revision;lastVisit=snapshot.visitId;lastPose=result.camera;
       // All geometry reads finished before any transform/overlay writes.
       surface.apply(result.camera);
+      if(snapshot.timeMs>=plan.scenes[snapshot.sceneId].durationMs)endpoints.set(snapshot.visitId,{...result.camera});
       const visible=new Set();
       for(const cue of result.overlays){
         visible.add(cue.id);const node=nodeFor(cue),target=clientBounds(bounds[cue.target],result.camera,measurement.origin);
@@ -65,7 +74,7 @@ export function createRenderer(surface,registry){
       }
       for(const [id,node]of nodes)if(!visible.has(id)){node.remove();nodes.delete(id);}
       return result;
-    },clear(){for(const node of nodes.values())node.remove();nodes.clear();correction=null;lastRevision='';lastVisit='';},
-    destroy(){cache.destroy();root.remove();nodes.clear();}
+    },clear(){for(const node of nodes.values())node.remove();nodes.clear();endpoints.clear();correction=null;lastRevision='';lastVisit='';},
+    destroy(){cache.destroy();root.remove();nodes.clear();endpoints.clear();}
   };
 }

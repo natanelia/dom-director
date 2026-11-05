@@ -34,6 +34,7 @@ export function createDirector({surface:surfaceOptions,targets={},registry:creat
   const api={sessionId,registry,surface,
     load(input){return command(()=>{
       const result=compile(input);if(!result.ok){throw new PlanError(result.diagnostics);}
+      requireValue(result.plan.script.modes.includes(mode),'MODE_UNAVAILABLE','This script does not offer the selected mode.');
       for(const target of Object.values(result.plan.script.targets))requireValue(registry.has(target.ref),'TARGET_UNREGISTERED','The script names an unregistered host target.');
       session?.destroy();renderer.clear();plan=result.plan;
       info=freezeData({id:plan.script.id,title:plan.script.title,locale:plan.script.locale,modes:[...plan.script.modes],scenes:plan.script.scenes.map(scene=>({id:scene.id,title:scene.title,summary:scene.summary,durationMs:scene.durationMs,transcript:scene.narration?.transcript||scene.summary,captions:scene.narration?.cues||[]}))});

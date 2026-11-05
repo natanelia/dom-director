@@ -71,7 +71,7 @@ export function createSurface({viewport, scene, overlay, kind='managed-dom', all
       const client=rect(target.getBoundingClientRect()), member=scene.contains(target)&&!topLayer(target)&&strategy==='managed-dom';
       if(member){
         checkChain(target,scene,win,true);
-        for(let ancestor=parentOf(target);ancestor&&ancestor!==scene;ancestor=parentOf(ancestor)){
+        for(let ancestor=target===scene?null:parentOf(target);ancestor&&ancestor!==scene;ancestor=parentOf(ancestor)){
           const style=win.getComputedStyle(ancestor),box=ancestor.getBoundingClientRect();
           const factor=ancestor.offsetWidth?box.width/ancestor.offsetWidth:scale;
           const left=box.left+ancestor.clientLeft*factor,top=box.top+ancestor.clientTop*factor;
@@ -144,8 +144,8 @@ export function createCamera(options) {
   function move(target, {durationMs=700,easing='gentle',signal,...framing}={}) {
     requireValue(!destroyed,'DESTROYED','The camera has been destroyed.');
     requireValue(Number.isFinite(durationMs)&&durationMs>=0&&durationMs<=60000,'INVALID_TIME','Invalid camera duration.');
-    interpolate(IDENTITY,IDENTITY,0,easing); // Validate even for reduced-motion/no-op transitions.
-    const to=endPose(target,framing); // Validate before interrupting the current motion.
+    interpolate(IDENTITY,IDENTITY,0,easing);
+    const to=endPose(target,framing);
     cancel();
     if(signal?.aborted)return Promise.resolve({status:'interrupted',pose:surface.pose});
     return new Promise(resolve=>{

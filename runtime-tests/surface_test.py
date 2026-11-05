@@ -65,6 +65,12 @@ class SurfaceTests(BrowserFixture):
     def test_bad_insets_and_observer_errors_do_not_leak_ownership(self):
         self.assertEqual(self.page.evaluate("(()=>{try{sdk.createCamera({...options(),insets:{left:-1}})}catch(e){return e.diagnostic.code}})()"),'INVALID_SAFE_AREA')
         self.page.evaluate("()=>{const c=sdk.createCamera(options());c.surface.subscribe(()=>{throw new Error('host error')});c.surface.invalidate();c.destroy();}")
+    def test_scene_overview_can_fit_a_narrow_viewport(self):
+        self.page.evaluate("document.querySelector('#viewport').style.width='320px';window.camera=sdk.createCamera(options())")
+        result=self.page.evaluate("camera.focus(document.querySelector('#scene'),{durationMs:0,minScale:.1})")
+        self.assertEqual(result['status'],'completed')
+        self.assertLess(result['pose']['scale'],1)
+        self.page.evaluate('camera.destroy()')
     def test_lifecycle_100_cycles_releases_lease_and_styles(self):
         self.assertTrue(self.page.evaluate('''async()=>{for(let i=0;i<100;i++){const c=sdk.createCamera(options());await c.focus(document.querySelector('#target'),{durationMs:0});c.destroy();}return document.querySelector('#scene').style.transform==='';}'''))
 if __name__=='__main__':unittest.main(verbosity=2)
