@@ -6,6 +6,7 @@ import {Session} from './session.js';
 import {DirectorError,requireValue,diagnostic} from './errors.js';
 import {freezeData} from './json.js';
 import {IDENTITY} from './geometry.js';
+import {createFrameLoop} from './frame-loop.js';
 let serial=0;
 class PlanError extends DirectorError {constructor(diagnostics){super('COMPILE_FAILED','Script validation failed.','compile');this.diagnostics=diagnostics;}}
 /** Browser host facade. Expected command failures return structured Results. */
@@ -15,10 +16,11 @@ export function createDirector({surface:surfaceOptions,targets={},registry:creat
   try{registry=createRegistry||createTargetRegistry(targets);renderer=createRenderer(surface,registry);}catch(error){surface.destroy();throw error;}
   const timing=scheduler||{now:()=>win.performance.now(),request:fn=>win.requestAnimationFrame(fn),cancel:id=>win.cancelAnimationFrame(id)};
   const preferences=win.matchMedia('(prefers-reduced-motion: reduce)'),listeners=new Set(),frames=new Set(),cleanups=[];
-  let session=null,plan=null,info=null,frameId=null,destroyed=false,reduced=preferences.matches,revision=0,lastVisual=null,focusRecord=null;
+  let session=null,plan=null,info=null,destroyed=false,reduced=preferences.matches,revision=0,lastVisual=null,focusRecord=null;
   const sessionId='director.'+(++serial);
   function safeNotify(set,event){for(const listener of [...set]){try{listener(event);}catch{/* Application subscribers are isolated. */}}}
-  function schedule(){if(frameId!==null)timing.cancel(frameId);frameId=null;if(!destroyed&&session?.running)frameId=timing.request(()=>{frameId=null;try{session.tick();}catch(error){session.fail(error);}schedule();});}
+  const loop=createFrameLoop(timing,()=>!destroyed&&session?.running,()=>session.tick(),error=>session.fail(error));
+  function schedule(){loop.sync();}
   function render(state){if(!plan||destroyed)return;try{lastVisual=renderer.render(plan,state,{reduced,animate:session?.running});safeNotify(frames,{...state,caption:lastVisual.caption});}catch(error){session?.fail(error);schedule();}}
   function event(value){revision++;safeNotify(listeners,{...value,sessionId,revision});schedule();}
   function live(){requireValue(!destroyed,'DESTROYED','The director has been destroyed.');}
@@ -66,7 +68,7 @@ export function createDirector({surface:surfaceOptions,targets={},registry:creat
     },
     setReducedMotion(value){return command(()=>{requireValue(typeof value==='boolean','INVALID_OPTION','Motion preference must be boolean.');reduced=preferences.matches||value;if(session){session.emit('motion-preference-changed');render(session.inspect());}else event({type:'motion-preference-changed',status:'idle'});return api.inspect();});},
     focusTarget(id){return command(()=>{loaded();session.pause();const target=registry.resolve(id).element;requireValue(target&&typeof target.focus==='function','FOCUS_UNAVAILABLE','Target cannot receive focus.');focusRecord={previous:doc.activeElement,target};target.focus({preventScroll:true});return api.inspect();});},
-    destroy(){if(destroyed)return;session?.destroy();destroyed=true;if(frameId!==null)timing.cancel(frameId);frameId=null;cleanups.forEach(fn=>fn());renderer.destroy();surface.destroy();listeners.clear();frames.clear();if(focusRecord&&doc.activeElement===focusRecord.target&&focusRecord.previous?.isConnected)focusRecord.previous.focus({preventScroll:true});}
+    destroy(){if(destroyed)return;session?.destroy();destroyed=true;loop.destroy();cleanups.forEach(fn=>fn());renderer.destroy();surface.destroy();listeners.clear();frames.clear();if(focusRecord&&doc.activeElement===focusRecord.target&&focusRecord.previous?.isConnected)focusRecord.previous.focus({preventScroll:true});}
   };
   return api;
 }

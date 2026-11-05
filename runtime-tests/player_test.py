@@ -87,12 +87,16 @@ class PlayerTests(BrowserFixture):
         result=self.page.evaluate('director.play()')
         self.assertTrue(result['ok'],result)
         self.page.evaluate("window.mover=setInterval(()=>{document.querySelector('#target').style.left=(480+Math.sin(performance.now()/100)*10)+'px';director.registry.invalidate()},16)")
-        self.page.wait_for_timeout(320)
+        # Require sustained progress within a deadline, not a particular first-rAF latency.
+        self.page.wait_for_function('director.inspect().timeMs > 150', polling=50, timeout=2000)
+        before=self.page.evaluate('director.inspect().timeMs')
+        self.page.wait_for_function('(before)=>director.inspect().timeMs > before+150', arg=before, polling=50, timeout=2000)
         state=self.page.evaluate('director.inspect()')
         details={'play':result,'state':state,'diagnostics':self.page.evaluate('window.diagnostics')}
         pose=self.page.evaluate('director.surface.pose')
         self.assertEqual(state['status'],'playing',details)
-        self.assertGreater(state['timeMs'],150,details)
+        self.assertGreater(state['timeMs'],before+150,details)
+        self.assertLess(state['timeMs'],4500,details)
         self.assertGreater(pose['scale'],1.01,details)
         self.page.evaluate('clearInterval(mover);director.pause()')
         result=self.page.evaluate("async()=>{const pending=director.waitForCompletion(director.inspect().runId);director.stop();return await pending}")
