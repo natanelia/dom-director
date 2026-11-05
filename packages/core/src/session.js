@@ -1,7 +1,7 @@
-import {DirectorError,requireValue,diagnostic} from './errors.js';
+import {DirectorError, requireValue, diagnostic} from './errors.js';
 import {TimelineClock} from './clock.js';
 let serial=0;
-/** Presentation state machine. Seeking never calls the host barrier handler. */
+/** Deterministic scene coordinator. Visual sampling never calls the host barrier handler. */
 export class Session {
   constructor(plan,{now=()=>performance.now(),clock,mode='watch',barriers,onEvent=()=>{},onFrame=()=>{}}={}){
     requireValue(plan.script.modes.includes(mode),'MODE_UNAVAILABLE','This script does not offer the requested mode.');
@@ -18,7 +18,7 @@ export class Session {
   live(){requireValue(!this.destroyed,'DESTROYED','The session has been destroyed.');}
   inspect(){return Object.freeze({runId:this.runId,revision:this.revision,status:this.status,mode:this.mode,
     sceneId:this.scene.id,visitId:this.path[this.cursor].visitId,timeMs:this.time,durationMs:this.scene.durationMs,rate:this.clock.rate,
-    path:this.path.slice(0,this.cursor+1).map(v=>({...v})),waitingFor:this.pending?{cueId:this.pending.cue.id,kind:this.pending.cue.kind}:null,
+    path:this.path.slice(0,this.cursor+1).map(v=>({...v})),waitingFor:this.pending?{cueId:this.pending.cue.id,kind:this.pending.cue.kind,instruction:this.pending.cue.instruction||'Waiting for the host operation.',hints:this.barriers?.hints?.(this.pending.cue.conditionRef)||[],error:this.pending.error||null}:null,
     incomplete:this.skipped.size>0,choices:this.reasons.has('choice')?(this.scene.choices||[]).map(c=>({...c})):[],reasons:[...this.reasons],nominalDurationMs:this.path.slice(0,this.cursor+1).reduce((n,v)=>n+this.plan.scenes[v.sceneId].durationMs,0)});}
   emit(type,detail={}){this.revision++;try{this.onEvent(Object.freeze({type,sequence:++this.sequence,...this.inspect(),detail}));}catch{/* Host observers cannot break cleanup or playback. */}}
   frame(){if(!this.destroyed)this.onFrame(this.inspect());}
@@ -73,11 +73,11 @@ export class Session {
       const control=this.controlEpoch;
       this.emit(skipping?'condition-skipped':cue.kind==='gate'?'condition-satisfied':'action-completed',{cueId:cue.id});
       if(this.destroyed||control!==this.controlEpoch)return;
-      if(skipping){if(this.scene.next)this.enter(this.scene.next);else this.reasons.add('complete');}
+      if(skipping){if(this.scene.next)this.enter(this.scene.next);else{this.reasons.add('complete');this.emit('completed');}}
       if(this.running){this.clock.setTime(this.time);this.clock.start();}this.frame();
     }).catch(error=>{
       if(this.destroyed||epoch!==this.epoch||controller.signal.aborted)return;
-      this.reasons.add('user');this.emit('diagnostic',{diagnostic:diagnostic(error)});this.frame();
+      this.pending.error=diagnostic(error).code;this.reasons.add('user');this.emit('diagnostic',{diagnostic:diagnostic(error)});this.frame();
     });
   }
   seek({sceneId=this.scene.id,timeMs=0}){
@@ -106,7 +106,27 @@ export class Session {
   }
   next(){this.live();this.controlEpoch++;requireValue(this.reasons.has('step'),'STEP_UNAVAILABLE','No scene boundary is waiting.');this.reasons.delete('step');this.enter(this.scene.next);if(this.running)this.clock.start();return this.inspect();}
   setRate(rate){this.live();requireValue(Number.isFinite(rate)&&rate>=.25&&rate<=4,'INVALID_RATE','Playback rate must be between 0.25 and 4.');this.controlEpoch++;if(this.running)this.tick();this.clock.setRate(rate);this.clock.setTime(this.time);this.emit('rate-changed');}
-  extendWait(){this.live();this.controlEpoch++;requireValue(this.pending?.cue.kind==='gate','GATE_UNAVAILABLE','Only a condition wait can be extended.');const cue=this.pending.cue;this.cancelPending();this.enterBarrier(cue);}
+  extendWait(){this.live();this.controlEpoch++;requireValue(this.pending?.cue.kind==='gate','GATE_UNAVAILABLE','Only a condition wait can be extended.');const cue=this.pending.cue;this.cancelPending();this.reasons.delete('user');this.enterBarrier(cue);}
+  retryBarrier(){
+    this.live();this.controlEpoch++;requireValue(this.pending?.error,'BARRIER_UNAVAILABLE','Only a failed host operation can be retried.');
+    const cue=this.pending.cue;this.cancelPending();this.reasons.delete('user');this.enterBarrier(cue);return this.inspect();
+  }
+  setMode(mode){
+    this.live();requireValue(this.plan.script.modes.includes(mode),'MODE_UNAVAILABLE','This mode is not offered.');
+    const control=this.controlEpoch+1;this.stop();
+    requireValue(!this.destroyed&&this.controlEpoch===control,'CANCELLED','Mode change was interrupted.');this.mode=mode;
+    // Conditions are observations, not reusable proof that host state remains true.
+    // Completed effects retain their deduplication records across mode changes.
+    for(const visit of this.path)for(const cue of this.plan.scenes[visit.sceneId].cues)
+      if(cue.kind==='gate')this.resolved.delete(this.key(cue,visit));
+    this.emit('mode-changed');this.frame();return this.inspect();
+  }
+  resetFixture(){
+    this.live();const control=this.controlEpoch+1;this.stop();
+    requireValue(!this.destroyed&&this.controlEpoch===control,'CANCELLED','Fixture reset was interrupted.');this.resolved.clear();this.skipped.clear();
+    this.runId='run.'+(++serial);this.path=[{sceneId:this.plan.entryScene,visitId:'visit.'+(++serial)}];this.cursor=0;
+    this.emit('fixture-reset');this.frame();return this.inspect();
+  }
   stop(){this.live();this.controlEpoch++;this.clock.pause();this.cancelPending();this.reasons=new Set(['user']);this.cursor=0;this.time=0;this.ready=true;this.clock.setScene(this.scene);this.emit('stopped');this.frame();return this.inspect();}
   fail(error){if(this.destroyed||this.reasons.has('error'))return;this.controlEpoch++;this.cancelPending();try{this.clock.pause();}catch{this.clock.destroy();}this.reasons.add('error');this.emit('diagnostic',{diagnostic:diagnostic(error)});}
   destroy(){if(this.destroyed)return;this.controlEpoch++;this.cancelPending();this.clock.destroy();this.destroyed=true;this.emit('destroyed');}

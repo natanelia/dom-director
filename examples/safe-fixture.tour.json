@@ -10,7 +10,8 @@
   ],
   "capabilities": [
     "action:fixture.setPreview",
-    "condition:fixture.previewReady"
+    "condition:fixture.previewReady",
+    "fixture:reset"
   ],
   "targets": {
     "preview": {
