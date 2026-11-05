@@ -1,0 +1,73 @@
+{
+  "format": "dom-director-demo-cues/1",
+  "status": "fixture-only prototype; not the SDK schema",
+  "durationMs": 45367,
+  "scenes": [
+    {
+      "id": "overview",
+      "title": "The bigger picture",
+      "target": "overview",
+      "zoom": 1.0,
+      "startMs": 0,
+      "durationMs": 6980,
+      "caption": "This looks like a product video. But every pixel you see belongs to a real, working interface.",
+      "cursor": null,
+      "gate": false
+    },
+    {
+      "id": "signal",
+      "title": "Find the signal",
+      "target": "metrics",
+      "zoom": 1.6,
+      "startMs": 6980,
+      "durationMs": 8208,
+      "caption": "Instead of pointing at everything, bring the important detail into focus. Your layout stays exactly where it was.",
+      "cursor": "metrics",
+      "gate": false
+    },
+    {
+      "id": "story",
+      "title": "Follow the story",
+      "target": "routes",
+      "zoom": 1.65,
+      "startMs": 15188,
+      "durationMs": 7409,
+      "caption": "Now follow the route. The camera, captions, and simulated cursor all move together on one timeline.",
+      "cursor": "routes",
+      "gate": false
+    },
+    {
+      "id": "handoff",
+      "title": "Take the wheel",
+      "target": "review",
+      "zoom": 1.85,
+      "startMs": 22597,
+      "durationMs": 7782,
+      "caption": "Here is the difference. This checkpoint is a real button. Take over, approve it, and make this story yours.",
+      "cursor": "approve",
+      "gate": true
+    },
+    {
+      "id": "possibility",
+      "title": "Make it yours",
+      "target": "approve",
+      "zoom": 1.9,
+      "startMs": 30379,
+      "durationMs": 7691,
+      "caption": "Watch a story, try a task, or get step by step guidance. The interface never stops being an interface.",
+      "cursor": "approve",
+      "gate": false
+    },
+    {
+      "id": "outro",
+      "title": "Still your app",
+      "target": "overview",
+      "zoom": 1.0,
+      "startMs": 38070,
+      "durationMs": 7296,
+      "caption": "No recording. No illusion. Just your product, with a little direction. What will you show next?",
+      "cursor": null,
+      "gate": false
+    }
+  ]
+}

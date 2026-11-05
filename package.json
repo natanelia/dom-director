@@ -1,0 +1,14 @@
+{
+  "name": "dom-director-design",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Design-first cinematic walkthrough engine with a separate real-DOM concept demo; no reusable SDK release.",
+  "license": "MIT",
+  "scripts": {
+    "validate": "python3 tools/check_design.py",
+    "test": "python3 tools/check_design.py && python3 -m unittest discover -s tests -v",
+    "demo:build": "python3 demo/build.py",
+    "test:demo": "node --test demo/tests/model.test.cjs",
+    "test:demo:browser": "python3 demo/tests/browser_test.py"
+  }
+}
