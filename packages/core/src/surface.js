@@ -97,11 +97,11 @@ export function createCamera(options) {
     if(active){const old=active;active=null;old.signal?.removeEventListener('abort',old.abort);old.resolve({status:reason,pose:surface.pose});}
   }
   function endPose(target, framing) {
-    if(!target || preference.matches || surface.kind==='overlay-only')return {...IDENTITY};
+    if(target===null)return {...IDENTITY};
     const element=typeof target==='function'?target():target;
     requireValue(!Array.isArray(element),'TARGET_AMBIGUOUS','A camera target must resolve to one element.');
     const measurement=surface.snapshot([element]);
-    if(measurement.bounds[0].space!=='scene')return {...IDENTITY};
+    if(preference.matches || surface.kind==='overlay-only' || measurement.bounds[0].space!=='scene')return {...IDENTITY};
     const result=fit(measurement.bounds[0].rect,measurement.box,framing);
     requireValue(!result.clipped,'FRAMING_CLIPPED','The target cannot fit inside the selected scale bounds.');
     return result.pose;
@@ -137,6 +137,6 @@ export function createCamera(options) {
   }
   const motion=()=>{if(preference.matches){cancel();surface.apply(IDENTITY);}};
   preference.addEventListener('change',motion);
-  return {surface,focus:(target,options)=>move(target,options),reset:options=>move(null,options),cancel,
+  return {surface,focus:(target,options)=>{requireValue(target!=null,'TARGET_MISSING','A target is required.');return move(target,options);},reset:options=>move(null,options),cancel,
     destroy(){if(destroyed)return;destroyed=true;cancel('destroyed');unsubscribe();preference.removeEventListener('change',motion);surface.destroy();}}
 }

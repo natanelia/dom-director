@@ -82,6 +82,10 @@ class SurfaceTests(unittest.TestCase):
         self.page.evaluate('window.camera=sdk.createCamera(options());window.revision=camera.surface.revision;document.querySelector("#scroller").scrollTop=50;document.querySelector("#viewport").style.width="600px"')
         self.page.wait_for_timeout(100);self.assertGreater(self.page.evaluate('camera.surface.revision'),self.page.evaluate('revision'))
         self.assertEqual(self.page.evaluate('(()=>{document.querySelector("#target").remove();try{camera.focus(()=>document.querySelector("#target"))}catch(e){return e.diagnostic.code}})()'),'TARGET_MISSING')
+    def test_missing_target_also_fails_without_motion(self):
+        self.page.emulate_media(reduced_motion='reduce')
+        self.assertEqual(self.page.evaluate("(()=>{const c=sdk.createCamera(options());try{c.focus(()=>null)}catch(e){return e.diagnostic.code}finally{c.destroy()}})()"),'TARGET_MISSING')
+        self.assertEqual(self.page.evaluate("(()=>{const c=sdk.createCamera({...options(),kind:'overlay-only'});try{c.focus(null)}catch(e){return e.diagnostic.code}finally{c.destroy()}})()"),'TARGET_MISSING')
     def test_lifecycle_100_cycles_releases_lease_and_styles(self):
         self.assertTrue(self.page.evaluate('''async()=>{for(let i=0;i<100;i++){const c=sdk.createCamera(options());await c.focus(document.querySelector('#target'),{durationMs:0});c.destroy();}return document.querySelector('#scene').style.transform==='';}'''))
 if __name__=='__main__':unittest.main(verbosity=2)
