@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
-"""Verify the exact deployed bundle and real Play/pause/chapter behavior."""
+"""Verify deployed bytes and bounded, sustained Play/pause/chapter progression."""
 import hashlib
+import math
 import os
 from pathlib import Path
+import time
 from playwright.sync_api import sync_playwright
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -14,6 +16,48 @@ if ENGINE not in ('chromium', 'webkit'):
 if len(REVISION) != 40 or any(c not in '0123456789abcdef' for c in REVISION):
     raise ValueError('Expected a commit SHA')
 URL = f'https://natanelia.github.io/dom-director/?v={REVISION}'
+
+
+def snapshot(page):
+    return page.evaluate('''() => ({
+        position: Number(document.querySelector('#seek').value),
+        state: document.querySelector('#stage').dataset.state,
+        clock: document.querySelector('#stage').dataset.clock,
+        title: document.querySelector('#shot-title').textContent,
+        hidden: document.hidden,
+        now: performance.now()
+    })''')
+
+
+def expect_progress(page, start, title, started_at):
+    """Allow a cold first frame, not a jump, stuck clock, or wrong chapter.
+
+    WebKit can delay animation frames during the hero's smooth page scroll.
+    Poll boundedly instead of declaring a failure from one fixed 600ms sample.
+    Once started, require another 200ms of progress to catch a one-frame stall.
+    """
+    deadline = time.monotonic() + 2.5
+    first = None
+    previous = start
+    while True:
+        sample = snapshot(page)
+        position = sample['position']
+        elapsed = max(0, (sample['now'] - started_at) / 1000)
+        assert sample['state'] == 'playing', sample
+        assert sample['title'] == title, sample
+        assert not sample['hidden'], sample
+        assert math.isfinite(position) and start - .02 <= position < start + 3, sample
+        # At the default 1x rate the timeline cannot outrun elapsed wall time.
+        assert position <= start + elapsed + .25, sample
+        assert position >= previous - .02, sample
+        previous = position
+        if first is None and position >= start + .2:
+            first = position
+        elif first is not None and position >= first + .2:
+            return sample
+        assert time.monotonic() < deadline, f'Playback stalled: {sample}'
+        page.wait_for_timeout(50)
+
 
 with sync_playwright() as p:
     browser = getattr(p, ENGINE).launch()
@@ -34,23 +78,21 @@ with sync_playwright() as p:
                 else:
                     raise AssertionError('Public page does not match the deployed commit')
                 play = page.locator('#stage-play' if mobile else '#hero-play')
+                started_at = page.evaluate('performance.now()')
                 play.tap() if mobile else play.click()
-                page.wait_for_timeout(600)
-                position = float(page.locator('#seek').input_value())
-                assert .1 < position < 3, f'Play jumped or stalled: {position}'
-                assert page.locator('#stage').get_attribute('data-state') == 'playing'
-                assert page.locator('#shot-title').inner_text() == 'The bigger picture'
+                expect_progress(page, 0, 'The bigger picture', started_at)
                 page.locator('#play').click()
                 paused = float(page.locator('#seek').input_value())
+                assert page.locator('#stage').get_attribute('data-state') == 'paused'
                 page.wait_for_timeout(250)
                 assert abs(float(page.locator('#seek').input_value()) - paused) < .05
-                page.locator('[data-scene="signal"]').click()
-                page.wait_for_timeout(450)
-                position = float(page.locator('#seek').input_value())
-                assert 7 < position < 10, f'Chapter jumped or stalled: {position}'
-                assert page.locator('#stage').get_attribute('data-state') == 'playing'
+                chapter = page.locator('[data-scene="signal"]')
+                title = chapter.locator('strong').inner_text()
+                started_at = page.evaluate('performance.now()')
+                chapter.click()
+                expect_progress(page, 7, title, started_at)
                 assert not errors, errors
-                print(f'PASS {ENGINE} {"touch" if mobile else "desktop"}: exact bundle, Play, pause, chapter progression')
+                print(f'PASS {ENGINE} {"touch" if mobile else "desktop"}: exact bundle, sustained Play, pause, chapter progression')
             finally:
                 context.close()
     finally:
