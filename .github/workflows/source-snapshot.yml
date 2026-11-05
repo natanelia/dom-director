@@ -1,0 +1,24 @@
+name: Runtime source snapshot
+on:
+  push:
+    branches: [test/runtime-source-snapshot]
+    paths: ['.github/workflows/source-snapshot.yml']
+permissions:
+  contents: read
+jobs:
+  snapshot:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: dce146f202fd0e3529870dd3571fb4bc3d340630
+          persist-credentials: false
+      - name: Archive tracked source only
+        run: git archive --format=tar --output="$RUNNER_TEMP/runtime-source.tar" HEAD
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: runtime-source-dce146f
+          path: ${{ runner.temp }}/runtime-source.tar
+          retention-days: 1
+          if-no-files-found: error
