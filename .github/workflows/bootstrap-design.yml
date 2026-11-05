@@ -1,0 +1,113 @@
+name: Verify design import
+
+# Temporary, bounded import helper. Reconstruct the original manifest only
+# when its exact SHA-256 matches the locally validated design archive.
+# This is not a new source-of-truth policy or a publishing workflow.
+on:
+  push:
+    branches: [main]
+    paths: [.github/workflows/bootstrap-design.yml]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: bootstrap-dom-director-design
+  cancel-in-progress: false
+
+jobs:
+  import:
+    if: github.repository == 'natanelia/dom-director' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: main
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: '3.13'
+      - name: Verify transferred source and reconstruct exact manifest
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import hashlib, json, re
+          for name, expected in {
+              'tools/check_design.py': '92622f3f4e801440dc4380963e8b9b7a844fd0dd877b1c812697bbb4dfef9e0e',
+              'tests/test_design.py': '9c4cc2a8d24f6f17d7e6836cecc5639f598663aea1367402b8f9ea9f225519b5',
+          }.items():
+              assert hashlib.sha256(Path(name).read_bytes()).hexdigest() == expected, name
+          expected_json = {
+              'examples/blocked-seek.diagnostic.json': '65a9748d5d052456b29a3080426b2e05c4a5f18a46781899cfe4261f3bd8cb56',
+              'examples/branching.tour.json': '8de16083135244743e2601a474b572ed3f5a0698b0375f3eec1dd130663abc4b',
+              'examples/guided-task.tour.json': '30d3d722d514bad97a3a70360dd78b6ca6b24b7a294241be4727298f0c2253ce',
+              'examples/minimal.tour.json': 'fbaaa8e0e44b2e02324423700b5812c116691bbb0a139f69cd51ed2c4040d598',
+              'examples/narrated-settings.tour.json': '273ab8b0e4e4d1621a252ff43c7fd6956a3a3329c80cb5525135bad3765f54fe',
+              'examples/preview.command.json': '3830fe21e965c6074c7abce251b5c00f49ea801ceca686c9ae2e154516220f99',
+              'examples/safe-fixture.tour.json': '4d70801ba6a67729c9514c53797b299c15c3fbcc033122a5c0fe4914233f050b',
+              'examples/seek.command.json': '2c26236175229a9c274af0d9199fce4afafe8b3489121ac85ab0e5d27c55071d',
+              'examples/semantic-map.tour.json': '8ad8c6dfe9488e9dc194be326291d163adaf34cbbf900177eb3d606e4e1242e1',
+              'schemas/agent-command.schema.json': 'eaae020703797646606ee84e1d6173dfd2a891812e5041cd3ee4a5c8e2208428',
+              'schemas/diagnostic.schema.json': 'd7b37c19100a666b618bdec73639cb023d04515bbcc23669f0278a81914c55b3',
+              'schemas/tour.schema.json': 'aa9eb4f10ea2970c512fdcf886409c3d8100efb4d72e49726d74d3debdbaf6ff',
+          }
+          for name, expected in expected_json.items():
+              path = Path(name)
+              data = json.loads(path.read_text())
+              canonical = json.dumps(data, sort_keys=True, separators=(',', ':'), ensure_ascii=False).encode()
+              assert hashlib.sha256(canonical).hexdigest() == expected, name
+              path.write_text(json.dumps(data, indent=2, ensure_ascii=False) + '\n')
+          rows = []
+          for line in Path('docs/03-requirements.md').read_text().splitlines():
+              if line.startswith('## '):
+                  area = line[3:]
+              match = re.match(r'Design: \[([^\]]+)\]\([^)]*\)\. Work package: `([^`]+)`\.', line)
+              if match:
+                  doc, backlog = match.groups()
+              match = re.match(r'\| ([A-Z0-9]+-\d+) \| (P\d) \| \*\*(.+?)\.\*\* (.+) \|$', line)
+              if match:
+                  ident, priority, summary, acceptance = match.groups()
+                  rows.append(dict(id=ident, area=area, priority=priority, summary=summary,
+                                   acceptance=acceptance, designDoc='docs/' + doc,
+                                   backlogId=backlog, plannedTests=['T-' + ident],
+                                   status='proposed', evidence=[]))
+          manifest = dict(schemaVersion='1', status='proposed runtime requirements; not implementation evidence', requirements=rows)
+          raw = (json.dumps(manifest, indent=2, ensure_ascii=False) + '\n').encode()
+          assert len(rows) == 112
+          assert hashlib.sha256(raw).hexdigest() == '2bb23e4090483e4b5bc3432c46ff88b4dc6353ae717ceb1afd7ec2c608ec2d47'
+          path = Path('docs/requirements.json')
+          if path.exists():
+              assert path.read_bytes() == raw, 'Refusing to overwrite an unexpected existing manifest.'
+          else:
+              path.write_bytes(raw)
+          print('Verified original source, schemas, examples, and all 112 requirement records.')
+          PY
+      - name: Validate complete design foundation
+        run: |
+          python3 -m pip install -r requirements-dev.txt
+          python3 tools/check_design.py
+          python3 -m unittest discover -s tests -v
+      - name: Validate bundled demo
+        run: |
+          python3 demo/build.py
+          git diff --exit-code -- demo/index.html
+          node --check demo/src/model.js
+          node --check demo/src/app.js
+          node --test demo/tests/model.test.cjs
+          python3 -m pip install -r demo/requirements-browser.txt
+          python3 -m playwright install --with-deps chromium
+          python3 demo/tests/browser_test.py
+      - name: Commit only verified imported data
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -- docs/requirements.json schemas/*.json examples/*.json
+          if git diff --cached --quiet; then
+            echo 'Verified import is already current.'
+            exit 0
+          fi
+          git commit -m 'docs: restore verified requirement manifest and readable JSON fixtures'
+          git push origin HEAD:main
