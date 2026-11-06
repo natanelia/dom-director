@@ -32,8 +32,25 @@ export function createTargetRegistry(entries={}, {privateTargets=[]}={}){
     subscribe(listener){listeners.add(listener);return()=>listeners.delete(listener);}
   };
 }
+// DOMRect inversion has subpixel round-trip noise (observed in Firefox as well
+// as Chromium). A measurement invalidation is not itself evidence of movement.
+// Keep accepted numeric geometry inside a 0.05 client-pixel deadband. Compare
+// against the last accepted position so small genuine movements accumulate.
+const PIXEL_NOISE=0.05;
+const close=(a,b,keys,tolerance=PIXEL_NOISE)=>keys.every(key=>Math.abs(a[key]-b[key])<=tolerance);
+function sameGeometry(a,b,ids,scale){
+  return a&&close(a.origin,b.origin,['x','y'])&&close(a.box,b.box,['x','y','width','height'])&&
+    Object.keys(a.bounds).length===ids.length&&ids.every(id=>a.bounds[id]&&
+      a.bounds[id].space===b.bounds[id].space&&close(a.bounds[id].rect,b.bounds[id].rect,['x','y','width','height'],
+        b.bounds[id].space==='scene'?PIXEL_NOISE/Math.min(a.scale,scale):PIXEL_NOISE));
+}
+function numericGeometry(measurement,ids,scale){
+  // Never retain obsolete DOM elements in the accepted comparison snapshot.
+  return {origin:{...measurement.origin},box:{...measurement.box},scale,
+    bounds:Object.fromEntries(ids.map(id=>[id,{space:measurement.bounds[id].space,rect:{...measurement.bounds[id].rect}}]))};
+}
 export function createGeometryCache(surface,registry){
-  let key='',snapshot=null,dirty=true,reads=0,elements=[],generation=0;
+  let key='',snapshot=null,accepted=null,dirty=true,reads=0,elements=[],generation=0;
   const win=surface.scene.ownerDocument.defaultView,resize=new win.ResizeObserver(()=>{dirty=true;});
   const off=[surface.subscribe(()=>{dirty=true;}),registry.subscribe(()=>{dirty=true;})];
   return {get reads(){return reads;},invalidate(){dirty=true;},
@@ -47,7 +64,13 @@ export function createGeometryCache(surface,registry){
       }
       const bounds=Object.create(null);let index=0;
       ordered.forEach((id,i)=>{bounds[id]=resolved[i].virtual?{...resolved[i],revision:surface.revision}:base.bounds[index++];});
-      snapshot={...base,bounds,registryRevision:registry.revision,geometryRevision:++generation};key=next;dirty=false;return snapshot;
-    },destroy(){off.forEach(fn=>fn());resize.disconnect();elements=[];snapshot=null;key='';}
+      const measured={...base,bounds,registryRevision:registry.revision},scale=surface.pose.scale;
+      if(!sameGeometry(accepted,measured,ordered,scale)){accepted=numericGeometry(measured,ordered,scale);generation++;}
+      // Keep fresh element identity/revisions, but do not feed measurement noise
+      // back into the camera sampler on a logically unchanged measurement.
+      for(const id of ordered)bounds[id]={...bounds[id],rect:{...accepted.bounds[id].rect}};
+      snapshot={...measured,origin:{...accepted.origin},box:{...accepted.box},geometryRevision:generation};
+      key=next;dirty=false;return snapshot;
+    },destroy(){off.forEach(fn=>fn());resize.disconnect();elements=[];snapshot=null;accepted=null;key='';}
   };
 }
