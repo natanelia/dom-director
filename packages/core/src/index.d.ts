@@ -29,17 +29,21 @@ export interface CameraMotion extends Framing {durationMs?:number;easing?:Easing
 export interface CameraResult {status:string;pose:Pose;diagnostic?:Diagnostic;}
 export interface Camera {surface:Surface;focus(target:Element|(()=>Element|null),options?:CameraMotion):Promise<CameraResult>;reset(options?:CameraMotion):Promise<CameraResult>;cancel(reason?:string):void;destroy():void;}
 export function createCamera(options:SurfaceOptions & {scheduler?:Scheduler;onDiagnostic?:(diagnostic:Diagnostic)=>void}):Camera;
-export interface TargetDescriptor {label?:string;sensitivity?:'public'|'private'|'secret';dynamic?:boolean;resolve?:()=>Element|null|ReadonlyArray<Element>;bounds?:()=>TargetBounds;}
-export type TargetRegistration = TargetDescriptor | (()=>Element|null|ReadonlyArray<Element>);
+/** Host virtual geometry is flat; resolved geometry wraps it in rect. */
+export interface VirtualTargetBounds extends Rect {space:'scene'|'client';visible?:boolean;approximate?:boolean;}
+export interface TargetDescriptorBase {label:string;sensitivity?:'public'|'private'|'secret';dynamic?:boolean;}
+export type TargetDescriptor = TargetDescriptorBase & ({resolve:()=>Element|null;bounds?:()=>VirtualTargetBounds}|{resolve?:()=>Element|null;bounds:()=>VirtualTargetBounds});
+export type TargetRegistration = TargetDescriptor | (()=>Element|null);
 export interface TargetMetadata {readonly id:string;readonly label:string;readonly kind:'dom'|'virtual';}
-export interface TargetRegistry {readonly revision:number;register(id:string,registration:TargetRegistration):Cleanup;has(id:string):boolean;catalog():ReadonlyArray<TargetMetadata>;invalidate():void;subscribe(listener:()=>void):Cleanup;resolve(id:string):{element?:Element;bounds?:TargetBounds;dynamic:boolean};}
+export type ResolvedTarget = {element:Element;virtual?:false}|{virtual:true;space:'scene'|'client';rect:Rect;element?:Element|null;approximate:boolean};
+export interface TargetRegistry {readonly revision:number;register(id:string,registration:TargetRegistration):Cleanup;has(id:string):boolean;catalog():ReadonlyArray<TargetMetadata>;invalidate():void;subscribe(listener:(revision:number)=>void):Cleanup;descriptor(id:string):TargetDescriptor & {sensitivity:'public'|'private'|'secret'};resolve(id:string):ResolvedTarget;}
 export function createTargetRegistry(targets?:Record<string,TargetRegistration>,options?:{privateTargets?:ReadonlyArray<string>}):TargetRegistry;
 export const SCHEMA_VERSION:'0.1.0-draft.1';
 export type CompiledCue = TourCue & {readonly atMs:number;readonly endMs:number;readonly order:number};
 export type CompiledScene = Omit<TourScene,'cues'> & {readonly cues:ReadonlyArray<CompiledCue>};
 export interface CompiledPlan {readonly script:Tour;readonly entryScene:string;readonly scenes:Readonly<Record<string,CompiledScene>>;readonly graph:Readonly<Record<string,ReadonlyArray<string>>>;}
-export function compile(input:unknown):{readonly ok:true;readonly plan:CompiledPlan}|{readonly ok:false;readonly diagnostics:ReadonlyArray<Diagnostic>};
-export function preview(input:unknown):{readonly ok:true;readonly preview:Readonly<Record<string,unknown>>}|{readonly ok:false;readonly diagnostics:ReadonlyArray<Diagnostic>};
+export function compile(input:unknown):{readonly ok:true;readonly plan:CompiledPlan;readonly diagnostics:ReadonlyArray<Diagnostic>}|{readonly ok:false;readonly diagnostics:ReadonlyArray<Diagnostic>};
+export function preview(input:unknown):{readonly ok:true;readonly preview:Readonly<Record<string,unknown>>;readonly diagnostics:ReadonlyArray<Diagnostic>}|{readonly ok:false;readonly diagnostics:ReadonlyArray<Diagnostic>};
 export function sampleVisual(scene:CompiledScene,timeMs:number,bounds:Readonly<Record<string,TargetBounds>>,safe:Rect,options?:{initial?:Pose;reduced?:boolean;defaults?:Tour['defaults']}):{camera:Pose;overlays:ReadonlyArray<CompiledCue>;caption:string};
 export interface EffectEvidence {readonly key:string;readonly actionRef:string;readonly state:'authorizing'|'pending'|'succeeded'|'not-started'|'unknown';}
 export interface WaitingFor {readonly cueId:string;readonly kind:'action'|'gate';readonly instruction:string;readonly hints:ReadonlyArray<string>;readonly error:string|null;}
@@ -65,7 +69,7 @@ export interface Director {readonly sessionId:string;readonly registry:TargetReg
   describe():TourDescription|null;inspect():DirectorState;on(listener:(event:DirectorEvent)=>void):Cleanup;onFrame(listener:(frame:FrameState)=>void):Cleanup;
   waitForCompletion(runId:string,options?:{signal?:AbortSignal}):Promise<{runId:string;status:'completed'|'failed'|'cancelled'}>;destroy():void;}
 export function createDirector(options:DirectorOptions):Director;
-export function mountControls(director:Director,container:HTMLElement):{destroy():void};
+export function mountControls(director:Director,container:HTMLElement):{element:HTMLElement;refresh():void;destroy():void};
 export class NarrationClock implements Clock {constructor(options:Omit<NarrationOptions,'createAudio'|'resolveAsset'> & {now?:()=>number;createAudio:()=>HTMLAudioElement;resolveAsset:(id:string)=>string;onChange?:(type:string,state:NarrationState)=>void;setTimer?:(callback:()=>void,ms:number)=>unknown;clearTimer?:(id:unknown)=>void});
   rate:number;buffering:boolean;setScene(scene:CompiledScene):void;setTime(timeMs:number):void;setRate(rate:number):void;start():void;pause():void;read():number;destroy():void;
   setEnabled(enabled:boolean):void;setVolume(volume:number):void;observePresentation(timeMs:number):void;inspect():NarrationState;}
@@ -76,7 +80,7 @@ export interface HostActionBase {label?:string;discoverable?:boolean;modes?:Read
   validate(args:Readonly<Record<string,JsonValue>>):boolean;check?:(request:CapabilityRequest,signal:AbortSignal)=>MaybePromise<boolean>;
   execute(args:Readonly<Record<string,JsonValue>>,context:ActionContext):MaybePromise<{completed:true}>;}
 export type ReconcileAction = (context:{idempotencyKey:string;signal:AbortSignal})=>MaybePromise<'succeeded'|'not-started'|'unknown'>;
-export type HostAction = HostActionBase & ({impact:'persistent';idempotent:true;reconcile:ReconcileAction}|{impact:'read'|'ephemeral';idempotent?:boolean;reconcile?:ReconcileAction});
+export type HostAction = HostActionBase & ({impact:'persistent'} & ({idempotent:true;reconcile?:ReconcileAction}|{idempotent?:boolean;reconcile:ReconcileAction})|{impact:'read'|'ephemeral';idempotent?:boolean;reconcile?:ReconcileAction});
 export interface HostCondition {label?:string;discoverable?:boolean;evidence:'acknowledgment'|'ui'|'domain'|'server';trigger?:'level'|'edge';hints?:ReadonlyArray<string>;
   read(context:BarrierContext):boolean|{satisfied:boolean;revision?:number};subscribe(listener:()=>void,context:BarrierContext):Cleanup;}
 export interface CapabilityCatalog {readonly actions:ReadonlyArray<{id:string;label:string;impact:'read'|'ephemeral'|'persistent'}>;readonly conditions:ReadonlyArray<{id:string;label:string;evidence:'acknowledgment'|'ui'|'domain'|'server';trigger?:'level'|'edge'}>;}

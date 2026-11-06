@@ -1,4 +1,4 @@
-import {createDirector,createAgentBridge,createCheckpointStore,createGuidance,createTargetRegistry,compile,fit,createCamera,proposeTargetRepair,SCHEMA_VERSION,type Tour,type AgentCommand,type TourCue} from '@dom-director/core';
+import {createDirector,createAgentBridge,createCheckpointStore,createGuidance,createTargetRegistry,compile,fit,createCamera,proposeTargetRepair,mountControls,SCHEMA_VERSION,type Tour,type AgentCommand,type TourCue,type HostAction} from '@dom-director/core';
 import {createSurface} from '@dom-director/core/surface';
 const tour={schemaVersion:SCHEMA_VERSION,id:'example',title:'Example',locale:'en',entryScene:'one',modes:['watch'],capabilities:[],targets:{save:{ref:'app.save'}},scenes:[{id:'one',title:'Save',summary:'Review before saving.',durationMs:2000,cues:[{kind:'camera',id:'focus',at:0,durationMs:500,target:'save'}]}]} as const satisfies Tour;
 const registry=createTargetRegistry({'app.save':()=>document.querySelector('button')});
@@ -13,6 +13,21 @@ const checkpoints=createCheckpointStore(director,{versions:()=>({script:'1',host
 void checkpoints.capture();void proposeTargetRepair(tour,{alias:'save',replacement:'app.save2',reason:'Reviewed host change'},[{id:'app.save2'}]);
 compile(JSON.stringify(tour));fit({x:0,y:0,width:10,height:10},{x:0,y:0,width:100,height:100});
 createCamera({viewport,scene,overlay}).reset();createSurface({viewport,scene,overlay}).destroy();
+const virtual=createTargetRegistry({'chart.point':{label:'Chart point',bounds:()=>({x:10,y:20,width:30,height:40,space:'scene'})}});
+const resolved=virtual.resolve('chart.point');if(resolved.virtual){const width:number=resolved.rect.width;void width;}
+virtual.subscribe(revision=>{const n:number=revision;void n;});virtual.descriptor('chart.point');
+const controls=mountControls(director,document.createElement('div'));controls.refresh();controls.element.focus();
+const idempotent:HostAction={impact:'persistent',idempotent:true,validate:()=>true,execute:()=>({completed:true})};
+const reconciled:HostAction={impact:'persistent',reconcile:()=> 'unknown',validate:()=>true,execute:()=>({completed:true})};
+void idempotent;void reconciled;
+// @ts-expect-error host geometry is flat, not wrapped in rect
+createTargetRegistry({'bad':{label:'Bad',bounds:()=>({space:'scene',rect:{x:0,y:0,width:10,height:10}})}});
+// @ts-expect-error ambiguous arrays cannot resolve one target
+createTargetRegistry({'bad':()=>[document.createElement('button')]});
+// @ts-expect-error descriptors need an authored label
+createTargetRegistry({'bad':{resolve:()=>document.createElement('button')}});
+// @ts-expect-error persistent actions need idempotency or reconciliation
+const unsafe:HostAction={impact:'persistent',validate:()=>true,execute:()=>({completed:true})};
 // @ts-expect-error methods and callbacks are not portable cue data
 const executable:TourCue={kind:'callback',id:'bad',at:0,run:()=>{}};
 // @ts-expect-error unknown protocol command cannot be dispatched

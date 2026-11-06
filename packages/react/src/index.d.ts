@@ -6,7 +6,7 @@ export interface UnmountedState {readonly status:'unmounted';readonly sessionId:
 export function useDirector(options?:UseDirectorOptions):DirectorBinding;
 export function useDirectorState(director:Director|null):DirectorState|UnmountedState;
 export function useDirectorFrame(director:Director|null,callback:(frame:FrameState)=>void):void;
-export function useDirectorTarget(registry:TargetRegistry|null,id:string,options?:Pick<TargetDescriptor,'label'|'sensitivity'|'dynamic'>):React.RefCallback<HTMLElement>;
+export function useDirectorTarget(registry:TargetRegistry|null,id:string,options?:Partial<Pick<TargetDescriptor,'label'|'sensitivity'|'dynamic'>>):React.RefCallback<HTMLElement>;
 export function DirectorControls(props:{director:Director|null;id?:string;className?:string;style?:React.CSSProperties}):React.ReactElement;
 export function DirectorProvider(props:{director:Director|null;children?:React.ReactNode}):React.ReactElement;
 export function useDirectorContext():Director|null;
