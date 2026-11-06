@@ -11,16 +11,18 @@ class GeometryInvalidationTests(BrowserFixture):
           if(!d.load(script).ok)throw Error('load failed');
           await new Promise(requestAnimationFrame);await new Promise(requestAnimationFrame);
           const measurement=d.surface.snapshot([target]),plan=sdk.compile(script).plan;
-          const errors=[];d.play();
+          const summarize=m=>({origin:m.origin,box:m.box,rect:m.bounds[0].rect});
+          const errors=[],samples=[];d.play();
           for(let i=1;i<=30;i++){
             if(i%4===0){document.querySelector('#scroller').firstElementChild.textContent='Update '+i;d.registry.invalidate();}
             await new Promise(requestAnimationFrame);now=i*16;
-            // play() samples the current clock without changing its running state.
+            // Rate setting ticks the injected clock while preserving playback.
             d.setRate(1);
             const expected=sdk.sampleVisual(plan.scenes.one,now,{target:measurement.bounds[0]},measurement.box).camera;
-            const actual=d.surface.pose;errors.push(Math.max(...['x','y','scale'].map(k=>Math.abs(actual[k]-expected[k]))));
+            const actual=d.surface.pose,error=Math.max(...['x','y','scale'].map(k=>Math.abs(actual[k]-expected[k])));
+            errors.push(error);if(i%4===0||i===30)samples.push({frame:i,error,actual,expected,geometry:summarize(d.surface.snapshot([target]))});
           }
-          const state=d.inspect();d.destroy();return {maxError:Math.max(...errors),status:state.status,timeMs:state.timeMs};
+          const state=d.inspect();d.destroy();return {maxError:Math.max(...errors),status:state.status,timeMs:state.timeMs,initial:summarize(measurement),samples};
         }""")
         self.assertEqual(result['status'],'playing',result)
         self.assertEqual(result['timeMs'],480,result)
