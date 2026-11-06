@@ -21,8 +21,7 @@ jobs:
           python-version: '3.13'
       - name: Build synthetic public fixture
         run: |
-          sudo apt-get update -o Acquire::Retries=2 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30
-          sudo apt-get install -y --no-install-recommends ffmpeg
+          bash tools/install_site_tools.sh
           python3 tools/build_runtime.py
           python3 tools/build_site.py
       - name: Install pinned test-only accessibility engine and browser
