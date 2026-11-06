@@ -32,8 +32,17 @@ export function createTargetRegistry(entries={}, {privateTargets=[]}={}){
     subscribe(listener){listeners.add(listener);return()=>listeners.delete(listener);}
   };
 }
+// Invalidation asks for a new measurement; it is not evidence that geometry moved.
+// Ignore subpixel round-trip noise from transformed DOMRects. Compare against the
+// last changed snapshot, not the previous frame, so tiny real movements accumulate.
+const close=(a,b,keys)=>keys.every(key=>Math.abs(a[key]-b[key])<=0.01);
+function sameGeometry(a,b,ids){
+  return a&&close(a.origin,b.origin,['x','y'])&&close(a.box,b.box,['x','y','width','height'])&&
+    Object.keys(a.bounds).length===ids.length&&ids.every(id=>a.bounds[id]&&
+      a.bounds[id].space===b.bounds[id].space&&close(a.bounds[id].rect,b.bounds[id].rect,['x','y','width','height']));
+}
 export function createGeometryCache(surface,registry){
-  let key='',snapshot=null,dirty=true,reads=0,elements=[],generation=0;
+  let key='',snapshot=null,geometrySnapshot=null,dirty=true,reads=0,elements=[],generation=0;
   const win=surface.scene.ownerDocument.defaultView,resize=new win.ResizeObserver(()=>{dirty=true;});
   const off=[surface.subscribe(()=>{dirty=true;}),registry.subscribe(()=>{dirty=true;})];
   return {get reads(){return reads;},invalidate(){dirty=true;},
@@ -47,7 +56,9 @@ export function createGeometryCache(surface,registry){
       }
       const bounds=Object.create(null);let index=0;
       ordered.forEach((id,i)=>{bounds[id]=resolved[i].virtual?{...resolved[i],revision:surface.revision}:base.bounds[index++];});
-      snapshot={...base,bounds,registryRevision:registry.revision,geometryRevision:++generation};key=next;dirty=false;return snapshot;
-    },destroy(){off.forEach(fn=>fn());resize.disconnect();elements=[];snapshot=null;key='';}
+      const measured={...base,bounds,registryRevision:registry.revision};
+      if(!sameGeometry(geometrySnapshot,measured,ordered)){geometrySnapshot=measured;generation++;}
+      snapshot={...measured,geometryRevision:generation};key=next;dirty=false;return snapshot;
+    },destroy(){off.forEach(fn=>fn());resize.disconnect();elements=[];snapshot=null;geometrySnapshot=null;key='';}
   };
 }
