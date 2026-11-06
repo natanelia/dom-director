@@ -1,15 +1,48 @@
 # Contributing
 
-Begin with the [design index](docs/README.md) and [agent working agreement](AGENTS.md). This repository is currently a proposal with executable design checks; it has no runtime package to install.
+Start with [AGENTS.md](AGENTS.md) and the [release-candidate report](docs/release-candidate.md). Keep PRs focused, preserve the controlled-surface and host-permission contracts, and record evidence rather than claiming broad compatibility.
 
-Use a dedicated branch and connect changes to requirement/backlog IDs. For a design-only change, update examples and validation whenever the contract changes. For implementation, start with a bounded vertical slice and include actual evidence for the browser behavior it claims. A proposed API in a Markdown code block is not an implementation.
+## Fast checks
 
-Run the Python design checks and unit tests documented in the README. Node/npm scripts are optional convenience aliases; Python and the pinned development validator are still required. Do not add runtime dependencies to the design-tool package or remove `private: true` to publish accidentally.
+Use Node 22 and Python 3.13 as the reference environment. The core itself has no runtime dependencies.
 
-A pull request should explain the user problem, the scope, the alternatives, the risks, the tests run, and any unverified assumptions. Changes to camera ownership, timing, effects, permissions, script compatibility, or accessibility require an ADR update or a new superseding ADR.
+```sh
+python3 -m pip install -r requirements-dev.txt
+python3 tools/check_design.py
+python3 -m unittest discover -s tests -v
+python3 tools/build_runtime.py
+python3 tools/build_types.py
+node --test packages/core/test/*.test.js
+node --test packages/react/test/*.test.js
+node --test site-tests/model.test.mjs
+python3 tools/check_packages.py
+```
 
-Use synthetic data in examples and test artifacts. Do not include proprietary application code, customer data, account information, private maps, credentials, or unlicensed media. Optional analytics and network features require explicit design review and an off-by-default policy.
+The package check uses temporary clean consumers and test-only registry dependencies, with install scripts disabled. It tests packed archive contents, entry points, server rendering and positive/negative TypeScript cases. It does not publish packages.
 
-## Definition of done for a future runtime feature
+## Browser and site checks
 
-Implementation plus documentation, relevant requirement status/evidence, positive and negative tests, cancellation/cleanup behavior, accessibility and security impact, and measured browser evidence where applicable. If only design tooling passes, report only design tooling as verified.
+```sh
+BROWSER_ENGINE=chromium bash tools/install_test_browser.sh
+python3 -m unittest discover -s runtime-tests -p '*_test.py' -v
+```
+
+Repeat with `BROWSER_ENGINE=firefox` and `BROWSER_ENGINE=webkit` for the full runtime matrix. React's workflow tests exact React 18/19 consumers and hydration rather than mocked hooks.
+
+FFmpeg is required only for building the public site's prepared narration. Build into a new directory; do not overwrite a user-owned directory to make a test pass.
+
+```sh
+python3 tools/build_site.py
+python3 site-tests/build_test.py
+python3 site-tests/browser_test.py
+```
+
+The deployment workflow additionally verifies exact staged bytes at a project subpath. The original prototype remains separate: edit `demo/src/`, rebuild `demo/index.html`, and run its model/browser checks when that source changes.
+
+## Review
+
+Test new behavior at the narrowest useful level and through a real consumer. Fault-inject late promises, missing targets, denied permissions and invalid media clocks. Changes to script semantics must update schema, generated declarations, examples and validation together. Record measured environments and failed experiments. Do not weaken a benchmark's correctness check to improve its timings.
+
+Review screenshots for overflow and usable controls. Automated accessibility findings require a fix or a documented, reviewed scope decision—not silent rule exclusion. Manual screen-reader and physical-device results must be performed and recorded separately.
+
+A PR author may record self-review, but this is not independent approval. Merge only after inspecting current changes and the relevant checks; prefer squash merge for one coherent change. Registry publication remains a separate maintainer decision.

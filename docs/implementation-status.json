@@ -1,0 +1,18 @@
+{
+  "asOf": "2026-11-06",
+  "packageCandidate": "0.1.0-rc.0",
+  "schemaVersion": "0.1.0-draft.1",
+  "npmPublished": false,
+  "scope": "Controlled DOM surfaces and in-process host integration; not every proposed use case or requirement",
+  "milestones": [
+    {"id":"M0","status":"implemented","pullRequests":[],"evidence":"Original design contracts, examples and validation tests"},
+    {"id":"M1","status":"implemented-scoped","pullRequests":[4],"limits":["Intentional wrapper or overlay-only fallback","Physical-device zoom acceptance remains manual"]},
+    {"id":"M2","status":"implemented-scoped","pullRequests":[5,6,15],"limits":["Visual seeking does not replay effects"]},
+    {"id":"M3","status":"implemented-manual-review-pending","pullRequests":[7,17],"limits":["Prepared narration only","No screen-reader certification"]},
+    {"id":"M4","status":"implemented-scoped","pullRequests":[8,9,10],"limits":["Checkpoints are same-run visual resume","No cross-session business-state restoration"]},
+    {"id":"M5","status":"implemented-scoped","pullRequests":[11,12,13],"limits":["In-process JSON bridge","No live model or remote MCP transport"]},
+    {"id":"M6","status":"engineering-candidate","pullRequests":[14,15,16,17],"limits":["Inspect current CI and deployment evidence","Manual device and assistive-technology acceptance pending","No npm publication"]}
+  ],
+  "manualGates": ["Physical Safari/iOS and Android acceptance", "Chosen browser zoom and visual-viewport cases", "VoiceOver/NVDA reading and focus review", "Automated audit incomplete findings", "Adopting host integration/security review", "Authorized registry publication and namespace verification"],
+  "optionalDeferred": ["Visual studio/recorder", "Video export", "Collaborative transport", "Remote MCP/WebMCP", "Live TTS/model providers", "Geographic/3D camera adapters", "Persistent cross-session checkpoints"]
+}

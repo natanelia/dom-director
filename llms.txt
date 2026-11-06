@@ -1,29 +1,29 @@
 # DOM Director
 
-> Draft design for an agent-friendly cinematic walkthrough engine over live applications. Reusable runtime not implemented; separate fixture demo available.
+> A framework-neutral, data-only cinematic walkthrough engine for intentional live-DOM surfaces, with optional React bindings. Implementation candidate 0.1.0-rc.0; packages are private and not published to npm.
 
-## Read first
-- [README](README.md): status and scope
-- [Agent agreement](AGENTS.md): implementation constraints and validation
-- [Design index](docs/README.md): complete reading map
-- [Architecture](docs/04-architecture.md): components and ownership
-- [Script format](docs/05-script-format.md): canonical language
-- [Playback](docs/07-timeline-and-playback.md): seek/effect separation
-- [Agent tools](docs/10-agent-contract.md): discovery, validation, control, repair
-- [Security](docs/12-security-and-privacy.md): host permissions and trust
-- [Roadmap](docs/16-roadmap.md): bounded implementation order
+## Implemented entry points
 
-## Machine-readable contracts
-- [Tour schema](schemas/tour.schema.json)
-- [Command schema](schemas/agent-command.schema.json)
-- [Diagnostic schema](schemas/diagnostic.schema.json)
-- [Requirements](docs/requirements.json)
-- [Backlog](docs/backlog.json)
-- [Examples](examples/README.md)
+- [README and quick start](README.md)
+- [Core API and surface contract](packages/core/README.md)
+- [Core TypeScript declarations](packages/core/src/index.d.ts)
+- [React lifecycle integration](packages/react/README.md)
+- [Canonical tour schema](schemas/tour.schema.json)
+- [Agent command schema](schemas/agent-command.schema.json)
+- [Canonical Orbit walkthrough](site/orbit.tour.json)
+- [Agent consumer](site/agent.mjs)
+- [Release evidence and limitations](docs/release-candidate.md)
+- [Agent working agreement](AGENTS.md)
 
-The demo-local implementation is not a public runtime API. No cloud service, hosted schema endpoint, published npm package, or browser certification is implied.
+## Trust boundaries
 
-## Flagship concept
-- [Demo design](docs/22-flagship-demo.md): storyboard, real proof moments, and rollout
-- [Demo source](demo/README.md): build/run/test and implementation limits
-- [Demo evidence](demo/VALIDATION.md): exact local checks and remaining gaps
+Scripts cannot contain executable callbacks or grant host permissions. Target IDs resolve through host-owned registries. Missing targets fail explicitly. Simulated input is never consent. Visual seeking does not execute actions. Try requires an isolated fixture. Checkpoints are same-run visual resume only. The bridge is in-process, bounded JSON, not an authenticated remote/MCP transport. No telemetry, live model, recording or persistence is enabled by default.
+
+## Design context
+
+- [Design index](docs/README.md)
+- [Milestones and evidence](docs/16-roadmap.md)
+- [Security and privacy](SECURITY.md)
+- [Package preparation and migration](PUBLISHING.md)
+
+Use the implemented declarations and executable tests for available behavior. Earlier design chapters describe a broader roadmap; do not treat optional features as shipped.

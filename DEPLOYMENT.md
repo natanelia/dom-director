@@ -1,37 +1,36 @@
-# Public demo on GitHub Pages
+# Public SDK demo deployment
 
-This publishes the self-contained Orbit concept demo, not the private repository or the design documentation. The intended URL is `https://natanelia.github.io/dom-director/`. A configured workflow is not evidence of a live deployment; check the latest **Deploy public demo** run and its public-access verification step.
+The authorized site is `https://natanelia.github.io/dom-director/`. The SDK-backed Orbit experience is built from `site/`; the original self-contained prototype is preserved under `/prototype/`. The agent consumer is `/agent.html` and is explicitly not a live model provider.
 
-## One-time account setup
+## Build locally
 
-In [Settings > Pages](https://github.com/natanelia/dom-director/settings/pages), under **Build and deployment**, select **GitHub Actions** as the source. Leave repository visibility private. A private source repository needs an eligible GitHub plan (for this personal repository, GitHub Pro or an applicable enterprise plan). Do not change repository visibility or upgrade a plan without the owner's explicit approval.
+Install FFmpeg as a build tool, then from a source checkout:
 
-The ordinary Actions `GITHUB_TOKEN` cannot activate a Pages site for the first time. The workflow intentionally does not attempt to work around that restriction or request a personal access token.
+```sh
+python3 tools/build_runtime.py
+GITHUB_SHA=$(git rev-parse HEAD) python3 tools/build_site.py
+python3 -m http.server 8080 --directory site-dist
+```
 
-After enabling Pages, open [Deploy public demo](https://github.com/natanelia/dom-director/actions/workflows/deploy-pages.yml), choose **Run workflow**, select `main`, and run it. A successful run reports the actual URL. If an initial run failed during Pages configuration, rerunning its failed job after activation is also supported while its artifact remains available.
+`site-dist` must not exist before the build. Remove only your own previous generated output or select another new output path. The builder stages first-party SDK modules, authored pages, canonical script, prepared narration, the original prototype and the license. It never uploads the repository tree, test dependencies, credentials or release keys.
 
-## Automatic deployment
+## Acceptance and publication
 
-Changes under `demo/`, changes to the deployment workflow, or changes to `LICENSE` on `main` trigger publication. Manual runs are supported on `main` only. Pull requests and other branches are not deployed.
+The deployment workflow tests the staged SDK consumer in Chromium, Firefox and WebKit. The staged verifier exercises a project subpath, checks exact first-party bytes against the source checkout, validates an exact artifact-path allowlist, and tests sustained playback, stable pause, a real mobile/reduced-motion task and the reviewed agent flow. A successful page fetch alone is insufficient.
 
-Before publication, the workflow rebuilds the HTML, rejects a stale committed bundle, checks JavaScript syntax, runs the 10 pure-model tests and the 14 Chromium fixture tests, then prepares an allowlisted artifact. It uses pinned action revisions and keeps deployment credentials out of the build job. The existing **Design and demo checks** workflow remains unchanged.
+Only the main-branch deployment job receives Pages and identity-token write permissions. Pull requests can run acceptance but cannot publish. Publication requires all browser acceptance jobs. Repository visibility and initial Pages activation are administrator settings, not changed by application code.
 
-Only these files are public:
+After successful publication, the read-only `Verify public playback` workflow checks the exact deployed revision and bytes without authentication, then repeats real browser interaction against the public URL. Prepared audio is verified against the build manifest, not re-encoded for cross-FFmpeg bit identity. Redirects and unexpected manifest paths are rejected.
 
-- `index.html`: the demo, including its browser JavaScript, styling, fictional fixture data, and embedded placeholder narration.
-- `LICENSE.txt`: the MIT license notice.
-- `.nojekyll`: the static-site marker.
+To exercise the same verifier locally after building with the expected commit:
 
-The source folders, design documents, tests, scripts, Git metadata, and private repository history are not copied into the Pages artifact. The browser code inside the public HTML is necessarily readable by visitors. No analytics, new external assets, or API keys are added by deployment.
+```sh
+DEPLOYED_SHA=$(git rev-parse HEAD) BROWSER_ENGINE=chromium \
+  python3 site-tests/deployed_smoke.py --local-directory site-dist
+```
 
-## Verification and rollback
+## Rollback and claims
 
-The deploy job fetches the resulting URL without authentication and verifies the DOM Director page text. If this check fails, inspect the deployment and HTTP response before claiming success. Existing browser tests validate the demo fixture; they do not establish a full browser or accessibility certification.
+To roll back, review and revert the relevant site/core change on `main`, then let the normal checks rebuild and redeploy. Do not force-push history or disable acceptance checks to get a deployment through. The preserved prototype is a fallback reference, not a substitute for verifying the SDK site.
 
-To roll back content, revert the relevant demo commit on `main` and allow the workflow to redeploy. To stop public hosting, an authorized repository administrator can unpublish the site from Pages settings. Never make the repository public as an automatic fallback.
-
-## References
-
-- [GitHub Pages custom workflows](https://docs.github.com/en/pages/getting-started-with-github-pages/using-custom-workflows-with-github-pages)
-- [GitHub Pages availability and creating a site](https://docs.github.com/en/pages/getting-started-with-github-pages/creating-a-github-pages-site)
-- [Configure Pages enablement permissions](https://github.com/actions/configure-pages/blob/v5/action.yml)
+CI/browser results are synthetic acceptance evidence. Physical Safari/iOS, Android, assistive technology, arbitrary host apps and GitHub Pages security headers require separate assessment. Registry publication is not part of this workflow.
