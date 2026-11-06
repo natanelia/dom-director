@@ -1,44 +1,36 @@
-# Repository and publication status
+# Package preparation and version policy
 
-The project is in the owner-created **private** repository [natanelia/dom-director](https://github.com/natanelia/dom-director). This is a source repository, not a public website or published npm package. Do not change repository visibility, enable a public deployment, or publish a package without the owner's explicit approval.
+Both `@dom-director/core` and `@dom-director/react` are **private `0.1.0-rc.0` implementation candidates**. No npm publication or package-name reservation is claimed. GitHub Pages deployment is separate from registry publication.
 
-## Work on this repository
+## Build and install locally
 
-```sh
-git clone git@github.com:natanelia/dom-director.git
-cd dom-director
-python3 -m pip install -r requirements-dev.txt
-python3 tools/check_design.py
-python3 -m unittest discover -s tests -v
-node --test demo/tests/model.test.cjs
-```
-
-The implementation roadmap is in [docs/16-roadmap.md](docs/16-roadmap.md). The flagship fixture demo and its browser tests are described in [demo/README.md](demo/README.md). The reusable SDK remains unimplemented.
-
-Use a feature branch and a reviewed pull request for subsequent implementation work. Keep the repository private. Do not add deployment credentials, release tokens, or telemetry as part of routine development.
-
-## Run the demo
-
-The complete, self-contained [demo/index.html](demo/index.html) is checked in with its prepared placeholder narration. From the repository root:
+From the repository root:
 
 ```sh
-python3 -m http.server 8080 --directory demo
+python3 tools/build_runtime.py
+python3 tools/build_types.py
+python3 tools/check_packages.py
+mkdir -p artifacts
+npm pack ./packages/core --pack-destination "$PWD/artifacts"
+npm pack ./packages/react --pack-destination "$PWD/artifacts"
 ```
 
-Open `http://localhost:8080` in a browser. No npm installation, remote API, account, or production backend is required for the demo. To rebuild after editing source, run `python3 demo/build.py`. To regenerate the placeholder voice, install eSpeak and FFmpeg, run `python3 demo/generate_audio.py`, then rebuild. The synthetic voice is not production narration.
+The prepack checks require the repository-owned generated schemas/types and license. Install the resulting tarball paths into a test application. React is a peer dependency, not bundled into the adapter; install a version covered by the [tested matrix](docs/release-candidate.md). Do not replace the tarball commands with `npm install @dom-director/core` in documentation until a real publication exists.
 
-## Import and validation
+## Contract versions
 
-The initial source import used two bounded, repository-scoped Actions jobs. One generated the bundled demo assets; the other verified the transferred sources, restored the byte-identical original 112-requirement manifest, and formatted the JSON fixtures for reading. Both used normal non-forced pushes and passed their checks. Both temporary workflows have been removed.
+Package version, tour `schemaVersion`, and agent `protocolVersion` are separate. The current language and protocol are `0.1.0-draft.1`. Compilation rejects unsupported structure rather than silently interpreting a newer contract. Pin the package pair and authoring schema during this candidate phase. The React peer declares the exact core candidate version.
 
-The remaining [validation workflow](.github/workflows/design-checks.yml) has read-only repository permissions and runs the design checks, 79 design tests, 10 demo-model tests, and 14 Chromium fixture tests on pushes and pull requests. It does not publish, deploy, change repository visibility, or write back to the repository. See [validation evidence](docs/validation-report.md) and the actual [Actions runs](https://github.com/natanelia/dom-director/actions).
+A breaking package or language change requires a version change, migration notes, schema/declaration/example updates and positive/negative consumer tests in the same PR. Do not mutate the meaning of an already distributed schema identifier. No automatic cross-version script migration is promised.
 
-## Historical create-only helper
+## Migrating from the original prototype
 
-`tools/publish-github.sh` is retained with its tests for creating a *different, new* personal repository from a local project copy. **Do not run it against this existing repository.** It deliberately refuses existing repositories and remotes; it does not update or overwrite them.
+The `demo/` cue model is not the SDK grammar. Reauthor its scenes using the canonical schema, globally unique cue IDs, scene-local milliseconds, declared target aliases and host semantic references. The SDK-backed [Orbit script](site/orbit.tour.json) and [site host](site/app.mjs) show the migration.
 
-The helper requires an explicitly selected visibility, an authenticated GitHub CLI, Git, Python, and configured Git author details. Never share a token in a chat or issue. The helper does not authenticate, change permissions, or force-push. The original ZIP and optional Git bundle are historical local deliverables, not evidence of a package release.
+Move application effects into registered host actions/conditions with explicit authorization. A cursor cue does not click. A capability declaration does not grant permission. Replace prototype global-time assumptions with scene-local time plus the visited path. Supply prepared narration through an approved resolver. Keep controls outside the camera and implement cleanup.
 
-## Release boundary
+Checkpoints are process-local, same-run visual resume records. They are intentionally not portable application snapshots; a reload, changed host/fixture version or unresolved effect invalidates restoration.
 
-The root `package.json` has `private: true` to prevent accidental npm publication; that is separate from GitHub repository privacy. Design validation and fixture tests are not reusable-runtime, performance, or accessibility certification. Create release credentials and publication workflows only after a separate release decision.
+## Publication gate
+
+Before an actual registry release, the maintainer must authorize publication, confirm package/scope ownership and availability, choose supported environments, inspect all required checks, complete or explicitly disposition the manual acceptance checklist, and verify the final tarballs and license inventory. Only then remove `private:true` in a reviewed release change. No publishing credentials or automatic npm-release workflow are installed here.

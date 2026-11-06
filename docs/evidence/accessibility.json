@@ -1,0 +1,28 @@
+{
+  "evidenceVersion": 1,
+  "runUrl": "https://github.com/natanelia/dom-director/actions/runs/42142299192",
+  "pullRequest": 17,
+  "testedCommit": "24e550953813ff44297e53d06df31551d3540eb2",
+  "reviewedHead": "6314a83d113dfa3eca4cdf97f8b2d5e38ce22048",
+  "artifactId": 13466794604,
+  "artifactName": "accessibility-security-review",
+  "rawReviewSha256": "a7f28c8803176e424c610dca1e9ab89a885b4635692fbc7647309372e15dc0eb",
+  "engine": "headless Chromium 143.0.7499.4",
+  "axeVersion": "4.10.3",
+  "automatedOnly": true,
+  "passed": true,
+  "ruleTags": ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa", "best-practice"],
+  "excludedRules": [],
+  "states": [
+    {"name":"orbit-ready","reportedViolations":0,"incompleteColorContrastNodes":39},
+    {"name":"orbit-script-dialog","reportedViolations":0,"incompleteColorContrastNodes":2},
+    {"name":"orbit-waiting","reportedViolations":0,"incompleteColorContrastNodes":32},
+    {"name":"orbit-mobile","reportedViolations":0,"incompleteColorContrastNodes":26},
+    {"name":"agent-ready","reportedViolations":0,"incompleteColorContrastNodes":1},
+    {"name":"agent-loaded","reportedViolations":0,"incompleteColorContrastNodes":1}
+  ],
+  "keyboard": {"dialogFocusRestored":true,"realTaskAndEscape":true},
+  "security": {"strictCspFixture":true,"evalAndInlineScriptNotRequired":true,"connectGrantNotRequired":true,"inlineStylesAllowed":true,"publicPagesHeadersNotClaimed":true},
+  "manualAcceptanceIssue": "https://github.com/natanelia/dom-director/issues/19",
+  "limits": ["Incomplete findings remain for manual review", "No screen-reader certification", "No physical-device certification", "No WCAG conformance claim", "Synthetic local CSP is not a claim about production response headers"]
+}

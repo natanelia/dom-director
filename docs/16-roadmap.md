@@ -1,67 +1,41 @@
-# 16 · Roadmap and implementation slices
+# 16 · Milestones and implementation evidence
 
-The order is dependency-driven, not a calendar promise. Broad use-case coverage should come from reusable primitives; do not implement 48 separate products.
+The original dependency order remains M0 → M1 → M2 → M3/M4 → M5 → M6. The core implementation has now progressed from a design scaffold to an engineering release candidate. This ledger replaces the obsolete statement that no reusable runtime exists.
 
-## M0 — Design foundation (this repository)
+## M0 — Design foundation
 
-Deliver documents, draft schemas, positive/negative examples, requirement IDs, backlog dependencies, ADRs, contribution guidance, and executable design checks. **Runtime remains unimplemented.** Closing this milestone means the design artifacts are reviewable, not that all design questions are settled.
+Delivered the 22-chapter design atlas, eight ADRs, 48 use cases, canonical draft schemas, examples, 112 requirement IDs and the dependency backlog. The design checker and its tests validate contracts, links and traceability. They do not certify browser behavior.
 
-## M1 — Prove the browser surface
+## M1 — Controlled browser surface
 
-Build one synthetic plain-DOM page with a managed wrapper and an independent overlay. Implement focus/reset with correct coordinate conversion and interruption. Test fixed child, scroll, portal, top layer, real input hit testing, resize, actual browser zoom, and destroy. Record traces. Compare direct platform primitives and any candidate dependency backend.
-
-Exit: one usable managed-scene path and one honest overlay-only fallback. If generic wrapping breaks host behavior, narrow the supported integration contract rather than adding undocumented DOM surgery. No media, agent bridge, or studio is needed to prove this.
+Implemented managed DOM focus/reset, coordinate conversion, cancellation, restoration and explicit overlay-only fallback in [PR 4](https://github.com/natanelia/dom-director/pull/4). The host supplies an intentional scene root; arbitrary application reparenting is not attempted. Browser fixtures cover layout, hit testing, scroll, portals, transforms, resize and cleanup. Physical browser/device zoom acceptance remains separately documented.
 
 ## M2 — Deterministic visual player
 
-Implement compiler, target registry, geometry cache, state machine, injected clock, visual reducer, camera/annotation/highlight/cursor cues, play/pause/seek, acyclic scene choices, and restoration journal. Use the draft examples as conformance fixtures. Add pure tests and browser tests before introducing real effects.
+Implemented data-only compilation and the scene coordinator in [PR 5](https://github.com/natanelia/dom-director/pull/5), then the reusable renderer, semantic targets, geometry caching and native controls in [PR 6](https://github.com/natanelia/dom-director/pull/6). Pure sampling and visual seeking do not execute application effects. [PR 15](https://github.com/natanelia/dom-director/pull/15) repairs invalidation/subpixel feedback found by the later correctness benchmark.
 
-Exit: exact-time visual sampling; user interruption does not snap; missing targets fail explicitly; repeated load/destroy does not leak; reduced-motion and transcript-first behavior work.
+## M3 — Narration, captions and controls
 
-## M3 — Media and accessible controls
-
-Prepared audio, cue anchors, captions/transcript, rate/mute/CC controls, autoplay rejection, buffer handling, and explicit audio/text-only clock handoff. Add keyboard and screen-reader review. Avoid provider-specific TTS as a core dependency.
-
-Exit: instrumented narration-sync report, reliable pause/seek/resume, safe control placement, and a non-moving equivalent walkthrough.
+Implemented prepared audio, narration anchors, explicit audio/text clock handoff, startup/stall recovery, captions, transcript, rate/mute preferences and WebVTT output in [PR 7](https://github.com/natanelia/dom-director/pull/7). Media fault and cross-scene tests exercise actual consumers. Keyboard/reduced-motion and automated accessibility checks are evidence; hands-on assistive-technology review is not claimed complete.
 
 ## M4 — Guided tasks and safe practice
 
-Named conditions, gates, timeouts, user takeover, fixture reset, named actions, permission checks, effect ledger, idempotency/reconciliation contract, and seek barriers. Add state-machine/property tests and adversarial cancellation tests.
+[PR 8](https://github.com/natanelia/dom-director/pull/8) implements conditions, timeouts, host permissions, isolated fixtures, effect evidence and reconciliation. [PR 9](https://github.com/natanelia/dom-director/pull/9) adds version-verified same-run visual checkpoints, explicitly not host-state rollback. [PR 10](https://github.com/natanelia/dom-director/pull/10) supplies one canonical Watch/Try/Guide scenario with real user approval. Unknown outcomes and denied actions do not become permitted through seeking or script changes.
 
-Exit: a single scenario supports watch, try, and guide without pretending visual playback can undo or repeat persistent actions safely. Denied actions remain denied even when a script changes.
+## M5 — Agents and framework integration
 
-## M5 — Agent and framework integration
+[PR 11](https://github.com/natanelia/dom-director/pull/11) implements the in-process JSON bridge, target/capability discovery, validation/preview/inspection, revision checks, bounded request retention and reviewed repair proposals. [PR 12](https://github.com/natanelia/dom-director/pull/12) implements React lifecycle, semantic subscriptions, refs, portals and SSR. [PR 13](https://github.com/natanelia/dom-director/pull/13) migrates Orbit to the SDK and adds the real bridge consumer. Its deterministic authoring helper is not mislabeled as a live AI model.
 
-Capability/target discovery, structured diagnostics, validation/preview/inspect/control tools, revision checks, reviewed repair patches, and a small React adapter. Start with an in-process bridge. Add remote/MCP/browser transport only after its threat model and version are specified.
+## M6 — Reusable engineering candidate
 
-Exit: an agent can produce and validate a useful tour from a catalog, handle a missing target safely, and stop when policy denies an action. The React demo survives lifecycle re-entry and portal cases.
+The candidate work is divided into [typed tarballs and clean consumers (#14)](https://github.com/natanelia/dom-director/pull/14), [performance and repeated cleanup (#15)](https://github.com/natanelia/dom-director/pull/15), [staged/live deployment verification (#16)](https://github.com/natanelia/dom-director/pull/16), and [automated accessibility/security-policy review (#17)](https://github.com/natanelia/dom-director/pull/17). Documentation, migration policy and license inventory describe the resulting supported scope.
 
-## M6 — Reusable release candidate
+Completion of these engineering slices means an inspectable, tested candidate—not published npm packages, universal host compatibility or independent certification. The [release report](release-candidate.md) records the manual physical-device, assistive-technology and maintainer-publication gates. Do not silently waive them to label every original requirement complete.
 
-Publish measured browser support, performance traces, package-consumer tests, documentation, security/a11y review notes, migration/version policy, fixture demo, and license inventory. Package names are checked and reserved only as part of actual publication. No release credentials or publishing workflow is included in this design scaffold.
+## Optional extensions, not core release claims
 
-## Optional extensions after evidence
+Visual studio/recorder, geographic/3D/editor camera adapters, video export, collaboration, persistent cross-session checkpoints, content registry, remote MCP/WebMCP transports and live narration/model providers each need a bounded RFC and acceptance evidence. Virtual target bounds are a generic host integration primitive, not an implementation of all those products.
 
-Visual studio and recorder; geographic/3D/editor adapters; reusable content registry; offline bundles; collaborative presentations; semantic change review; Playwright-based fixture capture; video export; WebMCP/MCP transports; bounded adaptive branches; live narration generation. Each needs a bounded RFC and acceptance evidence, not a silent expansion of the core.
+## Current sources of truth
 
-## First implementation pull requests
-
-**PR-A: surface spike.** The managed wrapper, focus/reset math, interruption, and explicit fallback; browser evidence and no runtime claims beyond that fixture.
-
-**PR-B: deterministic player.** Validated data format, pure reducer, visual cues, controls, stop/seek, and leak tests.
-
-**PR-C: narration and CC.** One prepared audio segment, cue anchors, captions/transcript, autoplay/error handling, and measured skew.
-
-**PR-D: guided interaction.** User-driven gate plus safe fixture action, permission checks, effect deduplication, and seek barrier tests.
-
-Keep each PR reviewable. Design changes that affect the language, trust model, or lifecycle update the schema/ADRs/examples/tests in the same PR.
-
-## Machine-readable backlog
-
-[backlog.json](backlog.json) lists work packages, dependencies, requirement IDs, outputs, and acceptance criteria. [requirements.json](requirements.json) is the coverage source of truth. Every requirement starts as proposed; status changes require code and evidence links. Optional ideas remain separate from release-blocking requirements.
-
-## Flagship demo is a parallel product workstream
-
-Build the experience early, not as marketing polish deferred to M6. The [flagship demo plan](22-flagship-demo.md) maps D0–D5 onto M0–M6. A [standalone concept](../demo/index.html) now proves the intended feel with fixture-specific code. It does **not** close any library implementation milestone.
-
-M1–M2 replace its camera/player with the real packages and canonical script. M3 supplies production-grade media and accessible controls; M4 supplies safe guided tasks; M5 adds a genuine agent-generated scenario; M6 validates and deploys the public site only with authorization. Preserve this recognizable story as an end-to-end acceptance fixture throughout.
+[Implementation status](implementation-status.json) records scoped slice status. [Release evidence](release-candidate.md) links tests and limitations. The original [backlog](backlog.json) and [requirements](requirements.json) remain the broader product register. The [flagship design](22-flagship-demo.md) remains the creative reference, while `site/` is the actual SDK consumer and `demo/` preserves the original prototype.
