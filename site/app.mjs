@@ -70,7 +70,7 @@ function render(state=director.inspect()){
   if(code!==lastCode){lastCode=code;$('live-code').textContent=code;}
   const hints={watch:'Watch the story. No checkpoint is automatically approved.',try:'Practice in an isolated sandbox. Real input completes the task.',guide:'Continue at scene boundaries. Complete the task at your own pace.'};
   $('mode-hint').textContent=hints[state.mode];
-  document.querySelectorAll('[data-mode]').forEach(button=>{const selected=button.dataset.mode===state.mode;button.classList.toggle('selected',selected);button.setAttribute('aria-pressed',String(selected));button.disabled=busy;});
+  document.querySelectorAll('button[data-mode]').forEach(button=>{const selected=button.dataset.mode===state.mode;button.classList.toggle('selected',selected);button.setAttribute('aria-pressed',String(selected));button.disabled=busy;});
   $('save-position').disabled=busy||!!waiting||!!state.pendingOperation;$('restore-position').disabled=busy||!saved||!!waiting||!!state.pendingOperation;
 }
 function refresh(){if(disposed)return;renderFixture();render();}
@@ -103,7 +103,7 @@ on($('easing'),'change',event=>{
     if(result(director.seek({sceneId:old.sceneId,timeMs:old.timeMs}))&&old.status==='playing')play();}
   saved=null;checkpoints.clear();$('script-json').textContent=JSON.stringify(script,null,2);refresh();
 });
-document.querySelectorAll('[data-mode]').forEach(button=>on(button,'click',()=>mode(button.dataset.mode)));
+document.querySelectorAll('button[data-mode]').forEach(button=>on(button,'click',()=>mode(button.dataset.mode)));
 on($('next-step'),'click',()=>{result(director.next());render();});
 on($('retry-step'),'click',()=>{result(director.retryBarrier());render();});
 on($('extend-step'),'click',()=>{result(director.extendWait());toast('More reading time requested.');render();});
