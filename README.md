@@ -4,7 +4,7 @@ Cinematic walkthroughs of a living interface. Pan and zoom real DOM, synchronize
 
 **Implementation candidate: `0.1.0-rc.0`.** The framework-neutral core and optional React adapter are implemented and tested from source and packed tarballs. Both packages remain private: these names are not a claim of npm availability. The [release-candidate report](docs/release-candidate.md) separates automated evidence, supported integration boundaries, and outstanding manual acceptance work.
 
-[Live experience](https://natanelia.github.io/dom-director/) · [Agent playground](https://natanelia.github.io/dom-director/agent.html) · [Core API](packages/core/README.md) · [React](packages/react/README.md) · [Design index](docs/README.md)
+[Live experience](https://natanelia.github.io/dom-director/) · [Agent playground](https://natanelia.github.io/dom-director/agent.html) · [Visual authoring](docs/visual-storyboard.md) · [Core API](packages/core/README.md) · [React](packages/react/README.md) · [Design index](docs/README.md)
 
 ## Try the source checkout
 
@@ -78,6 +78,8 @@ Watch, Try and Guide share a script. Hosts own conditions, actions, authorizatio
 
 The in-process JSON agent bridge supports discovery, validation, preview, inspection and playback commands with explicit grants, revisions, bounded storage and cancellation. Repair helpers propose narrow reviewed patches; they never choose a destructive lookalike or apply a patch automatically. The agent playground uses a deterministic draft helper, not a live model service.
 
+The optional [storyboard builder](docs/storyboard-authoring.md) creates canonical linear Watch tours with stable IDs. The [visual editor](docs/visual-storyboard.md) adds approved-target selection, captions, timing, zoom, scene ordering, bounded undo/redo and JSON export. Editing invalidates agent review; advanced scripts are preserved instead of being converted lossily. Both authoring subpaths are separate from the main runtime entry.
+
 React bindings cover owned lifecycle, semantic state subscriptions, imperative frame callbacks, callback-ref targets, portals and server rendering. The core does not depend on React.
 
 ## Integration boundaries
@@ -90,4 +92,4 @@ Reduced motion, keyboard controls, captions and exit are part of the implementat
 
 See [compatibility and acceptance](docs/release-candidate.md), [performance evidence](docs/evidence/performance.json), [security](SECURITY.md), [contribution commands](CONTRIBUTING.md), [agent working agreement](AGENTS.md), and [license inventory](THIRD_PARTY_NOTICES.md).
 
-The 22-chapter design atlas and its 48 use cases remain useful product direction. They do not imply that every proposed requirement or optional extension is shipped. Video export, visual recording/studio, remote MCP transport, live TTS, collaboration and geographic/3D adapters remain separate projects.
+The 22-chapter design atlas and its 48 use cases remain useful product direction. They do not imply that every proposed requirement or optional extension is shipped. Video export, interaction recording, an advanced branching/timeline studio, remote MCP transport, live TTS, collaboration and geographic/3D adapters remain separate projects.
