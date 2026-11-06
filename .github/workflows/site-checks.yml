@@ -1,0 +1,47 @@
+name: SDK site checks
+on:
+  push:
+    branches: [main]
+  pull_request:
+permissions:
+  contents: read
+concurrency:
+  group: sdk-site-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  site:
+    name: SDK site in ${{ matrix.browser }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        browser: [chromium, firefox, webkit]
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: '3.13'
+      - name: Verify schemas models and public template
+        run: |
+          python3 tools/build_runtime.py
+          node --check site/app.mjs
+          node --check site/agent.mjs
+          node --test site-tests/model.test.mjs
+          python3 site-tests/build_test.py
+      - name: Build allowlisted public site with prepared audio
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends ffmpeg
+          ffmpeg -version
+          python3 tools/build_site.py
+      - name: Install browser with bounded downloads
+        env:
+          BROWSER_ENGINE: ${{ matrix.browser }}
+        run: bash tools/install_test_browser.sh
+      - name: Test actual SDK demo and agent authoring consumer
+        env:
+          BROWSER_ENGINE: ${{ matrix.browser }}
+        run: python3 site-tests/browser_test.py
