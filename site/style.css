@@ -15,6 +15,7 @@
 .sdk-site .card-kicker span,.sdk-site .review-card p,.sdk-site .review-detail,.sdk-site .sandbox-fineprint{color:#4f6243}
 .sdk-site .metric>span,.sdk-site .metric strong small{color:#526346}
 .sdk-site .chapter-button,.sdk-site .mode-picker button{color:#58634e}
+.sdk-site .mode-picker button.selected{color:var(--paper)}
 .sdk-site .chapter-button.active .chapter-no{color:#a94326}
 .sdk-site .chapter-button.active strong{color:#283d27}
 .sdk-site .proof-number,.sdk-site .mini-code,.sdk-site .honesty-note p,.sdk-site .dialog-footer span{color:#59624f}
