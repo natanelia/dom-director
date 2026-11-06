@@ -3,10 +3,12 @@
   "version": "0.1.0-rc.0",
   "private": true,
   "type": "module",
-  "description": "Optional React lifecycle bindings for DOM Director",
+  "description": "Cinematic walkthrough lifecycle bindings for React",
   "license": "MIT",
-  "exports": {".": "./src/index.js", "./bindings": "./src/bindings.js"},
-  "files": ["src", "README.md", "LICENSE"],
+  "types": "./src/index.d.ts",
+  "exports": {".": {"types": "./src/index.d.ts", "import": "./src/index.js", "default": "./src/index.js"}, "./bindings": {"types": "./src/bindings.d.ts", "import": "./src/bindings.js", "default": "./src/bindings.js"}},
+  "files": ["src", "README.md", "LICENSE", "prepare.mjs"],
   "sideEffects": false,
-  "peerDependencies": {"@dom-director/core": "0.1.0-rc.0", "react": ">=18.3.1 <20"}
+  "peerDependencies": {"@dom-director/core": "0.1.0-rc.0", "react": ">=18.3.1 <20"},
+  "scripts": {"prepack": "node prepare.mjs", "test": "node --test test/*.test.js"}
 }
