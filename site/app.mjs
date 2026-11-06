@@ -138,4 +138,9 @@ for(let i=0;i<38;i++){const bar=document.createElement('i');bar.style.height=7+(
 $('script-json').textContent=JSON.stringify(script,null,2);
 const loaded=director.load(script);if(!result(loaded))$('announcements').textContent='The walkthrough could not load. The application remains available.';
 refresh();
-on(window,'pagehide',()=>{if(disposed)return;disposed=true;clearTimeout(toastTimer);cleanups.splice(0).forEach(off=>off());checkpoints.destroy();director.destroy();guidance.destroy();observers.clear();});
+on(window,'pageshow',event=>{if(event.persisted&&!disposed)refresh();});
+on(window,'pagehide',event=>{
+  if(disposed)return;
+  if(event.persisted){pause();clearTimeout(toastTimer);$('toast').hidden=true;return;}
+  disposed=true;clearTimeout(toastTimer);cleanups.splice(0).forEach(off=>off());checkpoints.destroy();director.destroy();guidance.destroy();observers.clear();
+});

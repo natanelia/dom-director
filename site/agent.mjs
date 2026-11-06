@@ -75,4 +75,11 @@ on($('copy-context'),'click',()=>run(async()=>{
 }));
 cleanup.push(director.on(event=>{if(event.type==='diagnostic')message(event.detail?.diagnostic?.code+': '+event.detail?.diagnostic?.message);}));
 renew();await discover();
-on(window,'pagehide',()=>{disposed=true;cleanup.splice(0).forEach(off=>off());bridge.destroy();controls.destroy();director.destroy();guidance.destroy();});
+on(window,'pageshow',event=>{
+  if(event.persisted&&!disposed){renew();message('Restored paused. Validate and review again before agent playback.');}
+});
+on(window,'pagehide',event=>{
+  if(disposed)return;
+  if(event.persisted){director.pause();bridge.revoke();review.checked=false;return;}
+  disposed=true;cleanup.splice(0).forEach(off=>off());bridge.destroy();controls.destroy();director.destroy();guidance.destroy();
+});
