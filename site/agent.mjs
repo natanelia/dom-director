@@ -1,4 +1,6 @@
 import {createDirector,createTargetRegistry,createGuidance,mountControls,createAgentBridge,AGENT_PROTOCOL_VERSION,compile} from './sdk/index.js';
+import {compileStoryboard} from './sdk/storyboard.js';
+import {mountStoryboard} from './sdk/storyboard-editor.js';
 const $=id=>document.getElementById(id),editor=$('agent-script'),review=$('reviewed-script');
 const reportNode=$('reports'),reportParent=reportNode.parentElement;
 const registry=createTargetRegistry({
@@ -12,10 +14,11 @@ const director=createDirector({surface:{viewport:$('agent-viewport'),scene:$('ag
 const controls=mountControls(director,$('agent-controls'));
 let bridge,client=0,serial=0,validatedText=null,reviewedCanonical=null,loadedCanonical=null,busy=false,disposed=false,clicks=0;
 const log=[],cleanup=[];
+let approvedTargets=[],storyboard;
 function on(el,type,fn){el.addEventListener(type,fn);cleanup.push(()=>el.removeEventListener(type,fn));}
 function policy(req){
   if(['getCapabilities','discoverTargets','validate','preview','inspect','pause','stop'].includes(req.command))return true;
-  if(!review.checked||validatedText!==editor.value)return false;
+  if(storyboard?.pending||!review.checked||validatedText!==editor.value)return false;
   if(req.command==='load')return JSON.stringify(req.params.script)===reviewedCanonical;
   return req.command==='play'&&loadedCanonical===reviewedCanonical;
 }
@@ -33,25 +36,27 @@ async function send(command,params={}){
 }
 function parsed(){const value=compile(editor.value);if(!value.ok){message(value.diagnostics[0].code+': '+value.diagnostics[0].message);return null;}return value.plan.script;}
 async function run(work){if(busy||disposed)return;busy=true;try{await work();}catch{message('Operation failed without executing an unreviewed script.');}finally{busy=false;}}
-async function discover(){const response=await send('discoverTargets');if(response.ok)$('catalog').textContent=JSON.stringify(response.value,null,2);return response;}
+async function discover(){const response=await send('discoverTargets');if(response.ok){approvedTargets=response.value.targets;$('catalog').textContent=JSON.stringify(response.value,null,2);}return response;}
 function draftFromCatalog(targets){
-  const chosen=targets.slice(0,3),bindings={},scenes=[];
-  for(const [index,target] of chosen.entries()){
-    const alias='target'+index;bindings[alias]={ref:target.id,description:target.label};
-    scenes.push({id:'scene'+index,title:target.label,summary:'Focus on '+target.label+'. The application remains interactive.',durationMs:3500,
-      cues:[{id:'camera'+index,kind:'camera',at:0,durationMs:900,target:alias,minScale:.1,maxScale:2},
-        {id:'highlight'+index,kind:'highlight',at:900,durationMs:2600,target:alias,style:'outline'}],...(index<chosen.length-1?{next:'scene'+(index+1)}:{})});
-  }
-  return {schemaVersion:'0.1.0-draft.1',id:'catalog-authored-tour',title:'A tour from approved targets',locale:'en',entryScene:'scene0',modes:['watch'],capabilities:[],targets:bindings,scenes};
+  const result=compileStoryboard({version:1,id:'catalog-authored-tour',title:'A tour from approved targets',locale:'en',
+    scenes:targets.slice(0,3).map((target,index)=>({id:'scene'+index,title:target.label,target:target.id,
+      description:'Focus on '+target.label+'. The application remains interactive.',durationMs:3500,transitionMs:900,maxScale:2,cursor:true}))});
+  if(!result.ok)throw new Error('Unable to draft from this catalog.');
+  return result.value;
 }
-function writeScript(value){editor.value=JSON.stringify(value,null,2);validatedText=null;reviewedCanonical=null;review.checked=false;}
-on(editor,'input',()=>{validatedText=null;reviewedCanonical=null;review.checked=false;message('Script changed. Validate and review the new version before loading.');});
+function invalidateReview(){director.pause();validatedText=null;reviewedCanonical=null;loadedCanonical=null;review.checked=false;}
+function writeScript(value,fromStoryboard=false){
+  invalidateReview();editor.value=JSON.stringify(value,null,2);
+  if(!fromStoryboard){storyboard?.invalidate();storyboard?.importCurrent();}
+}
+on(editor,'input',()=>{invalidateReview();storyboard?.invalidate();message('Script changed. Validate and review the new version before loading.');});
 on($('discover'),'click',()=>run(discover));
 on($('draft'),'click',()=>run(async()=>{const r=await discover();if(r.ok&&r.value.targets.length){writeScript(draftFromCatalog(r.value.targets));message('Deterministic draft created from approved metadata. Validate it, then review.');}}));
 on($('validate'),'click',()=>run(async()=>{
+  if(storyboard.pending){message('Apply or discard scene edits before validation.');return;}
   const text=editor.value,script=parsed();if(!script)return;
   const valid=await send('validate',{script});if(!valid.ok)return;const preview=await send('preview',{script});if(!preview.ok)return;
-  if(editor.value!==text){message('The script changed during validation. Validate again.');return;}
+  if(editor.value!==text||storyboard.pending){message('The script changed during validation. Validate again.');return;}
   validatedText=text;reviewedCanonical=JSON.stringify(script);review.checked=false;$('preview').textContent=JSON.stringify(preview.value,null,2);message('Valid static plan. Live targets and host permissions are checked separately.');
 }));
 on($('load-script'),'click',()=>run(async()=>{
@@ -74,6 +79,7 @@ on($('copy-context'),'click',()=>run(async()=>{
   try{await navigator.clipboard.writeText(JSON.stringify(context,null,2));message('Approved context copied. No page values were included.');}catch{$('preview').textContent=JSON.stringify(context,null,2);message('Clipboard unavailable. The approved context is in the plan panel.');}
 }));
 cleanup.push(director.on(event=>{if(event.type==='diagnostic')message(event.detail?.diagnostic?.code+': '+event.detail?.diagnostic?.message);}));
+storyboard=mountStoryboard({root:$('storyboard-root'),editor,getTargets:()=>approvedTargets,write:value=>writeScript(value,true),onDirty:()=>{invalidateReview();message('Scene edits paused playback and invalidated review. Apply or discard them before validation.');}});
 renew();await discover();
 on(window,'pageshow',event=>{
   if(event.persisted&&!disposed){renew();message('Restored paused. Validate and review again before agent playback.');}
@@ -81,5 +87,5 @@ on(window,'pageshow',event=>{
 on(window,'pagehide',event=>{
   if(disposed)return;
   if(event.persisted){director.pause();bridge.revoke();review.checked=false;return;}
-  disposed=true;cleanup.splice(0).forEach(off=>off());bridge.destroy();controls.destroy();director.destroy();guidance.destroy();
+  disposed=true;cleanup.splice(0).forEach(off=>off());storyboard.destroy();bridge.destroy();controls.destroy();director.destroy();guidance.destroy();
 });

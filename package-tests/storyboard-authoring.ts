@@ -1,4 +1,5 @@
 import {compileStoryboard, readStoryboard, STORYBOARD_VERSION, type Storyboard, type StoryboardScene} from '@dom-director/core/storyboard';
+import {mountStoryboard} from '@dom-director/core/storyboard-editor';
 import type {Tour} from '@dom-director/core';
 const scene = {id:'overview',title:'Overview',target:'app.reports',description:'Read the overview.',durationMs:3500,transitionMs:900,maxScale:2,cursor:true} as const satisfies StoryboardScene;
 const board = {version:STORYBOARD_VERSION,id:'example',title:'Example',locale:'en',scenes:[scene]} as const satisfies Storyboard;
@@ -16,6 +17,9 @@ if (generated.ok) {
   const code:string = generated.diagnostics[0].code;
   void code;
 }
+const editor=mountStoryboard({root:document.createElement('section'),editor:document.createElement('textarea'),
+  getTargets:()=>[{id:'app.reports',label:'Reports',kind:'dom'}],write:script=>{const tour:Tour=script;void tour;},onDirty:()=>{}});
+const pending:boolean=editor.pending;void pending;editor.importCurrent();editor.invalidate();editor.destroy();
 // @ts-expect-error storyboard pointer selection is a boolean, not a DOM event
 const invalid:StoryboardScene = {...scene,cursor:'click'};
 // @ts-expect-error unsupported compact storyboard format

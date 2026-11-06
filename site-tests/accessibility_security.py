@@ -90,6 +90,17 @@ def main():
             page.locator('#reviewed-script').check();page.locator('#load-script').click()
             page.wait_for_function("document.querySelector('#agent-message').textContent.startsWith('Reviewed script loaded')")
             audit('agent-loaded')
+            page.locator('#storyboard-title').fill('Edited storyboard scene')
+            assert not page.locator('#reviewed-script').is_checked()
+            assert page.locator('#storyboard-download').is_disabled()
+            audit('storyboard-dirty')
+            page.locator('#storyboard-apply').focus();page.keyboard.press('Enter')
+            assert json.loads(page.locator('#agent-script').input_value())['scenes'][0]['title'] == 'Edited storyboard scene'
+            report['keyboard']['storyboardApply'] = True
+            page.set_viewport_size({'width':390, 'height':844})
+            assert not page.evaluate('document.documentElement.scrollWidth>innerWidth')
+            audit('storyboard-mobile')
+            page.set_viewport_size({'width':1440, 'height':1100})
             page.add_init_script("window.policyFailures=[];addEventListener('securitypolicyviolation',e=>policyFailures.push(e.violatedDirective));")
             ready('policy/');page.locator('#stage-play').click()
             until(lambda: float(page.locator('#seek').input_value()) > .2, 'CSP playback did not progress.')
@@ -97,10 +108,13 @@ def main():
             assert page.evaluate('() => window.policyFailures') == []
             ready('policy/agent.html');page.locator('#draft').click()
             until(lambda: 'catalog-authored-tour' in page.locator('#agent-script').input_value(), 'CSP draft did not appear.')
+            page.locator('#storyboard-title').fill('CSP-safe scene edit')
+            page.locator('#storyboard-apply').click()
+            assert json.loads(page.locator('#agent-script').input_value())['scenes'][0]['title'] == 'CSP-safe scene edit'
             page.locator('#validate').click()
             until(lambda: page.locator('#agent-message').inner_text().startswith('Valid static plan'), 'CSP validation did not finish.')
             assert page.evaluate('() => window.policyFailures') == []
-            report['security'] = {'strictCspFixture':True, 'policy':POLICY, 'evalAndInlineScriptNotRequired':True, 'connectGrantNotRequired':True, 'publicPagesHeadersNotClaimed':True}
+            report['security'] = {'strictCspFixture':True, 'policy':POLICY, 'evalAndInlineScriptNotRequired':True, 'connectGrantNotRequired':True, 'storyboardEdits':True, 'publicPagesHeadersNotClaimed':True}
             assert not errors, errors
             report['passed'] = not failures;save();browser.close()
     except Exception as error:
