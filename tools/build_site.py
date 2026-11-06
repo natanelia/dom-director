@@ -10,6 +10,10 @@ def replace_once(text,old,new):
 
 def render_html(template,css,revision):
     html=replace_once(template,'<body>','<body class="sdk-site">')
+    html=replace_once(html,'<aside class="app-sidebar">','<nav class="app-sidebar" aria-label="Orbit workspace">')
+    html=replace_once(html,'</aside>','</nav>')
+    html=replace_once(html,'id="chapter-strip" aria-label=','id="chapter-strip" role="group" aria-label=')
+    html=replace_once(html,'class="mode-picker" aria-label=','class="mode-picker" role="group" aria-label=')
     html=replace_once(html,'<style>/*__CSS__*/</style>','<style>'+css+'</style>')
     html=replace_once(html,'<script>/*__DATA__*/</script>\n<script>/*__MODEL__*/\n/*__APP__*/</script>',
         '<div id="sdk-overlay"></div><script type="module" src="./app.mjs"></script>')
