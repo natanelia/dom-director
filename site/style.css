@@ -8,6 +8,16 @@
 .sdk-tools button:disabled{opacity:.5;cursor:default}
 .sdk-site [data-director-overlay] [data-kind=cursor]{font-size:34px!important}
 .sdk-site .voice,.sdk-site #exit-tour{min-height:30px}
+/* Keep the paper/olive/terracotta palette while meeting normal-text contrast. */
+.sdk-site{--muted:#59624f;--orange:#b84426}
+.sdk-site .primary:hover{background:#a63c22}
+.sdk-site .app-topbar,.sdk-site .app-eyebrow{color:#56634e}
+.sdk-site .card-kicker span,.sdk-site .review-card p,.sdk-site .review-detail,.sdk-site .sandbox-fineprint{color:#4f6243}
+.sdk-site .metric>span,.sdk-site .metric strong small{color:#526346}
+.sdk-site .chapter-button,.sdk-site .mode-picker button{color:#58634e}
+.sdk-site .chapter-button.active .chapter-no{color:#a94326}
+.sdk-site .chapter-button.active strong{color:#283d27}
+.sdk-site .proof-number,.sdk-site .mini-code,.sdk-site .honesty-note p,.sdk-site .dialog-footer span{color:#59624f}
 @media(max-width:900px){.sdk-site .app-sidebar{width:140px}.sdk-site .app-grid{margin:0 14px;gap:10px}.sdk-site .app-heading{padding-left:14px;padding-right:14px}}
 @media(max-width:700px){
  .sdk-site .stage{height:500px}.sdk-site .scene{height:500px}.sdk-site .app-sidebar,.sdk-site .app-topbar{display:none}
