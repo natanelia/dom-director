@@ -1,0 +1,38 @@
+name: Performance and cleanup
+on:
+  push:
+    branches: [main]
+    paths: ['packages/core/**', 'performance/**', 'tools/build_runtime.py', '.github/workflows/performance-checks.yml']
+  pull_request:
+    paths: ['packages/core/**', 'performance/**', 'tools/build_runtime.py', '.github/workflows/performance-checks.yml']
+permissions:
+  contents: read
+concurrency:
+  group: performance-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  measure:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: '3.13'
+      - run: python3 tools/build_runtime.py
+      - name: Install browser with bounded official-mirror downloads
+        env:
+          BROWSER_ENGINE: chromium
+        run: bash tools/install_test_browser.sh
+      - name: Measure matched workloads and 100 lifecycle cycles
+        run: python3 -u performance/run.py
+      - name: Retain raw measurement evidence only
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: performance-results
+          path: performance-results/results.json
+          if-no-files-found: warn
+          retention-days: 7
