@@ -58,12 +58,10 @@ jobs:
           git diff --exit-code -- demo/index.html
       - name: Run pure-model tests
         run: node --test demo/tests/model.test.cjs
-      - name: Install pinned browser-test dependencies
+      - name: Install pinned browser-test dependencies with bounded downloads
         env:
           BROWSER_ENGINE: ${{ matrix.browser }}
-        run: |
-          python3 -m pip install -r demo/requirements-browser.txt
-          python3 -m playwright install --with-deps "$BROWSER_ENGINE"
+        run: bash tools/install_test_browser.sh
       - name: Run HTTP playback and interaction regressions
         env:
           BROWSER_ENGINE: ${{ matrix.browser }}
