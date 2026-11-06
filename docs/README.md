@@ -6,9 +6,13 @@ The reusable core, React bindings and SDK-backed consumer now exist. Start with 
 
 The 22 design chapters below preserve the original vision and trade-offs. They distinguish decided architecture, proposed behavior, deferred extensions and unproven hypotheses. A design statement containing “must” is an acceptance requirement, not automatic proof of implementation. The [milestone ledger](16-roadmap.md) connects shipped slices to their PRs; the original requirements/backlog register remains broader than the candidate.
 
+## Visual editor redesign — design review first
+
+[Creator-first visual editor proposal](visual-editor-redesign.md) responds to the current editor's confusing workflow. It contains a source-backed UX audit, the proposed authoring loop, desktop/mobile wireframes, editing and preview semantics, safety boundaries, and usability gates. This is a **draft proposal, not implemented behavior**. Review the workflow and layouts before changing the editor; the [current visual editor contract](visual-storyboard.md) remains the implementation reference.
+
 ## Reading paths
 
-**Product/design:** 01 → 02 → 09 → 11 → 16.  
+**Product/design:** visual editor proposal → 01 → 02 → 09 → 11 → 16.  
 **Runtime implementer:** current package declarations → 04 → 05 → 06 → 07 → 12 → 15.  
 **Agent integration:** 10 → 05 → 12 → implemented `agent.js` and the agent consumer.  
 **Reviewer:** release-candidate report → 03 → 17 → ADRs → open questions.
