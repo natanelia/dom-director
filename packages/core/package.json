@@ -6,7 +6,11 @@
   "description": "Cinematic walkthrough runtime for intentional DOM surfaces",
   "license": "MIT",
   "types": "./src/index.d.ts",
-  "exports": {".": {"types": "./src/index.d.ts", "import": "./src/index.js", "default": "./src/index.js"}, "./surface": {"types": "./src/surface.d.ts", "import": "./src/surface.js", "default": "./src/surface.js"}},
+  "exports": {
+    ".": {"types": "./src/index.d.ts", "import": "./src/index.js", "default": "./src/index.js"},
+    "./surface": {"types": "./src/surface.d.ts", "import": "./src/surface.js", "default": "./src/surface.js"},
+    "./storyboard": {"types": "./src/storyboard.d.ts", "import": "./src/storyboard.js", "default": "./src/storyboard.js"}
+  },
   "files": ["src", "README.md", "LICENSE", "prepare.mjs"],
   "sideEffects": false,
   "scripts": {"prepack": "node prepare.mjs", "test": "node --test test/*.test.js"}
