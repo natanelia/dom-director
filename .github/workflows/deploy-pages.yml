@@ -40,10 +40,7 @@ jobs:
           python-version: '3.13'
       - name: Build the allowlisted SDK site
         run: |
-          if ! command -v ffmpeg >/dev/null 2>&1; then
-            sudo timeout --kill-after=15s 180s apt-get -o Acquire::Retries=2 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30 update
-            sudo timeout --kill-after=15s 240s apt-get -o Acquire::Retries=2 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30 install -y --no-install-recommends ffmpeg
-          fi
+          bash tools/install_site_tools.sh
           python3 tools/build_runtime.py
           python3 tools/build_site.py
           python3 site-tests/deployment_contract_test.py
@@ -57,6 +54,7 @@ jobs:
           BROWSER_ENGINE: ${{ matrix.browser }}
         run: |
           python3 site-tests/browser_test.py
+          python3 site-tests/storyboard_test.py
           python3 site-tests/deployed_smoke.py --local-directory site-dist
       - name: Upload only the verified public artifact
         if: github.ref == 'refs/heads/main' && matrix.browser == 'chromium'

@@ -39,7 +39,9 @@ jobs:
         env:
           BROWSER_ENGINE: ${{ matrix.browser }}
         run: bash tools/install_test_browser.sh
-      - name: Test actual SDK demo and agent authoring consumer
+      - name: Test actual SDK demo and visual authoring consumer
         env:
           BROWSER_ENGINE: ${{ matrix.browser }}
-        run: python3 site-tests/browser_test.py
+        run: |
+          python3 site-tests/browser_test.py
+          python3 site-tests/storyboard_test.py

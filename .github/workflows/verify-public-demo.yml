@@ -29,8 +29,11 @@ jobs:
         run: |
           python3 tools/build_runtime.py
           bash tools/install_test_browser.sh
-      - name: Verify live bytes and actual behavior without authentication
+      - name: Verify live bytes, playback and visual authoring without authentication
         env:
           BROWSER_ENGINE: ${{ matrix.browser }}
           DEPLOYED_SHA: ${{ github.event.workflow_run.head_sha }}
-        run: python3 site-tests/deployed_smoke.py
+          STORYBOARD_PUBLIC_URL: https://natanelia.github.io/dom-director/agent.html
+        run: |
+          python3 site-tests/deployed_smoke.py
+          python3 site-tests/storyboard_test.py
