@@ -13,4 +13,11 @@ class SiteBuildTests(unittest.TestCase):
         with self.assertRaises(ValueError):builder.render_html('<html></html>','', 'a'*40)
     def test_legacy_source_is_read_only(self):
         path=ROOT/'demo/src/index.html';before=path.read_bytes();builder.render_html(before.decode(),'','b'*40);self.assertEqual(path.read_bytes(),before)
+    def test_studio_is_explicitly_staged_with_local_rewritten_imports(self):
+        files=builder.studio_files('a'*40)
+        self.assertIn('studio.html',files)
+        self.assertIn(b'content="'+b'a'*40+b'"',files['studio.html'])
+        self.assertIn('studio-sdk/editing.js',files)
+        self.assertNotIn(b"from '@dom-director",b''.join(files.values()))
+        self.assertFalse(any(name.endswith('.d.ts') or '/test/' in name for name in files))
 if __name__=='__main__':unittest.main(verbosity=2)

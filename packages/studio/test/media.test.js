@@ -23,3 +23,13 @@ test('invalid playhead/loop are rejected; project replacement clears loop',async
 test('provider styles are capability checked before a request is sent',async()=>{let calls=0;const provider={capabilities:{name:'Test voice',voices:[{id:'voice',styles:['calm']}]},generate:async()=>{calls++;return {bytes:data(),mime:'audio/wav'};}};const req={text:'Read this.',clipId:'voice.one',revision:4,voiceId:'voice',style:'calm'};await assert.rejects(generateVoiceTake(provider,{...req,style:'unsupported'}));assert.equal(calls,0);const result=await generateVoiceTake(provider,req);assert.equal(result.origin.revision,4);assert.equal(result.origin.style,'calm');assert.equal(calls,1);});
 test('late generation retains origin and aborted results never become takes',async()=>{let resolve;const provider={capabilities:{name:'Test',voices:[{id:'v',styles:['neutral']}]},generate:()=>new Promise(r=>resolve=r)};const ctrl=new AbortController(),req={text:'Origin script',revision:3,clipId:'clip',voiceId:'v',style:'neutral'};const promise=generateVoiceTake(provider,req,{signal:ctrl.signal});ctrl.abort();resolve({bytes:data(),mime:'audio/wav'});await assert.rejects(promise,/cancelled/);});
 test('generation provenance cannot be rewritten by mutating the request while pending',async()=>{let resolve;const provider={capabilities:{name:'Test',voices:[{id:'v',styles:['neutral']}]},generate:()=>new Promise(r=>resolve=r)};const request={text:'Original',revision:2,clipId:'clip',voiceId:'v',style:'neutral'},pending=generateVoiceTake(provider,request);request.text='Newer';request.revision=9;resolve({bytes:data(),mime:'audio/wav'});const result=await pending;assert.equal(result.origin.text,'Original');assert.equal(result.origin.revision,2);});
+
+test('decoded durations quantize to the nearest project millisecond, not a biased floor',async()=>{
+  for(const [duration,expected] of [[8.999979166666667,9000],[2.3454,2345],[2.3456,2346],[.000125,1]]){
+    const bank=createMediaBank({contextFactory:()=>context({duration})});
+    const asset=await bank.ingest('quantized','Quantized','audio/wav',data());
+    assert.equal(asset.durationMs,expected);assert.equal(bank.get(asset.id).duration,duration);
+    assert.ok(Math.abs(asset.durationMs-duration*1000)<1);
+    await bank.destroy();
+  }
+});

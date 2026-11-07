@@ -25,7 +25,7 @@ def render_html(template,css,revision):
     html=replace_once(html,'    <div class="transport">',caption+'\n    <div class="transport">')
     html=replace_once(html,'<button class="takeover" id="takeover">',
         '<button class="transport-chip" id="exit-tour">Exit</button><button class="takeover" id="takeover">')
-    tools='<div class="sdk-tools wrap"><button id="retry-step" hidden>Retry step</button><button id="extend-step" hidden>More time</button><button id="hint-step" hidden>Show hint</button><button id="save-position">Save position</button><button id="restore-position" disabled>Restore position</button><a href="./agent.html">Agent playground ↗</a><a href="./prototype/">Original prototype ↗</a></div>'
+    tools='<div class="sdk-tools wrap"><button id="retry-step" hidden>Retry step</button><button id="extend-step" hidden>More time</button><button id="hint-step" hidden>Show hint</button><button id="save-position">Save position</button><button id="restore-position" disabled>Restore position</button><a href="./studio.html">Open Studio ↗</a><a href="./agent.html">Agent playground ↗</a><a href="./prototype/">Original prototype ↗</a></div>'
     html=replace_once(html,'<section class="behind wrap"',tools+'\n<section class="behind wrap"')
     html=html.replace('LIVE PROTOTYPE','LIVE SDK').replace('Prototype notes ↗','Implementation notes ↗')
     html=replace_once(html,'A handcrafted concept prototype.<br>Not the published DOM Director SDK.',
@@ -45,6 +45,31 @@ def render_html(template,css,revision):
     if any(marker in html for marker in ['/*__CSS__*/','/*__DATA__*/','/*__APP__*/','/*__MODEL__*/']):raise ValueError('Unresolved template marker')
     return html
 
+STUDIO_SITE_FILES = ('studio.html', 'studio.css', 'studio.mjs', 'studio-view.mjs')
+STUDIO_MODULES = ('index.js', 'project.js', 'sample.js', 'evaluator.js', 'editing.js', 'media.js', 'subtitles.js')
+
+def studio_files(revision):
+    """Exact public Studio inputs; no package metadata, test or arbitrary file upload."""
+    files = {}
+    for name in STUDIO_SITE_FILES:
+        source = ROOT / 'site' / name
+        if source.is_symlink():raise ValueError('Studio source symlink is not allowed')
+        content = source.read_text()
+        if name == 'studio.html':
+            content = replace_once(content, '</head>', f'<meta name="dom-director-revision" content="{revision}"></head>')
+        files[name] = content.encode()
+    for name in STUDIO_MODULES:
+        source = ROOT / 'packages/studio/src' / name
+        if not source.is_file():raise ValueError('Missing approved Studio module: ' + name)
+        if source.is_symlink():raise ValueError('Studio source symlink is not allowed')
+        content = source.read_text().replace("'@dom-director/core/data'", "'../sdk/json.js'").replace("'@dom-director/core'", "'../sdk/index.js'")
+        if re.search(r'\bimport\s*\(', content):raise ValueError('Dynamic Studio imports require an explicit publication review')
+        for ref in re.findall(r"(?:\bfrom\s*|\bimport\s*)['\"]([^'\"]+)['\"]", content):
+            if ref not in ('../sdk/json.js', '../sdk/index.js') and ref not in {'./' + name for name in STUDIO_MODULES}:
+                raise ValueError('Unexpected Studio dependency: ' + ref)
+        files['studio-sdk/' + source.name] = content.encode()
+    return files
+
 def build(output,revision):
     if not re.fullmatch(r'[a-f0-9]{40}|development',revision):raise ValueError('Invalid build revision')
     output=Path(output).resolve()
@@ -63,6 +88,8 @@ def build(output,revision):
         source=ROOT/'site'/name
         if source.is_symlink():raise ValueError('Source symlink is not allowed')
         shutil.copyfile(source,output/name)
+    for name,content in studio_files(revision).items():
+        target=output/name;target.parent.mkdir(parents=True,exist_ok=True);target.write_bytes(content)
     css=(ROOT/'demo/src/style.css').read_text()+'\n'+(ROOT/'site/style.css').read_text()
     html=render_html((ROOT/'demo/src/index.html').read_text(),css,revision)
     (output/'index.html').write_text(html)
@@ -77,7 +104,7 @@ def build(output,revision):
             '-t',str(scene['durationMs']/1000),'-vn','-c:a','libmp3lame','-b:a','64k','-ar','22050','-ac','1','-map_metadata','-1',str(assets/name)],check=True,timeout=30)
         start+=scene['durationMs']
     files={str(path.relative_to(output)):hashlib.sha256(path.read_bytes()).hexdigest() for path in sorted(output.rglob('*')) if path.is_file()}
-    allowed={'.nojekyll','index.html','LICENSE.txt','tour.generated.js','orbit.tour.json','app.mjs','model.mjs','agent.html','agent.mjs','prototype/index.html'}
+    allowed={'.nojekyll','index.html','LICENSE.txt','tour.generated.js','orbit.tour.json','app.mjs','model.mjs','agent.html','agent.mjs','prototype/index.html',*STUDIO_SITE_FILES,*('studio-sdk/'+name for name in STUDIO_MODULES)}
     if any(name not in allowed and not re.fullmatch(r'sdk/[A-Za-z0-9.-]+\.js|assets/voice\.[A-Za-z0-9.-]+\.mp3',name) for name in files):raise ValueError('Unexpected public artifact path')
     (output/'_build.json').write_text(json.dumps({'revision':revision,'runtime':'@dom-director/core','schemaVersion':tour['schemaVersion'],'files':files},indent=2)+'\n')
     print(json.dumps({'revision':revision,'files':len(files)+1,'bytes':sum(path.stat().st_size for path in output.rglob('*') if path.is_file())}))

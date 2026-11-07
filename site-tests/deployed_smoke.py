@@ -45,6 +45,7 @@ def expected_files(revision):
         files['sdk/' + module.name] = module.read_bytes()
     if 'sdk/schema.generated.js' not in files:
         raise ValueError('Build the canonical schemas before verification.')
+    files.update(builder.studio_files(revision))
     audio = set()
     for scene in tour['scenes']:
         identifier = scene['narration']['audioAsset']

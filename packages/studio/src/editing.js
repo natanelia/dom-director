@@ -21,6 +21,19 @@ export function applyCaptionPreset(project,clipId,name,scope='clip'){
   demand(findClip(project,clipId).track.kind==='captions','Select a caption.');
   return setAppearance(project,clipId,PRESETS[name],{scope});
 }
+/** Even spacing is a manual starting point, not speech alignment. */
+export function distributeCaptionWords(project,clipId){
+  return editProject(project,next=>{
+    const {track,clip}=findClip(next,clipId);
+    demand(track.kind==='captions','Select a caption clip.');
+    const words=clip.text.trim().split(/\s+/u),wordCount=words.length;
+    demand(wordCount<=400&&wordCount<=clip.durationMs,'This caption has too many words for individual timing.');
+    clip.words=words.map((text,index)=>({
+      text,startMs:Math.floor(index*clip.durationMs/wordCount),
+      endMs:Math.floor((index+1)*clip.durationMs/wordCount),
+    }));
+  });
+}
 export function updateKeyframe(project,clipId,keyId,patch){
   demand(!Object.hasOwn(patch,'id'),'Keyframe identity cannot be replaced.');
   return editProject(project,next=>{
