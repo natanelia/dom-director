@@ -13,10 +13,11 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
           persist-credentials: false
+          ref: 3af3c9bf806413fee24d1b97b4ca1f08eb41e100
       - name: Archive tracked source only
         run: |
           mkdir -p /tmp/director-source
-          git archive --format=tar 3af3c9bf806413fee24d1b97b4ca1f08eb41e100 > /tmp/director-source/source.tar
+          git archive --format=tar HEAD > /tmp/director-source/source.tar
           sha256sum /tmp/director-source/source.tar
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
