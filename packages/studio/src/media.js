@@ -22,7 +22,7 @@ export function createMediaBank({resolveSample,contextFactory=()=>new AudioConte
     check(!disposed,'Media bank was closed.');check(bytes instanceof ArrayBuffer&&bytes.byteLength>0&&bytes.byteLength<=MAX_ASSET,'Audio file must be at most 8 MiB.');
     check(/^audio\/(mpeg|mp3|wav|x-wav|webm|ogg|mp4)$/u.test(mime),'Use MP3, WAV, Ogg, MP4 audio or WebM audio.');
     check([...raw.values()].reduce((n,b)=>n+b.byteLength,0)+reserved+bytes.byteLength<=MAX_TOTAL,'Local audio budget is 24 MiB.');
-    check(!raw.has(id)&&!decoded.has(id)&&!pending.has(id),'Asset identity already exists.');
+    check(!raw.has(id)&&!decoded.has(id)&&!pending.has(id)&&!signatures.has(id),'Asset identity already exists.');
     bytes=bytes.slice(0);pending.add(id);reserved+=bytes.byteLength;const expected=version(id);
     try{const hash=await digest(bytes);abort(signal);const audio=await decode(id,bytes,signal,expected);abort(signal);
       const asset={id,name:name.slice(0,200),mime,durationMs:Math.floor(audio.duration*1000),source:'local',sha256:hash};
@@ -30,8 +30,10 @@ export function createMediaBank({resolveSample,contextFactory=()=>new AudioConte
     }catch(error){decoded.delete(id);peaks.delete(id);throw error;}finally{pending.delete(id);reserved-=bytes.byteLength;}
   }
   async function load(asset,{signal}={}){
-    abort(signal);check(!disposed,'Media bank was closed.');const expected=version(asset.id),sig=signature(asset);
+    abort(signal);check(!disposed,'Media bank was closed.');check(!pending.has(asset.id),'Audio is still being imported.');const expected=version(asset.id),sig=signature(asset);
     if(signatures.has(asset.id))check(signatures.get(asset.id)===sig,'Audio identity changed; reopen the project with the correct media.');
+    // Reserve source identity before asynchronous fetch/decode, not after it.
+    signatures.set(asset.id,sig);
     if(decoded.has(asset.id))return decoded.get(asset.id);
     if(raw.has(asset.id))return decode(asset.id,raw.get(asset.id),signal);
     check(asset.source==='sample'&&typeof resolveSample==='function','Audio is missing. Reopen a bundle that includes its media.');
@@ -90,7 +92,9 @@ export function createTransport({bank,onFrame,onState,now=()=>performance.now(),
       if(audio){const ctx=bank.context();await ctx.resume();check(ctx.state==='running','Audio could not start. Enable sound from a user gesture.');for(const id of new Set(voice.map(c=>c.assetId))){await bank.load(project.assets.find(a=>a.id===id),{signal});abort(signal);}}
       if(token!==epoch||disposed)return;
       if(audio)for(const c of voice)check(c.sourceInMs+c.durationMs<=bank.get(c.assetId).duration*1000+2,'A voice clip exceeds the decoded source. Trim it or replace the take.');
-      const total=project.scenes.reduce((n,s)=>n+s.durationMs,0);if(time>=total)time=loop?.startMs||0;
+      const total=project.scenes.reduce((n,s)=>n+s.durationMs,0);
+      if(loop&&(time<loop.startMs||time>=loop.endMs))time=loop.startMs;
+      else if(time>=total)time=0;
       base=time;anchor=audio?bank.context().currentTime*1000+30:now();
       if(audio){const ctx=bank.context(),offsets=new Map(sceneTimeline(project).map(s=>[s.id,s.startMs]));
         for(const c of voice){const start=offsets.get(c.sceneId)+c.startMs,end=start+c.durationMs;if(end<=time)continue;
@@ -112,7 +116,7 @@ export function createTransport({bank,onFrame,onState,now=()=>performance.now(),
     load(input){pause();project=requireProject(input);time=0;loop=null;render(0);},
     seek(ms){check(Number.isFinite(ms),'Playhead must be finite.');pause();const end=project?.scenes.reduce((n,s)=>n+s.durationMs,0)||0;render(Math.max(0,Math.min(end,ms)));},
     setSound(enabled){pause();audible=!!enabled;notify();},
-    setLoop(range){const end=project?.scenes.reduce((n,s)=>n+s.durationMs,0)||0;check(range===null||(Number.isFinite(range.startMs)&&Number.isFinite(range.endMs)&&range.startMs>=0&&range.endMs>range.startMs&&range.endMs<=end),'Loop must fit within the project.');pause();loop=range;},
+    setLoop(range){const end=project?.scenes.reduce((n,s)=>n+s.durationMs,0)||0;check(range===null||(Number.isFinite(range.startMs)&&Number.isFinite(range.endMs)&&range.startMs>=0&&range.endMs>range.startMs&&range.endMs<=end),'Loop must fit within the project.');pause();loop=range?{startMs:range.startMs,endMs:range.endMs}:null;},
     inspect(){return {state,timeMs:Math.max(0,current()),audible};},
     destroy(){pause();disposed=true;project=null;},
   };
