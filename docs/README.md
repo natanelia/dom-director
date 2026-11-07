@@ -6,9 +6,13 @@ The reusable core, React bindings and SDK-backed consumer now exist. Start with 
 
 The 22 design chapters below preserve the original vision and trade-offs. They distinguish decided architecture, proposed behavior, deferred extensions and unproven hypotheses. A design statement containing “must” is an acceptance requirement, not automatic proof of implementation. The [milestone ledger](16-roadmap.md) connects shipped slices to their PRs; the original requirements/backlog register remains broader than the candidate.
 
+## Full video-style Studio — design review first
+
+[DOM Director Studio redesign, revision 2](visual-editor-redesign.md) replaces the earlier simplified scene-strip proposal with a full video-style editor for the live DOM. Core scope includes a multitrack timeline, editable closed captions, voiceover styles and takes, cursor choreography, camera/zoom keyframes, linked synchronization, and explicit project/output workflows. It covers desktop/mobile layouts, interaction and permission boundaries, runtime/schema gaps, design-review screens, and staged acceptance. This is a **draft proposal, not implemented behavior**. Review it before changing the editor; the [current visual editor contract](visual-storyboard.md) remains the implementation reference.
+
 ## Reading paths
 
-**Product/design:** 01 → 02 → 09 → 11 → 16.  
+**Product/design:** Studio redesign → 01 → 02 → 09 → 11 → 16.  
 **Runtime implementer:** current package declarations → 04 → 05 → 06 → 07 → 12 → 15.  
 **Agent integration:** 10 → 05 → 12 → implemented `agent.js` and the agent consumer.  
 **Reviewer:** release-candidate report → 03 → 17 → ADRs → open questions.
