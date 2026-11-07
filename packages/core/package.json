@@ -10,7 +10,8 @@
     ".": {"types": "./src/index.d.ts", "import": "./src/index.js", "default": "./src/index.js"},
     "./surface": {"types": "./src/surface.d.ts", "import": "./src/surface.js", "default": "./src/surface.js"},
     "./storyboard": {"types": "./src/storyboard.d.ts", "import": "./src/storyboard.js", "default": "./src/storyboard.js"},
-    "./storyboard-editor": {"types": "./src/storyboard-editor.d.ts", "import": "./src/storyboard-editor.js", "default": "./src/storyboard-editor.js"}
+    "./storyboard-editor": {"types": "./src/storyboard-editor.d.ts", "import": "./src/storyboard-editor.js", "default": "./src/storyboard-editor.js"},
+    "./data": {"types": "./src/json.d.ts", "import": "./src/json.js", "default": "./src/json.js"}
   },
   "files": ["src", "README.md", "LICENSE", "prepare.mjs"],
   "sideEffects": false,
