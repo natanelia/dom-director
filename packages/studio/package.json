@@ -7,10 +7,26 @@
   "description": "Video-style timeline and authoring primitives for live DOM walkthroughs",
   "types": "./src/index.d.ts",
   "exports": {
-    ".": {"types": "./src/index.d.ts", "import": "./src/index.js"},
-    "./media": {"types": "./src/media.d.ts", "import": "./src/media.js"}
+    ".": {
+      "types": "./src/index.d.ts",
+      "import": "./src/index.js"
+    },
+    "./media": {
+      "types": "./src/media.d.ts",
+      "import": "./src/media.js"
+    },
+    "./editing": {
+      "types": "./src/editing.d.ts",
+      "import": "./src/editing.js"
+    }
   },
-  "peerDependencies": {"@dom-director/core": "0.1.0-rc.0"},
-  "files": ["src", "README.md", "LICENSE"],
+  "peerDependencies": {
+    "@dom-director/core": "0.1.0-rc.0"
+  },
+  "files": [
+    "src",
+    "README.md",
+    "LICENSE"
+  ],
   "sideEffects": false
 }
