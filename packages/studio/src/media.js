@@ -25,7 +25,8 @@ export function createMediaBank({resolveSample,contextFactory=()=>new AudioConte
     check(!raw.has(id)&&!decoded.has(id)&&!pending.has(id)&&!signatures.has(id),'Asset identity already exists.');
     bytes=bytes.slice(0);pending.add(id);reserved+=bytes.byteLength;const expected=version(id);
     try{const hash=await digest(bytes);abort(signal);const audio=await decode(id,bytes,signal,expected);abort(signal);
-      const asset={id,name:name.slice(0,200),mime,durationMs:Math.floor(audio.duration*1000),source:'local',sha256:hash};
+      // Project time is whole milliseconds; quantize to nearest ms, never stretch samples.
+      const asset={id,name:name.slice(0,200),mime,durationMs:Math.max(1,Math.round(audio.duration*1000)),source:'local',sha256:hash};
       raw.set(id,bytes.slice(0));signatures.set(id,signature(asset));return asset;
     }catch(error){decoded.delete(id);peaks.delete(id);throw error;}finally{pending.delete(id);reserved-=bytes.byteLength;}
   }

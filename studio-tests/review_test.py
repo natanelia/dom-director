@@ -60,6 +60,40 @@ class StudioReviewTests(baseline.StudioTests):
         self.page.get_by_role('button', name='Cancel', exact=True).click()
         self.assertFalse(any(a['source'] == 'local' for a in self.project()['assets']))
 
+    def test_cancelled_microphone_rejection_does_not_close_another_dialog(self):
+        self.mock_recording_boundary()
+        self.page.evaluate("""() => Object.defineProperty(navigator.mediaDevices,'getUserMedia',{
+            configurable:true,value:()=>new Promise((resolve,reject)=>{window.rejectOldMicrophone=reject;})
+        })""")
+        self.choose('voice')
+        self.page.locator('#record-audio').click()
+        self.page.get_by_role('button', name='Cancel', exact=True).click()
+        self.page.locator('#shortcuts').click()
+        self.page.evaluate("window.rejectOldMicrophone(new DOMException('Synthetic late denial','NotAllowedError'))")
+        self.page.wait_for_timeout(100)
+        self.assertTrue(self.page.locator('#dialog').is_visible())
+        self.assertEqual(self.page.locator('#dialog-title').inner_text(), 'Editing shortcuts')
+        self.assertNotIn('permission was not granted', self.page.locator('#status').inner_text())
+
+    def test_space_keeps_native_button_activation_and_modifiers_do_not_split(self):
+        self.page.locator('#play').focus()
+        self.page.keyboard.press('Space')
+        self.page.wait_for_function("Number(document.querySelector('#seek').value)>.15")
+        self.page.keyboard.press('Space')
+        self.assertEqual(self.page.locator('#studio').get_attribute('data-playback'), 'paused')
+        self.edit('#caption-text', 'Edited before undo.')
+        self.page.locator('#undo').focus()
+        self.page.keyboard.press('Space')
+        self.assertNotEqual(self.page.locator('#caption-text').input_value(), 'Edited before undo.')
+        self.assertEqual(self.page.locator('#studio').get_attribute('data-playback'), 'paused')
+        self.seek(1)
+        before = self.project()
+        # Exercise the handler without opening a real browser Save As dialog.
+        self.page.evaluate("""()=>{for(const modifier of ['ctrlKey','metaKey','altKey'])
+          document.body.dispatchEvent(new KeyboardEvent('keydown',{key:'s',code:'KeyS',[modifier]:true,bubbles:true,cancelable:true}));}""")
+        self.assertEqual(self.project(), before)
+        self.assertEqual(self.page.locator('#timecode').get_attribute('aria-live'), 'off')
+
 
 
 def load_tests(loader, tests, pattern):

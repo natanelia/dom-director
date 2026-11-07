@@ -232,11 +232,11 @@ async function startRecording(clipId){
   try{
     const stream=await navigator.mediaDevices.getUserMedia({audio:true});token.stream=stream;if(token.cancelled||disposed){stream.getTracks().forEach(t=>t.stop());return;}
     const type=['audio/webm;codecs=opus','audio/ogg;codecs=opus','audio/mp4'].find(t=>MediaRecorder.isTypeSupported(t));const recorder=new MediaRecorder(stream,type?{mimeType:type}:undefined);token.recorder=recorder;
-    recorder.addEventListener('dataavailable',event=>{if(event.data.size){token.size+=event.data.size;if(token.size>8*1024*1024){release();message('Recording reached the 8 MiB limit. No take was applied.',true);closeDialog();return;}token.chunks.push(event.data);}});
-    recorder.addEventListener('error',()=>{release();closeDialog();message('Recording failed. Import an audio file instead.',true);});
+    recorder.addEventListener('dataavailable',event=>{if(token.cancelled||disposed)return;if(event.data.size){token.size+=event.data.size;if(token.size>8*1024*1024){release();message('Recording reached the 8 MiB limit. No take was applied.',true);closeDialog();return;}token.chunks.push(event.data);}});
+    recorder.addEventListener('error',()=>{if(token.cancelled||disposed)return;release();closeDialog();message('Recording failed. Import an audio file instead.',true);});
     recorder.addEventListener('stop',()=>{clearTimeout(token.timer);stream.getTracks().forEach(t=>t.stop());if(recording===token)recording=null;if(token.cancelled||disposed)return;dialogCleanup=null;closeDialog();const blob=new Blob(token.chunks,{type:recorder.mimeType});if(revision()!==origin){message('The project changed. Recording was not applied.',true);return;}void importAudio(new File([blob],'Recorded take',{type:recorder.mimeType.split(';')[0]}));});
     $('dialog-body').replaceChildren();node('p','● Recording locally… Maximum 3 minutes.', $('dialog-body')).className='recording';$('dialog-actions').replaceChildren();button('Discard',$('dialog-actions'),()=>{release();closeDialog();});button('Stop and review',$('dialog-actions'),()=>{if(recorder.state==='recording')recorder.stop();});recorder.start(500);token.timer=setTimeout(()=>{if(recorder.state==='recording')recorder.stop();},180000);
-  }catch(error){release();closeDialog();message(error.name==='NotAllowedError'?'Microphone permission was not granted. You can import a take instead.':'Recording could not start. Import a take instead.',true);}
+  }catch(error){if(token.cancelled||disposed||recording!==token){release();return;}release();closeDialog();message(error.name==='NotAllowedError'?'Microphone permission was not granted. You can import a take instead.':'Recording could not start. Import a take instead.',true);}
 }
 async function openProject(file){await runAsync(async signal=>{
   if(file.size>36*1024*1024)throw Error('Project files must be smaller than 36 MiB.');const origin=revision(),bundle=await readProjectBundle(await file.text());hostCheck(bundle.project);signal.throwIfAborted();
@@ -272,7 +272,16 @@ function setup(){
   on($('subtitle-file'),'change',()=>{const file=$('subtitle-file').files[0];$('subtitle-file').value='';if(!file)return;void runAsync(async()=>{if(file.size>1024*1024)throw Error('Subtitle files must be smaller than 1 MiB.');const origin=revision(),proposal=proposeCaptionImport(project(),await file.text(),{language:'und',name:file.name.slice(0,150)});modal('Import caption track?',body=>node('p',proposal.cueCount+' captions will be added as a new language track. '+proposal.warnings.join(' '),body),[['Cancel',closeDialog],['Import track',()=>{try{selected.clipId=null;commit(proposal.value,'Import captions',origin);closeDialog();}catch(e){message(e.message,true);}},true]]);});});
   on($('dialog'),'cancel',()=>{dialogCleanup?.();dialogCleanup=null;});
   on($('shortcuts'),'click',()=>modal('Editing shortcuts',body=>node('p','Space: play or pause. S: split selected clip. Delete: remove selected clip. Ctrl/Cmd+Z: undo. Ctrl/Cmd+Shift+Z: redo. Escape: stop playback or close a dialog. Shortcuts do not override text editing. Every operation also has a labeled button.',body),[['Close',closeDialog]]));
-  on(document,'keydown',e=>{if(e.key==='Escape'){stop();if(recording)closeDialog();return;}if(e.target.closest('input,textarea,select,[contenteditable=true]')||$('dialog').open)return;if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='z'){e.preventDefault();$(e.shiftKey?'redo':'undo').click();}else if(e.code==='Space'){e.preventDefault();play();}else if(e.key.toLowerCase()==='s')$('split').click();else if(e.key==='Delete')$('delete-clip').click();});
+  on(document,'keydown',e=>{
+    if(e.defaultPrevented||e.isComposing)return;
+    if(e.key==='Escape'){stop();if(recording)closeDialog();return;}
+    const target=e.target instanceof Element?e.target:null;
+    if(target?.closest('input,textarea,select,[contenteditable]:not([contenteditable=false])')||$('dialog').open)return;
+    if((e.ctrlKey||e.metaKey)&&!e.altKey&&e.key.toLowerCase()==='z'){e.preventDefault();$(e.shiftKey?'redo':'undo').click();return;}
+    if(e.ctrlKey||e.metaKey||e.altKey||e.repeat)return;
+    if(e.code==='Space'){if(target?.closest('button,a,summary,[role=button]'))return;e.preventDefault();play();}
+    else if(e.key.toLowerCase()==='s')$('split').click();else if(e.key==='Delete')$('delete-clip').click();
+  });
   installDrags();
   const preference=matchMedia('(prefers-reduced-motion: reduce)');on(preference,'change',event=>{reduced=event.matches;draw();});
   on(document,'visibilitychange',()=>{if(document.hidden){stop();if(recording)closeDialog();}});

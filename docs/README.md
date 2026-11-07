@@ -1,21 +1,23 @@
 # Design and implementation index
 
-**Implementation candidate 0.1.0-rc.0 · 6 November 2026 · Canonical language 0.1.0-draft.1**
+**Implementation candidate 0.1.0-rc.0 · Canonical core language 0.1.0-draft.1**
 
 The reusable core, React bindings and SDK-backed consumer now exist. Start with the [current README](../README.md), [release-candidate evidence](release-candidate.md), [core declarations](../packages/core/src/index.d.ts) and [React integration](../packages/react/README.md) for implemented behavior.
 
 The 22 design chapters below preserve the original vision and trade-offs. They distinguish decided architecture, proposed behavior, deferred extensions and unproven hypotheses. A design statement containing “must” is an acceptance requirement, not automatic proof of implementation. The [milestone ledger](16-roadmap.md) connects shipped slices to their PRs; the original requirements/backlog register remains broader than the candidate.
 
-## Full video-style Studio — design review first
+## Video-style Studio
 
-[DOM Director Studio redesign, revision 2](visual-editor-redesign.md) replaces the earlier simplified scene-strip proposal with a full video-style editor for the live DOM. Core scope includes a multitrack timeline, editable closed captions, voiceover styles and takes, cursor choreography, camera/zoom keyframes, linked synchronization, and explicit project/output workflows. It covers desktop/mobile layouts, interaction and permission boundaries, runtime/schema gaps, design-review screens, and staged acceptance. This is a **draft proposal, not implemented behavior**. Review it before changing the editor; the [current visual editor contract](visual-storyboard.md) remains the implementation reference.
+Start with the [Studio workspace guide and implementation boundaries](studio-workspace.md) for the four-track editor, captions, voice takes, cursor/camera keyframes, project files and current verification commands. The rich Studio project is not the older core Tour or compact storyboard format. The public workspace entry is `studio.html`; inspect the current deployment before assuming a particular revision is live.
+
+[DOM Director Studio design, revision 2](visual-editor-redesign.md) records the direction subsequently approved for implementation: a full video-style editor for the live DOM. Its broader scope includes linked word anchors, richer voice production and output workflows that are not all implemented. PRs #23–#26 deliver the first model, media, editing and workspace slices; the implementation guide separates these from remaining design work. The [older visual editor contract](visual-storyboard.md) remains the compatibility reference for the compact storyboard renderer and agent lab.
 
 ## Reading paths
 
-**Product/design:** Studio redesign → 01 → 02 → 09 → 11 → 16.  
+**Product/design:** Studio workspace → Studio design → 01 → 02 → 09 → 11 → 16.  
 **Runtime implementer:** current package declarations → 04 → 05 → 06 → 07 → 12 → 15.  
 **Agent integration:** 10 → 05 → 12 → implemented `agent.js` and the agent consumer.  
-**Reviewer:** release-candidate report → 03 → 17 → ADRs → open questions.
+**Reviewer:** release-candidate report → Studio workspace → 03 → 17 → ADRs → open questions.
 
 | Document | Scope |
 |---|---|

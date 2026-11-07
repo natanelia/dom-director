@@ -25,7 +25,9 @@ jobs:
           mkdir -p node_modules/@dom-director
           ln -s ../../packages/core node_modules/@dom-director/core
       - name: Deterministic rich-project and timeline tests
-        run: node --test packages/studio/test/*.test.js
+        run: |
+          node --test packages/studio/test/*.test.js
+          python3 studio-tests/publication_test.py
       - name: Pack and install actual local candidates
         run: python3 tools/check_studio.py
   browser:
@@ -82,7 +84,14 @@ jobs:
         run: |
           python3 studio-tests/browser_test.py
           python3 studio-tests/review_test.py
-      - name: Preserve synthetic Studio screenshots
+      - name: Audit actual Studio accessibility states
+        if: matrix.browser == 'chromium'
+        env:
+          BROWSER_ENGINE: chromium
+        run: |
+          npm install --prefix "$RUNNER_TEMP/studio-a11y" --ignore-scripts --no-audit --no-fund axe-core@4.10.3
+          AXE_PATH="$RUNNER_TEMP/studio-a11y/node_modules/axe-core/axe.min.js" python3 studio-tests/accessibility.py
+      - name: Preserve synthetic Studio screenshots and audit
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:

@@ -14,6 +14,7 @@
     <div class="top-actions"><button id="undo" aria-label="Undo edit" title="Undo (Ctrl/Cmd+Z)">↶</button><button id="redo" aria-label="Redo edit" title="Redo (Ctrl/Cmd+Shift+Z)">↷</button><button id="open-project">Open</button><button id="save-project">Save project</button><button id="preview-tour" class="primary">▶ Preview tour</button><button id="export-open">Export ↗</button></div>
   </header>
   <main class="workspace">
+    <h1 class="sr-only">DOM Director Studio</h1>
     <aside class="scene-panel" aria-label="Project scenes">
       <div class="panel-title"><strong>Your story</strong><span class="badge" id="scene-count">3 scenes</span></div>
       <p class="muted small">Select a scene. Shape the moment.</p><ol id="scene-list" class="scene-list"></ol>
@@ -35,7 +36,7 @@
         <div id="stage-overlays" aria-hidden="true"><svg id="cursor-layer"></svg><div id="caption-overlay"></div><svg id="edit-handles"></svg></div>
         <button id="canvas-picker" hidden>Choose this focus</button><div class="stage-label">LIVE DOM · EDITABLE</div>
       </div></div>
-      <div class="transport"><div><button id="restart" aria-label="Go to start">⏮</button><button id="play" class="play-button" aria-label="Play preview">▶</button><button id="stop" aria-label="Stop preview">■</button><output id="timecode">00:00.00 / 00:22.60</output></div><div><button id="loop" aria-pressed="false">Loop clip</button><button id="sound" aria-pressed="false">Sound off</button><button id="captions" aria-pressed="true">CC</button></div></div>
+      <div class="transport"><div><button id="restart" aria-label="Go to start">⏮</button><button id="play" class="play-button" aria-label="Play preview">▶</button><button id="stop" aria-label="Stop preview">■</button><output id="timecode" aria-live="off">00:00.00 / 00:22.60</output></div><div><button id="loop" aria-pressed="false">Loop clip</button><button id="sound" aria-pressed="false">Sound off</button><button id="captions" aria-pressed="true">CC</button></div></div>
       <label class="seek-label"><span class="sr-only">Playhead position in seconds</span><input id="seek" type="range" min="0" max="23" step="0.001" value="0"></label>
       <p class="canvas-help" id="canvas-help">Select a clip below to edit captions, voice, cursor, or camera.</p>
     </section>

@@ -282,7 +282,34 @@ class StudioTests(unittest.TestCase):
             self.page.get_by_role('button', name='VTT', exact=True).click()
         self.assertTrue(Path(pending.value.path()).read_text().startswith('WEBVTT'))
 
+    def mock_recording_boundary(self):
+        # These cases test permission ownership, not a microphone or native codec.
+        # Linux WebKit may not expose MediaRecorder. Make the boundary deterministic
+        # and fail if any cancelled/rejected request reaches recorder construction.
+        self.page.evaluate("""() => {
+          Object.defineProperty(window,'MediaRecorder',{configurable:true,value:function SyntheticRecorder(){
+            throw Error('A cancelled or rejected permission must not construct a recorder.');
+          }});
+        }""")
+
+    def test_unavailable_recording_is_explicit_without_requesting_a_microphone(self):
+        capability = self.page.evaluate("({mediaRecorder:typeof MediaRecorder, microphone:typeof navigator.mediaDevices?.getUserMedia})")
+        print(json.dumps({'nativeRecordingCapability': capability, 'engine': self.engine}), flush=True)
+        before = self.project()
+        self.page.evaluate("""() => {
+          window.micCalls=0;
+          Object.defineProperty(window,'MediaRecorder',{configurable:true,value:undefined});
+          Object.defineProperty(navigator.mediaDevices,'getUserMedia',{configurable:true,value:()=>{micCalls++;throw Error('Must not request microphone');}});
+        }""")
+        self.choose('voice')
+        self.page.locator('#record-audio').click()
+        self.assertIn('Recording is unavailable', self.page.locator('#status').inner_text())
+        self.assertEqual(self.page.evaluate('window.micCalls'), 0)
+        self.assertFalse(self.page.locator('#dialog').evaluate('el=>el.open'))
+        self.assertEqual(self.project(), before)
+
     def test_record_permission_denial_is_explicit_and_preserves_draft(self):
+        self.mock_recording_boundary()
         before = self.project()
         self.page.evaluate("""() => {window.micCalls=0;Object.defineProperty(navigator.mediaDevices,'getUserMedia',{configurable:true,value:()=>{window.micCalls++;return Promise.reject(new DOMException('Synthetic denial','NotAllowedError'));}});} """)
         self.choose('voice')
@@ -293,6 +320,7 @@ class StudioTests(unittest.TestCase):
         self.assertEqual(self.project(), before)
 
     def test_cancel_recording_releases_a_late_permission_stream(self):
+        self.mock_recording_boundary()
         self.page.evaluate("""() => {window.micStopped=0;Object.defineProperty(navigator.mediaDevices,'getUserMedia',{configurable:true,value:()=>new Promise(resolve=>{window.grantMicrophone=()=>resolve({getTracks:()=>[{stop(){window.micStopped++;}}]});})});}""")
         self.choose('voice')
         self.page.locator('#record-audio').click()

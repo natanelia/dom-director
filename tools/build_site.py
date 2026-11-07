@@ -46,6 +46,7 @@ def render_html(template,css,revision):
     return html
 
 STUDIO_SITE_FILES = ('studio.html', 'studio.css', 'studio.mjs', 'studio-view.mjs')
+STUDIO_MODULES = ('index.js', 'project.js', 'sample.js', 'evaluator.js', 'editing.js', 'media.js', 'subtitles.js')
 
 def studio_files(revision):
     """Exact public Studio inputs; no package metadata, test or arbitrary file upload."""
@@ -57,11 +58,14 @@ def studio_files(revision):
         if name == 'studio.html':
             content = replace_once(content, '</head>', f'<meta name="dom-director-revision" content="{revision}"></head>')
         files[name] = content.encode()
-    for source in sorted((ROOT / 'packages/studio/src').glob('*.js')):
+    for name in STUDIO_MODULES:
+        source = ROOT / 'packages/studio/src' / name
+        if not source.is_file():raise ValueError('Missing approved Studio module: ' + name)
         if source.is_symlink():raise ValueError('Studio source symlink is not allowed')
         content = source.read_text().replace("'@dom-director/core/data'", "'../sdk/json.js'").replace("'@dom-director/core'", "'../sdk/index.js'")
-        for ref in re.findall(r"(?:import|export)[^\n]*?from ['\"]([^'\"]+)['\"]", content):
-            if ref not in ('../sdk/json.js', '../sdk/index.js') and not (ref.startswith('./') and (source.parent/ref).is_file()):
+        if re.search(r'\bimport\s*\(', content):raise ValueError('Dynamic Studio imports require an explicit publication review')
+        for ref in re.findall(r"(?:\bfrom\s*|\bimport\s*)['\"]([^'\"]+)['\"]", content):
+            if ref not in ('../sdk/json.js', '../sdk/index.js') and ref not in {'./' + name for name in STUDIO_MODULES}:
                 raise ValueError('Unexpected Studio dependency: ' + ref)
         files['studio-sdk/' + source.name] = content.encode()
     return files
@@ -100,8 +104,8 @@ def build(output,revision):
             '-t',str(scene['durationMs']/1000),'-vn','-c:a','libmp3lame','-b:a','64k','-ar','22050','-ac','1','-map_metadata','-1',str(assets/name)],check=True,timeout=30)
         start+=scene['durationMs']
     files={str(path.relative_to(output)):hashlib.sha256(path.read_bytes()).hexdigest() for path in sorted(output.rglob('*')) if path.is_file()}
-    allowed={'.nojekyll','index.html','LICENSE.txt','tour.generated.js','orbit.tour.json','app.mjs','model.mjs','agent.html','agent.mjs','prototype/index.html',*STUDIO_SITE_FILES}
-    if any(name not in allowed and not re.fullmatch(r'(?:sdk|studio-sdk)/[A-Za-z0-9.-]+\.js|assets/voice\.[A-Za-z0-9.-]+\.mp3',name) for name in files):raise ValueError('Unexpected public artifact path')
+    allowed={'.nojekyll','index.html','LICENSE.txt','tour.generated.js','orbit.tour.json','app.mjs','model.mjs','agent.html','agent.mjs','prototype/index.html',*STUDIO_SITE_FILES,*('studio-sdk/'+name for name in STUDIO_MODULES)}
+    if any(name not in allowed and not re.fullmatch(r'sdk/[A-Za-z0-9.-]+\.js|assets/voice\.[A-Za-z0-9.-]+\.mp3',name) for name in files):raise ValueError('Unexpected public artifact path')
     (output/'_build.json').write_text(json.dumps({'revision':revision,'runtime':'@dom-director/core','schemaVersion':tour['schemaVersion'],'files':files},indent=2)+'\n')
     print(json.dumps({'revision':revision,'files':len(files)+1,'bytes':sum(path.stat().st_size for path in output.rglob('*') if path.is_file())}))
 

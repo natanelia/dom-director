@@ -1,0 +1,47 @@
+# Studio: the video-style editing workspace
+
+Implementation candidate from design #22, model/media work #23–#25, and workspace #26. Check the current PR, deployment and public-verification runs before treating a particular revision as published. Studio packages remain private and unpublished to npm.
+
+The new creator entry is `studio.html`, separate from the original agent playground. The author edits a real, controlled Orbit DOM surface with one playhead and camera, cursor, voiceover and closed-caption tracks. No application actions run during visual playback. This is an implemented slice of the approved design, not completion of every proposed capability.
+
+## Use the workspace
+
+Open the sample, select a timeline clip or use CC / Voice / Cursor / Camera, and edit its inspector. Text previews immediately; leaving a field commits a valid edit. Invalid input remains visible and blocks preview/export rather than silently playing an older version. Escape discards an uncommitted field edit. Undo/redo operate on committed project changes; native text-field shortcuts remain native.
+
+Preview tour starts from the beginning. The transport supports play/pause, stop, restart, seeking, a selected-clip loop, sound and captions. Camera zoom changes the authored composition; Canvas view only magnifies the editor; Timeline zoom changes time-axis scale. Motion off respects reduced-motion viewing. The app remains inert while editing and previewing, so a simulated click never becomes a real app action.
+
+The timeline supports selecting, moving, trimming, splitting, duplicating and deleting clips, snapping, explicit ripple movement, track visibility and locks. Exact timing inputs and the Clip list provide alternatives to dragging. Scenes can be added from approved focus choices, reordered and deleted. Illegal overlap, missing targets and locked-track changes fail explicitly.
+
+## Four editing tracks
+
+**CC.** Edit text, timing, font family, weight, size, color, outline, background, width, padding, alignment and position. Apply themes to a caption, its language track or project default. Overrides remain explicit. Import a plain VTT/SRT file as a reviewed language track. Optional word highlighting has editable word boundaries; evenly distributed words are an approximate authoring starting point, not speech alignment. Changing a caption with word timing asks before clearing those timings and does not rewrite voice audio.
+
+**Voice.** Edit narration text separately from the actual take. Import audio, select an available take, load a measured waveform, set source trim, volume and fades. Microphone recording is requested only after Record take, only where browser recording APIs are available. Otherwise import remains available. Cancellation releases late-arriving streams and cannot close an unrelated newer dialog. No recording is uploaded automatically.
+
+Replacing a take has a review step. Keep scene timing accepts the full take only when it fits. Fit scene to voice previews visual retiming and later scene movement before committing; audio is never time-stretched. Project timing uses whole milliseconds; decoded audio metadata is quantized to the nearest millisecond while original bytes and decoded samples are unchanged.
+
+**Voice identity / delivery style.** The integration accepts an explicit host-owned provider via `connectVoiceProvider`. Only the provider's declared voices and styles are offered. Generate requires confirmation before sending authored narration. Responses retain their initiating revision and provider; stale results cannot replace newer edits. The public Studio has **no connected voice-generation service**. It does not claim that volume or fades change a speaker's delivery, nor does it offer a fake AI generator. Tests use a declared synthetic provider, not a production voice service.
+
+**Cursor.** Select arrow, hand or dot, size, fill, outline, halo and trail. Edit keyframe targets, offsets, curve and easing; drag canvas handles or enter exact values. Add visual click, double-click and hold markers. Appearance changes preserve the authored path. These are presentation gestures, not browser-trusted input.
+
+**Camera.** Select approved focus targets and edit position, zoom, keyframe time and easing. Add a key at the playhead, remove a key, or adjust a canvas handle. Camera/cursor source windows survive clip splitting without restarting the original easing. Timeline sampling never repeats application effects.
+
+## Keep the project
+
+Save project downloads a `.director` file containing the rich project and local audio chunks with checksums. Open validates the document and audio before explicitly replacing the current draft. Save before refreshing: there is no cloud or browser autosave. Original prepared sample takes are host references, so reopening needs a host that supplies those approved samples; the file is not a standalone website.
+
+VTT/SRT export carries caption text and timing, not Studio appearance, camera motion or audio. The rich project is not the older core `Tour` JSON and must not be flattened through the small storyboard importer. The core API and older agent lab remain usable.
+
+## Current limits
+
+This build does not provide MP4/WebM rendering, interactive project publishing, branch/wait authoring, full multitrack audio mixing, automatic speech alignment, a built-in paid voice provider, arbitrary-site capture, cloud storage or collaboration. The public fixture has a fixed 960 × 540 Orbit surface and approved target names. Adopting applications need their own deliberate host integration.
+
+Physical-device microphone codecs, download behavior, on-screen keyboards, assistive technology and real-user usability remain manual acceptance work under issue #19. Linux browser-engine tests do not certify physical Safari/iOS/Android or screen readers. The Studio audit retains both automated violations and incomplete findings; user-chosen caption themes can still require contrast review.
+
+## Verification
+
+`node --test packages/studio/test/*.test.js` checks the model, timing, media, provider and bundle contracts. `tools/check_studio.py` installs actual tarballs and compiles typed consumers. `studio-tests/publication_test.py` proves that future internal Studio modules cannot enter the public artifact without explicit allowlisting.
+
+`studio-tests/browser_test.py` and `review_test.py` run creator workflows in Chromium, Firefox and WebKit against staged artifacts and then the verified public revision. Permission denial/cancellation tests use explicitly synthetic recording boundaries; a separate test checks the unsupported-recording fallback without asking for a microphone. Duration-retiming assertions remain exact across engines.
+
+`studio-tests/accessibility.py` audits the actual Studio's CC, voice, cursor, camera, word-timing, invalid-input, mobile and export-dialog states using pinned axe-core. It is a separate audit from the older demo and agent playground. Inspect its retained report, screenshots and current CI conclusion; this document does not turn a test definition into a passing result.
