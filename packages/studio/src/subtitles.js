@@ -5,7 +5,7 @@ export function exportSubtitles(project,{trackId=project.captionTrack,format='vt
   const track=project.tracks.find(t=>t.id===trackId&&t.kind==='captions');if(!track)throw new Error('Caption track is missing.');
   const offsets=new Map(sceneTimeline(project).map(s=>[s.id,s.startMs]));
   const cues=track.clips.map(c=>({...c,start:offsets.get(c.sceneId)+c.startMs})).sort((a,b)=>a.start-b.start);
-  const escape=text=>text.replace(/&/gu,'&amp;').replace(/</gu,'&lt;').replace(/>/gu,'&gt;').replace(/\r/gu,'');
+  const escape=text=>{const escaped=text.replace(/&/gu,'&amp;').replace(/</gu,'&lt;').replace(/>/gu,'&gt;').replace(/\r/gu,'');if(/\n\s*\n/u.test('\n'+escaped+'\n'))throw new Error('Blank lines cannot be represented inside a subtitle cue. Edit the line breaks before export.');return escaped;};
   return {text:(format==='vtt'?'WEBVTT\n\n':'')+cues.map((c,i)=>(format==='srt'?i+1:c.id)+'\n'+stamp(c.start,format==='srt')+' --> '+stamp(c.start+c.durationMs,format==='srt')+'\n'+escape(c.text)+'\n').join('\n'),warnings:['Text and timing only. Studio font, position, animation, and word highlighting are not embedded.']};
 }
 export function parseSubtitles(text){

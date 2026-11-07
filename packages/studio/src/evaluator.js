@@ -6,13 +6,13 @@ function keyPair(keys,time){
   for(let i=1;i<keys.length;i++)if(time<keys[i].atMs)return [keys[i-1],keys[i],(time-keys[i-1].atMs)/(keys[i].atMs-keys[i-1].atMs)];
   return [keys.at(-1),keys.at(-1),1];
 }
-function point(key,bounds){const r=bounds[key.target];if(!r)throw new Error('Target “'+key.target+'” is unavailable.');return {x:r.x+r.width/2+key.x,y:r.y+r.height/2+key.y};}
+function point(key,bounds){const r=Object.hasOwn(bounds,key.target)?bounds[key.target]:null;if(!r)throw new Error('Target “'+key.target+'” is unavailable.');return {x:r.x+r.width/2+key.x,y:r.y+r.height/2+key.y};}
 function cursorPoint(keys,time,bounds){
   const [a,b,t]=keyPair(keys,time),from=point(a,bounds),to=point(b,bounds),u=easing(t,b.easing);
   const dx=to.x-from.x,dy=to.y-from.y,len=Math.hypot(dx,dy)||1,control={x:(from.x+to.x)/2-dy/len*b.curve,y:(from.y+to.y)/2+dx/len*b.curve};
   return {x:(1-u)**2*from.x+2*(1-u)*u*control.x+u*u*to.x,y:(1-u)**2*from.y+2*(1-u)*u*control.y+u*u*to.y};
 }
-function pose(key,bounds,box){const r=bounds[key.target];if(!r)throw new Error('Target “'+key.target+'” is unavailable.');const f=fit(r,box,{paddingPx:Math.min(24,box.width*.025),minScale:.01,maxScale:8}).pose;const scale=f.scale*key.zoom;return {x:box.x+box.width/2-(r.x+r.width/2+key.x)*scale,y:box.y+box.height/2-(r.y+r.height/2+key.y)*scale,scale};}
+function pose(key,bounds,box){const r=Object.hasOwn(bounds,key.target)?bounds[key.target]:null;if(!r)throw new Error('Target “'+key.target+'” is unavailable.');const f=fit(r,box,{paddingPx:Math.min(24,box.width*.025),minScale:.01,maxScale:8}).pose;const scale=f.scale*key.zoom;return {x:box.x+box.width/2-(r.x+r.width/2+key.x)*scale,y:box.y+box.height/2-(r.y+r.height/2+key.y)*scale,scale};}
 export function createEvaluator(input){
   const p=requireProject(input),total=duration(p);
   const targets=[...new Set(p.tracks.flatMap(t=>t.clips.flatMap(c=>c.keys?.map(k=>k.target)||[])))];

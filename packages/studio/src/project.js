@@ -67,8 +67,8 @@ export function validateProject(input){
         keys(c,['id','sceneId','startMs','durationMs',...fields],track.kind==='captions'?['style','words']:track.kind==='cursor'?['style']:[],cp);unique(c.id,cp+'/id');
         need(scenes.has(c.sceneId),'Clip scene is missing.',cp);need(integer(c.startMs,0,180000)&&integer(c.durationMs,1,180000)&&c.startMs+c.durationMs<=scenes.get(c.sceneId).durationMs,'Clip must fit within its scene.',cp);
         if(track.kind==='captions'){
-          need(text(c.text,4000)&&c.text.trim(),'Caption cannot be empty.',cp+'/text');if(c.style)style(c.style,'captions',cp+'/style');
-          if(c.words){need(Array.isArray(c.words)&&c.words.length<=400,'Too many word timings.');let end=0;for(const w of c.words){keys(w,['text','startMs','endMs']);need(text(w.text,120)&&w.text.trim()&&integer(w.startMs,end,c.durationMs)&&integer(w.endMs,w.startMs+1,c.durationMs),'Word timings must be ordered and fit the caption.');end=w.endMs;}need(c.words.map(w=>w.text).join(' ').replace(/\s+/gu,' ').trim()===c.text.replace(/\s+/gu,' ').trim(),'Word timings do not match the caption text.');}
+          need(text(c.text,4000)&&c.text.trim(),'Caption cannot be empty.',cp+'/text');if(c.style!==undefined)style(c.style,'captions',cp+'/style');
+          if(c.words!==undefined){need(Array.isArray(c.words)&&c.words.length<=400,'Too many word timings.');let end=0;for(const w of c.words){keys(w,['text','startMs','endMs']);need(text(w.text,120)&&w.text.trim()&&integer(w.startMs,end,c.durationMs)&&integer(w.endMs,w.startMs+1,c.durationMs),'Word timings must be ordered and fit the caption.');end=w.endMs;}need(c.words.map(w=>w.text).join(' ').replace(/\s+/gu,' ').trim()===c.text.replace(/\s+/gu,' ').trim(),'Word timings do not match the caption text.');}
         }else if(track.kind==='voice'){
           need((c.assetId===null||assets.has(c.assetId))&&text(c.script,8000),'Voice source or script is invalid.',cp);
           need(integer(c.sourceInMs,0,180000)&&num(c.gain,0,2)&&integer(c.fadeInMs,0,c.durationMs)&&integer(c.fadeOutMs,0,c.durationMs)&&c.fadeInMs+c.fadeOutMs<=c.durationMs,'Invalid source trim, gain or fade.',cp);
@@ -77,7 +77,7 @@ export function validateProject(input){
           need(integer(c.offsetMs,0,180000)&&c.offsetMs+c.durationMs<=360000,'Invalid motion source window.',cp);
           need(Array.isArray(c.keys)&&c.keys.length>0&&c.keys.length<=100,'Motion needs 1–100 keyframes.',cp);let last=-1;
           c.keys.forEach((k,ki)=>{keys(k,['id','atMs','target','x','y','easing',...(track.kind==='camera'?['zoom']:['curve'])]);unique(k.id,cp+'/keys/'+ki+'/id');need(integer(k.atMs,0,360000)&&k.atMs>last,'Keyframe times must increase.');last=k.atMs;need(id(k.target)&&num(k.x,-3840,3840)&&num(k.y,-2160,2160)&&['gentle','direct','overview','instant'].includes(k.easing),'Invalid keyframe target or position.');if(track.kind==='camera')need(num(k.zoom,.1,8),'Camera zoom must be 0.1–8.');else need(num(k.curve,-1000,1000),'Cursor curve is out of range.');});
-          if(track.kind==='cursor'){if(c.style)style(c.style,'cursor',cp+'/style');need(Array.isArray(c.gestures)&&c.gestures.length<=100,'Too many gestures.');for(const g of c.gestures){keys(g,['id','atMs','kind']);unique(g.id,cp+'/gestures/id');need(integer(g.atMs,0,360000)&&['click','double-click','hold'].includes(g.kind),'Invalid visual gesture.');}}
+          if(track.kind==='cursor'){if(c.style!==undefined)style(c.style,'cursor',cp+'/style');need(Array.isArray(c.gestures)&&c.gestures.length<=100,'Too many gestures.');for(const g of c.gestures){keys(g,['id','atMs','kind']);unique(g.id,cp+'/gestures/id');need(integer(g.atMs,0,360000)&&['click','double-click','hold'].includes(g.kind),'Invalid visual gesture.');}}
         }
       });
       for(const s of p.scenes){const clips=track.clips.filter(c=>c.sceneId===s.id).sort((a,b)=>a.startMs-b.startMs);for(let i=1;i<clips.length;i++)need(clips[i].startMs>=clips[i-1].startMs+clips[i-1].durationMs,'Clips on the same track overlap. Move or trim one.',path);}
@@ -142,6 +142,7 @@ export function proposeRetime(p,sceneId,newDurationMs){
   });return {value,changes,deltaMs:newDurationMs-s.durationMs};
 }
 export function createProjectStore(input,{limit=60,byteLimit=4*1024*1024}={}){
+  need(Number.isInteger(limit)&&limit>=2&&limit<=500&&Number.isInteger(byteLimit)&&byteLimit>=1024&&byteLimit<=32*1024*1024,'Invalid history limits.');
   let project=requireProject(input),revision=0,entries=[{value:project,label:'Opened project'}],position=0,expired=0;
   const size=e=>new TextEncoder().encode(JSON.stringify(e.value)).length;
   function snapshot(){return {project,revision,canUndo:position>0,canRedo:position<entries.length-1,expired,label:entries[position].label};}
