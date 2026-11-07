@@ -1,6 +1,6 @@
 import {createSample,createProjectStore,createEvaluator,editProject,findClip,freshId,duration,sceneTimeline,locate,updateClip,moveClip,trimClip,splitClip,deleteClip,duplicateClip,reorderScene,proposeRetime,exportSubtitles,CAPTION_THEME,CURSOR_THEME} from './studio-sdk/index.js';
 import {createMediaBank,createTransport,saveProjectBundle,readProjectBundle,generateVoiceTake} from './studio-sdk/media.js';
-import {setAppearance,applyCaptionPreset,addKeyframe,updateKeyframe,deleteKeyframe,addGesture,addScene,deleteScene,addCaption,proposeCaptionImport,proposeVoiceReplacement} from './studio-sdk/editing.js';
+import {setAppearance,applyCaptionPreset,distributeCaptionWords,addKeyframe,updateKeyframe,deleteKeyframe,addGesture,addScene,deleteScene,addCaption,proposeCaptionImport,proposeVoiceReplacement} from './studio-sdk/editing.js';
 import {createCanvas,TARGETS,drawWaveform} from './studio-view.mjs';
 
 const $=id=>document.getElementById(id),copy=value=>JSON.parse(JSON.stringify(value)),seconds=ms=>(ms/1000).toFixed(2);
@@ -111,7 +111,7 @@ function field(parent,id,label,value,change,{type='text',min,max,step,options,ma
 function timing(parent,clip){
   const row=node('div',undefined,parent);row.className='row';
   field(row,'clip-start','Start in scene (s)',seconds(clip.startMs),v=>commit(moveClip(project(),clip.id,Math.round(v*1000),{ripple:$('ripple').checked}),'Move clip'),{type:'number',min:0,step:.01});
-  field(row,'clip-end','End in scene (s)',seconds(clip.startMs+clip.durationMs),v=>commit(trimClip(project(),clip.id,clip.startMs,Math.round(v*1000)),'Trim clip'),{type:'number',min:0,step:.01});
+  field(row,'clip-end','End in scene (s)',seconds(clip.startMs+clip.durationMs),v=>commit(trimClip(project(),clip.id,findClip(project(),clip.id).clip.startMs,Math.round(v*1000)),'Trim clip'),{type:'number',min:0,step:.01});
 }
 function renderInspector(){
   const p=$('inspector'),scroll=p.scrollTop;p.replaceChildren();normalizeSelection();const found=selectedClip();
@@ -141,7 +141,7 @@ function captionInspector(p,track,clip){
   field(advanced,'caption-align','Alignment',s.align,v=>style('align',v),{options:['left','center','right']});button('Reset this style scope',advanced,()=>act(()=>commit(setAppearance(project(),clip.id,{}, {scope,reset:true}),'Reset caption style')));
   const words=group('Word highlighting',{collapsed:true});
   node('p','Word timing is optional. Even spacing is an editing starting point, not automatic speech alignment.',words).className='note';
-  if(!clip.words)button('Distribute words evenly',words,()=>act(()=>{const text=clip.text.trim().split(/\s+/u);if(text.length>400||text.length>clip.durationMs)throw Error('This caption has too many words for individual timing.');const timings=text.map((text,i)=>({text,startMs:Math.floor(i*clip.durationMs/text.length),endMs:Math.floor((i+1)*clip.durationMs/text.length)}));commit(updateClip(project(),clip.id,{words:timings}),'Add approximate word timing');}),'add-word-timing');
+  if(!clip.words)button('Distribute words evenly',words,()=>act(()=>commit(distributeCaptionWords(project(),clip.id),'Add approximate word timing')),'add-word-timing');
   else {button('Use plain caption',words,()=>act(()=>commit(editProject(project(),d=>{delete findClip(d,clip.id).clip.words;}),'Remove word highlighting')));for(const [i,w] of clip.words.entries()){const r=node('div',undefined,words);r.className='row';for(const [prop,label] of [['startMs','Start'],['endMs','End']])field(r,'word-'+i+'-'+prop,w.text+' · '+label+' (s)',seconds(w[prop]),v=>commit(editProject(project(),d=>{findClip(d,clip.id).clip.words[i][prop]=Math.round(v*1000);}),'Edit word timing'),{type:'number',min:0,step:.01});}}
   const actions=node('div',undefined,p);actions.className='actions';button('Add caption',actions,()=>act(()=>{const r=addCaption(project(),selected.sceneId,locate(project(),time).timeMs);selected.clipId=r.clipId;commit(r.value,'Add caption');}),'add-caption');button('Import VTT / SRT',actions,()=>{if(ensure())$('subtitle-file').click();},'import-subtitles');
 }
@@ -163,7 +163,7 @@ function motionInspector(p,track,clip){
   if(!camera)field(p,'cursor-curve','Path curve',key.curve,v=>change({curve:v}),{type:'number',min:-1000,max:1000,step:5});
   field(p,'key-easing','Ease into keyframe',key.easing,v=>change({easing:v}),{options:[['gentle','Smooth'],['direct','Direct'],['overview','Soft landing'],['instant','Cut']]});
   const actions=node('div',undefined,p);actions.className='actions';
-  button('＋ Key at playhead',actions,()=>act(()=>{const at=locate(project(),time);if(at.scene.id!==clip.sceneId)throw Error('Move the playhead into this clip.');const pos=Math.round(at.timeMs-clip.startMs),{bounds,box}=view.geometry(),f=createEvaluator(project()).sample(time,bounds,box),r=bounds[key.target];let patch={target:key.target};
+  button('＋ Key at playhead',actions,()=>act(()=>{const key=findClip(project(),clip.id).clip.keys.find(k=>k.id===selected.keyId);if(!key)throw Error('Select a current keyframe.');const at=locate(project(),time);if(at.scene.id!==clip.sceneId)throw Error('Move the playhead into this clip.');const pos=Math.round(at.timeMs-clip.startMs),{bounds,box}=view.geometry(),f=createEvaluator(project()).sample(time,bounds,box),r=bounds[key.target];let patch={target:key.target};
     if(camera){const center={x:(box.width/2-f.camera.x)/f.camera.scale,y:(box.height/2-f.camera.y)/f.camera.scale};const base=createEvaluator(editProject(project(),d=>{const c=findClip(d,clip.id).clip;c.keys=[{...key,atMs:0,x:0,y:0,zoom:1}];})).sample(time,bounds,box).camera.scale;patch={...patch,x:center.x-r.x-r.width/2,y:center.y-r.y-r.height/2,zoom:f.camera.scale/base};}
     else if(f.cursor)patch={...patch,x:f.cursor.x-r.x-r.width/2,y:f.cursor.y-r.y-r.height/2,curve:0};
     const next=addKeyframe(project(),clip.id,pos,patch);selected.keyId=findClip(next,clip.id).clip.keys.find(k=>k.atMs===pos+clip.offsetMs).id;commit(next,'Add keyframe');}),'add-key');
@@ -189,7 +189,20 @@ function voiceInspector(p,track,clip){
   else {const voice=voiceProvider.capabilities.voices[0],draft={voiceId:voice.id,style:voice.styles[0]};
     const styleSelect=field(generate,'voice-style','Delivery style',draft.style,v=>{draft.style=v;},{options:voice.styles});
     field(generate,'voice-identity','Voice',draft.voiceId,v=>{draft.voiceId=v;const styles=voiceProvider.capabilities.voices.find(x=>x.id===v).styles;styleSelect.replaceChildren();for(const s of styles){const o=node('option',s,styleSelect);o.value=s;}draft.style=styles[0];styleSelect.value=styles[0];},{options:voiceProvider.capabilities.voices.map(v=>[v.id,v.label||v.id])});
-    button('Generate a new take',generate,()=>{if(!ensure())return;const origin=revision();modal('Generate voiceover?',body=>node('p','Send only this authored narration to '+voiceProvider.capabilities.name+'? Your host service may charge for generation. Nothing else from the application is included.',body),[['Cancel',closeDialog],['Generate',()=>{closeDialog();void runAsync(async signal=>{const take=await generateVoiceTake(voiceProvider,{...draft,text:clip.script,clipId:clip.id,revision:origin},{signal});const asset=await bank.ingest(freshId(project(),'audio'),draft.voiceId+' · '+draft.style,take.mime.split(';')[0],take.bytes,{signal});if(revision()!==origin){bank.remove(asset.id);throw Error('The project changed during generation. The late take was not applied.');}offerTake(clip.id,asset,origin);});}]]);},'generate-voice');
+    button('Generate a new take',generate,()=>{
+      if(!ensure())return;
+      const origin=revision(),provider=voiceProvider;
+      const request={...draft,text:findClip(project(),clip.id).clip.script,clipId:clip.id,revision:origin};
+      modal('Generate voiceover?',body=>node('p','Send only this authored narration to '+provider.capabilities.name+'? Your host service may charge for generation. Nothing else from the application is included.',body),[
+        ['Cancel',closeDialog],['Generate',()=>{closeDialog();void runAsync(async signal=>{
+          if(revision()!==origin||voiceProvider!==provider)throw Error('The project or voice service changed. Review generation again.');
+          const take=await generateVoiceTake(provider,request,{signal});
+          const asset=await bank.ingest(freshId(project(),'audio'),request.voiceId+' · '+request.style,take.mime.split(';')[0],take.bytes,{signal});
+          if(revision()!==origin||voiceProvider!==provider){bank.remove(asset.id);throw Error('The project or voice service changed during generation. The late take was not applied.');}
+          offerTake(clip.id,asset,origin);
+        });}]
+      ]);
+    },'generate-voice');
   }
 }
 function closeDialog(){if(dialogCleanup){const fn=dialogCleanup;dialogCleanup=null;fn();}if($('dialog').open)$('dialog').close();}

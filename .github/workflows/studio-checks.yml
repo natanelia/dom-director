@@ -79,7 +79,9 @@ jobs:
       - name: Exercise editing, preview, media and project round trips
         env:
           BROWSER_ENGINE: ${{ matrix.browser }}
-        run: python3 studio-tests/browser_test.py
+        run: |
+          python3 studio-tests/browser_test.py
+          python3 studio-tests/review_test.py
       - name: Preserve synthetic Studio screenshots
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02

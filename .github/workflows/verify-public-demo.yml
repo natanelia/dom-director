@@ -39,3 +39,4 @@ jobs:
           python3 site-tests/deployed_smoke.py
           python3 site-tests/storyboard_test.py
           python3 studio-tests/browser_test.py
+          python3 studio-tests/review_test.py

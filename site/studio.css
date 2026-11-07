@@ -3,3 +3,20 @@
 @media(max-width:1100px){.workspace{grid-template-columns:145px minmax(260px,1fr) 275px}.topbar{gap:9px;padding:10px}.brand strong{display:none}.canvas-panel{padding:10px}.top-actions button{font-size:11px;padding:6px 8px}.project-title{padding-left:5px}.scene-panel{padding:12px 9px}.scene-buttons{display:none}}
 @media(max-width:800px){.studio{height:auto;min-height:100dvh;grid-template-rows:auto auto auto auto}.topbar{position:sticky;top:0;z-index:10;flex-wrap:wrap;gap:8px;padding:10px}.brand strong{display:block}.project-title{min-width:100px;flex:1}.top-actions{width:100%;justify-content:flex-end}.top-actions button{min-height:38px}.workspace{display:flex;flex-direction:column}.canvas-panel{order:0;min-height:300px;padding:8px 12px 12px}.canvas-stage-wrap{min-height:0;padding:9px 0;flex:none}.canvas-stage{max-height:none}.canvas-toolbar{font-size:10px}.canvas-toolbar label{font-size:0}.canvas-toolbar select{font-size:11px}.scene-panel{order:1;overflow:visible;padding:12px;border-right:0;border-top:1px solid var(--line);border-bottom:1px solid var(--line)}.scene-panel>.small,.scene-note,.scene-buttons{display:none}.scene-list{display:flex;overflow:auto;gap:8px;margin:10px 0;padding:3px}.scene-list li{flex:0 0 145px}.scene-art{height:42px}.scene-art:before{inset:8px auto 8px 9px;width:22px}.scene-art:after{inset:8px 9px auto 38px;height:10px;box-shadow:0 16px #bfccb1}.scene-panel #add-scene{width:auto;min-height:38px}.inspector-panel{order:2;border:0}.inspector-tabs{position:sticky;top:105px;z-index:5;background:var(--panel)}.inspector-tabs button{min-height:42px}#inspector{max-height:530px;overflow:auto;padding:12px 16px}.field{font-size:12px}.field input,.field select,.field textarea{font-size:16px;min-height:40px}.actions button{min-height:38px}.timeline-panel{min-height:290px}.timeline-toolbar{gap:9px;padding:10px}.timeline-toolbar button{min-height:34px}.timeline-zoom{margin-left:0}.timeline-toolbar strong{display:none}#timeline-scroll{min-height:230px;max-height:400px}.statusbar{position:sticky;bottom:0;z-index:10;min-height:35px}.statusbar #revision{display:none}.statusbar #status{white-space:normal;line-height:1.3}button{touch-action:manipulation}.transport{flex-wrap:wrap}.transport output{font-size:10px}.transport button{min-height:38px}.canvas-help{font-size:11px}.topbar .project-title input{font-size:12px}}
 @media(prefers-reduced-motion:reduce){*{scroll-behavior:auto!important}}
+
+/* A wide editing timeline scrolls inside its panel, never the page grid. */
+.studio{grid-template-columns:minmax(0,1fr)}
+.studio>*,.workspace>*,.canvas-panel,.timeline-panel,#timeline-scroll{min-width:0}
+.top-actions{flex-wrap:wrap}
+.canvas-toolbar,.transport,.transport>div{flex-wrap:wrap}
+#scene-name{overflow-wrap:anywhere;min-width:0}
+@media(max-width:800px){
+  .studio{max-width:100%}
+  .canvas-toolbar>div{flex-wrap:wrap}
+  .topbar{position:relative}
+  .inspector-tabs{position:static}
+  .scene-list{max-width:100%;min-width:0}
+  .timeline-panel{width:100%}
+}
+@media(max-width:1100px){.scene-buttons{display:flex}}
+@media(max-width:800px){.scene-buttons button{min-height:38px;font-size:12px}}

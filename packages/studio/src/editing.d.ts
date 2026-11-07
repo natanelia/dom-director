@@ -10,3 +10,6 @@ export function deleteScene(project:Project,sceneId:string):Project;
 export function addCaption(project:Project,sceneId:string,startMs?:number):{value:Project;clipId:string};
 export function proposeCaptionImport(project:Project,text:string,options?:{language?:string;name?:string}):{value:Project;trackId:string;cueCount:number;splitCount:number;warnings:string[]};
 export function proposeVoiceReplacement(project:Project,clipId:string,asset:AudioAsset,options?:{fitScene?:boolean}):{value:Project;changes:unknown[];deltaMs:number};
+
+/** Evenly spaced manual timing; preserves the voice and obeys caption-track locks. */
+export function distributeCaptionWords(project:Project,clipId:string):Project;

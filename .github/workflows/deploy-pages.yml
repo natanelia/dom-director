@@ -58,6 +58,7 @@ jobs:
           python3 site-tests/browser_test.py
           python3 site-tests/storyboard_test.py
           python3 studio-tests/browser_test.py
+          python3 studio-tests/review_test.py
           python3 site-tests/deployed_smoke.py --local-directory site-dist
       - name: Upload only the verified public artifact
         if: github.ref == 'refs/heads/main' && matrix.browser == 'chromium'
