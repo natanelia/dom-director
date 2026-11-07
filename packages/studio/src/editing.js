@@ -46,10 +46,12 @@ export function deleteKeyframe(project,clipId,keyId){
 export function addGesture(project,clipId,clipTimeMs,kind='click'){
   return editProject(project,next=>{const {track,clip}=findClip(next,clipId);demand(track.kind==='cursor','Select a cursor clip.');demand(Number.isInteger(clipTimeMs)&&clipTimeMs>=0&&clipTimeMs<clip.durationMs,'Place the playhead inside the selected cursor clip.');clip.gestures.push({id:freshId(next,'gesture'),atMs:clip.offsetMs+clipTimeMs,kind});});
 }
-export function addScene(project,{afterId=project.scenes.at(-1).id,target='orbit.overview',title='New scene',durationMs=4000}={}){
+export function addScene(project,{afterId=project.scenes.at(-1).id,target,title='New scene',durationMs=4000}={}){
   let sceneId;
   const value=editProject(project,next=>{
     const index=next.scenes.findIndex(s=>s.id===afterId);demand(index>=0,'The preceding scene is missing.');
+    target??=next.tracks.find(t=>t.kind==='camera')?.clips.find(c=>c.sceneId===afterId)?.keys[0]?.target;
+    demand(typeof target==='string','Supply a host-approved target for the new scene.');
     sceneId=freshId(next,'scene');next.scenes.splice(index+1,0,{id:sceneId,title,durationMs});
     for(const track of next.tracks){
       demand(!track.locked,'Unlock tracks before adding a scene.');

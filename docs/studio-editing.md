@@ -8,7 +8,7 @@ The optional `@dom-director/studio/editing` entry provides validated project edi
 
 `addKeyframe`, `updateKeyframe`, and `deleteKeyframe` preserve stable identity and sorted source-time keys. A new key uses clip-relative time, converted through its motion source window. It initially copies the preceding key unless the caller supplies a sampled composition. Hosts should supply that sampled composition when inserting a key into an in-progress move to preserve the appearance. `addGesture` creates a visual cursor pulse only, never a DOM click.
 
-Scene and caption operations create valid IDs, reject overlaps, and enforce the existing project budgets. New scenes use approved references supplied by the integrating host. These helpers do not authorize a reference merely because its syntax is valid.
+Scene and caption operations create valid IDs, reject overlaps, and enforce the existing project budgets. New scenes use references supplied by the integrating host, or reuse the preceding scene’s first camera reference when the option is omitted; no sample-specific reference is introduced. These helpers do not authorize a reference merely because its syntax is valid.
 
 ## Import and voice replacement
 
@@ -18,4 +18,4 @@ Scene and caption operations create valid IDs, reject overlaps, and enforce the 
 
 ## Verification
 
-Thirteen editing tests cover style isolation, lock checks, stable keyframe identity, gesture safety, scene round-trips, overlap refusal, cross-scene subtitle imports, longer/shorter take proposals, and complete undo. Run `node --test packages/studio/test/*.test.js`. Packed consumer checks cover the editing subpath and its TypeScript declaration. Browser integration is a separate implementation slice.
+Fourteen editing tests cover style isolation, lock checks, stable keyframe identity, gesture safety, scene round-trips, overlap refusal, cross-scene subtitle imports, longer/shorter take proposals, and complete undo. Run `node --test packages/studio/test/*.test.js`. Packed consumer checks cover the editing subpath and its TypeScript declaration. Browser integration is a separate implementation slice.
