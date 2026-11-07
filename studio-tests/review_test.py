@@ -94,6 +94,47 @@ class StudioReviewTests(baseline.StudioTests):
         self.assertEqual(self.project(), before)
         self.assertEqual(self.page.locator('#timecode').get_attribute('aria-live'), 'off')
 
+    def test_audible_preview_advances_with_real_web_audio_and_pause_is_stable(self):
+        # Preserve the native clock/decoder; retain the instance only for observation.
+        self.page.evaluate("""()=>{
+          const Native=window.AudioContext;window.nativeContexts=[];
+          window.AudioContext=class extends Native{constructor(...args){super(...args);nativeContexts.push(this);}};
+        }""")
+        self.import_voice(2)
+        self.page.get_by_role('button', name='Keep scene timing', exact=True).click()
+        self.page.locator('#sound').click()
+        self.page.locator('#preview-tour').click()
+        self.page.wait_for_function("document.querySelector('#studio').dataset.playback==='playing' && Number(document.querySelector('#seek').value)>.2")
+        self.assertEqual(self.page.evaluate('nativeContexts[0].state'), 'running')
+        self.assertEqual(self.page.locator('#status').inner_text(), 'Playing with voiceover.')
+        before = self.page.evaluate('({audio:nativeContexts[0].currentTime,visual:Number(document.querySelector("#seek").value)})')
+        self.page.wait_for_timeout(250)
+        after = self.page.evaluate('({audio:nativeContexts[0].currentTime,visual:Number(document.querySelector("#seek").value)})')
+        self.assertGreater(after['visual'] - before['visual'], .1)
+        self.assertAlmostEqual(after['visual'] - before['visual'], after['audio'] - before['audio'], delta=.12)
+        self.page.locator('#play').click()
+        self.assertEqual(self.page.locator('#status').inner_text(), 'Preview paused.')
+        at = float(self.page.locator('#seek').input_value())
+        self.page.wait_for_timeout(150)
+        self.assertAlmostEqual(float(self.page.locator('#seek').input_value()), at, delta=.02)
+
+    def test_dragging_a_caption_changes_its_time_without_changing_other_tracks(self):
+        self.page.get_by_text('Scene and clip timing', exact=True).click()
+        self.edit('#clip-end', '2.0')
+        before = self.project()
+        clip = self.page.locator('.lane button[data-clip="cc.overview.0"]')
+        clip.scroll_into_view_if_needed()
+        box = clip.bounding_box()
+        scale = float(self.page.locator('#timeline-zoom').input_value())
+        x, y = box['x'] + box['width'] / 2, box['y'] + box['height'] / 2
+        self.page.mouse.move(x, y)
+        self.page.mouse.down()
+        self.page.mouse.move(x + scale * .5, y, steps=5)
+        self.page.mouse.up()
+        after = self.project()
+        self.assertEqual(self.clip(after, 'cc.overview.0')['startMs'], 500)
+        self.assertEqual(self.clip(after, 'cc.overview.0')['durationMs'], 2000)
+        self.assertEqual(after['tracks'][:3], before['tracks'][:3])
 
 
 def load_tests(loader, tests, pattern):

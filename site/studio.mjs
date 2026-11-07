@@ -29,9 +29,12 @@ function hostCheck(p){
 function makeBank(){return createMediaBank({resolveSample:id=>{if(!samples.has(id))throw Error('Unapproved prepared voice.');return new URL('./assets/'+id+'.mp3',location.href).href;}});}
 let bank=makeBank();
 function makeTransport(){return createTransport({bank,onFrame:at=>{time=at;draw();},onState:s=>{
-  if(disposed)return;const running=s.state==='playing'||s.state==='preparing';$('studio').classList.toggle('previewing',running);$('studio').dataset.playback=s.state;
+  if(disposed)return;const previous=$('studio').dataset.playback,running=s.state==='playing'||s.state==='preparing';$('studio').classList.toggle('previewing',running);$('studio').dataset.playback=s.state;
   $('play').textContent=running?'Ⅱ':'▶';$('play').setAttribute('aria-label',running?'Pause preview':'Play preview');$('play').disabled=s.state==='preparing';
-  if(s.error)message(s.error,true);else if(s.state==='preparing')message('Preparing selected voice takes…');
+  if(s.error)message(s.error,true);
+  else if(s.state==='preparing')message(s.audible?'Preparing selected voice takes…':'Preparing preview…');
+  else if(s.state==='playing')message(s.audible?'Playing with voiceover.':'Playing silently.');
+  else if(s.state==='paused'&&(previous==='playing'||previous==='preparing'))message('Preview paused.');
 }});}
 function stop(){if(transport)time=transport.pause();if(ready)draw();}
 function flush(){
