@@ -50,6 +50,28 @@ jobs:
           python3 tools/build_site.py
           node --check site/studio.mjs
           node --check site/studio-view.mjs
+      - name: Preserve reproducible synthetic fixture
+        if: matrix.browser == 'chromium'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: studio-reproduction
+          # Explicit source/fixture paths only: never credentials, environment or .git.
+          path: |
+            site-dist/
+            site/
+            studio-tests/
+            packages/core/src/
+            packages/core/package.json
+            packages/studio/
+            schemas/
+            docs/
+            tools/
+            package.json
+            AGENTS.md
+            README.md
+            LICENSE
+          if-no-files-found: error
+          retention-days: 7
       - name: Install selected browser
         env:
           BROWSER_ENGINE: ${{ matrix.browser }}
