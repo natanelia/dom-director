@@ -1,0 +1,13 @@
+{
+  "name": "@dom-director/studio",
+  "version": "0.1.0-rc.0",
+  "private": true,
+  "type": "module",
+  "license": "MIT",
+  "description": "Video-style timeline and authoring primitives for live DOM walkthroughs",
+  "types": "./src/index.d.ts",
+  "exports": {".": {"types": "./src/index.d.ts", "import": "./src/index.js"}},
+  "peerDependencies": {"@dom-director/core": "0.1.0-rc.0"},
+  "files": ["src", "README.md", "LICENSE"],
+  "sideEffects": false
+}
