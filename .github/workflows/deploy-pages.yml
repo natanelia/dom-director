@@ -6,6 +6,8 @@ on:
       - 'site/**'
       - 'site-tests/**'
       - 'packages/core/**'
+      - 'packages/studio/**'
+      - 'studio-tests/**'
       - 'schemas/**'
       - 'demo/**'
       - 'tools/build_runtime.py'
@@ -55,6 +57,7 @@ jobs:
         run: |
           python3 site-tests/browser_test.py
           python3 site-tests/storyboard_test.py
+          python3 studio-tests/browser_test.py
           python3 site-tests/deployed_smoke.py --local-directory site-dist
       - name: Upload only the verified public artifact
         if: github.ref == 'refs/heads/main' && matrix.browser == 'chromium'
