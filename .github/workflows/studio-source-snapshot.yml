@@ -1,0 +1,25 @@
+name: Studio source snapshot
+on:
+  push:
+    branches: [work/studio-source-20261107]
+    paths: [.github/workflows/studio-source-snapshot.yml]
+permissions:
+  contents: read
+jobs:
+  snapshot:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - name: Archive tracked source only
+        run: |
+          mkdir -p /tmp/director-source
+          git archive --format=tar 3af3c9bf806413fee24d1b97b4ca1f08eb41e100 > /tmp/director-source/source.tar
+          sha256sum /tmp/director-source/source.tar
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: studio-source
+          path: /tmp/director-source/source.tar
+          retention-days: 1
