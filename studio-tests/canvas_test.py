@@ -8,16 +8,16 @@ PROBE = r"""() => {
   const rect=Element.prototype.getBoundingClientRect;
   const text=Object.getOwnPropertyDescriptor(Node.prototype,'textContent');
   const trace=window.canvasProbe={messages:[],zeroReads:[],events:[]};
-  const sizes=()=>[...ids].map(id=>{const e=document.getElementById(id),r=rect.call(e);return {id,x:r.x,y:r.y,width:r.width,height:r.height,clientWidth:e.clientWidth,clientHeight:e.clientHeight};});
+  const sizes=()=>[...ids].map(id=>{const e=document.getElementById(id);if(!e)return {id,missing:true};const r=rect.call(e);return {id,x:r.x,y:r.y,width:r.width,height:r.height,clientWidth:e.clientWidth,clientHeight:e.clientHeight};});
   Element.prototype.getBoundingClientRect=function(...args){
     const r=rect.apply(this,args);
     if(ids.has(this.id)&&(!Number.isFinite(r.width)||!Number.isFinite(r.height)||r.width<=0||r.height<=0)&&trace.zeroReads.length<30)
       trace.zeroReads.push({id:this.id,width:r.width,height:r.height,stack:new Error().stack,sizes:sizes()});
     return r;
   };
-  Object.defineProperty(document.querySelector('#status'),'textContent',{
+  Object.defineProperty(Node.prototype,'textContent',{
     configurable:true,get(){return text.get.call(this);},set(value){
-      if(trace.messages.length<100)trace.messages.push({text:String(value),sizes:/bounds|geometry|surface|target/i.test(value)?sizes():null,stack:/bounds/i.test(value)?new Error().stack:null});
+      if(this.id==='status'&&trace.messages.length<100)trace.messages.push({text:String(value),sizes:/bounds|geometry|surface|target/i.test(value)?sizes():null,stack:/bounds/i.test(value)?new Error().stack:null});
       return text.set.call(this,value);
     }
   });
@@ -28,8 +28,15 @@ PROBE = r"""() => {
 
 class StudioCanvasTests(baseline.StudioTests):
     def setUp(self):
-        super().setUp()
-        self.page.evaluate(PROBE)
+        self.page = self.browser.new_page(viewport={'width':1440,'height':1000})
+        self.page.set_default_timeout(8000)
+        self.errors=[];self.requests=[]
+        self.page.on('pageerror',lambda error:self.errors.append(str(error)))
+        self.page.on('request',lambda request:self.requests.append(request.url))
+        self.page.add_init_script('('+PROBE+')()')
+        self.page.goto(self.url+'?verify='+__import__('os').environ.get('DEPLOYED_SHA','local'))
+        self.page.wait_for_function("document.querySelector('#studio')?.dataset.ready==='true'")
+        self.assert_no_geometry_errors()
 
     def tearDown(self):
         try:
@@ -74,6 +81,7 @@ class StudioCanvasTests(baseline.StudioTests):
 
     def test_recording_denial_stays_visible_after_dialog_and_layout_changes(self):
         self.mock_recording_boundary()
+        before=self.project()
         self.page.evaluate("""()=>{window.micCalls=0;Object.defineProperty(navigator.mediaDevices,'getUserMedia',{
           configurable:true,value:()=>{micCalls++;return Promise.reject(new DOMException('Synthetic denial','NotAllowedError'));}
         });}""")
@@ -87,6 +95,31 @@ class StudioCanvasTests(baseline.StudioTests):
         self.assert_no_geometry_errors()
         self.assertIn('permission was not granted',self.page.locator('#status').inner_text())
         self.assertFalse(self.page.locator('#dialog').is_visible())
+        self.assertEqual(self.project(),before)
+
+    def test_temporary_empty_viewport_pauses_without_a_geometry_failure_and_recovers(self):
+        before=self.project()
+        self.page.locator('#preview-tour').click()
+        self.page.wait_for_function("Number(document.querySelector('#seek').value)>.2")
+        self.page.evaluate("document.querySelector('#stage').style.height='0px'")
+        self.page.wait_for_timeout(120)
+        self.assert_no_geometry_errors()
+        self.assertEqual(self.page.locator('#studio').get_attribute('data-playback'),'paused')
+        self.page.evaluate("document.querySelector('#stage').style.removeProperty('height')")
+        self.page.wait_for_timeout(100)
+        self.assert_no_geometry_errors()
+        at=float(self.page.locator('#seek').input_value())
+        self.page.locator('#play').click()
+        self.page.wait_for_function("at=>Number(document.querySelector('#seek').value)>at+.15",arg=at)
+        self.page.locator('#stop').click()
+        self.assertEqual(self.project(),before)
+
+    def test_a_missing_focus_still_fails_instead_of_reusing_stale_measurements(self):
+        self.page.evaluate("document.querySelector('#metrics').remove()")
+        self.seek(9)
+        self.page.wait_for_function("document.querySelector('#status').classList.contains('error')")
+        self.assertIn('target',self.page.locator('#status').inner_text().lower())
+        self.assertEqual(self.page.locator('#studio').get_attribute('data-playback'),'paused')
 
 
 def load_tests(loader, tests, pattern):
