@@ -122,3 +122,92 @@ export function proposeVoiceReplacement(project,clipId,asset,{fitScene=false}={}
     if(!existing)next.assets.push(copy(asset));const c=findClip(next,clipId).clip;c.assetId=asset.id;c.sourceInMs=0;c.durationMs=length;c.fadeInMs=Math.min(clip.fadeInMs,length);c.fadeOutMs=Math.min(clip.fadeOutMs,length-c.fadeInMs);
   });return {value:requireProject(value),changes,deltaMs:fitScene?length-scene.durationMs:0};
 }
+
+/**
+ * Snapshot magnetic anchors once per gesture. All guide positions are project
+ * milliseconds; the returned delta stays relative to the edited clip/key.
+ * Snapping is geometry, not permission: validate the proposed edit before use.
+ */
+export function createTimelineSnapper(input,{
+  clipId,keyId,operation='move',pixelsPerSecond,tolerancePx=8,
+  gridMs=100,playheadMs,ripple=false,
+}={}){
+  const project=requireProject(input),{track,clip}=findClip(project,clipId);
+  demand(['move','trim-start','trim-end','keyframe'].includes(operation),'Choose a supported timeline operation.');
+  demand(Number.isFinite(pixelsPerSecond)&&pixelsPerSecond>0&&pixelsPerSecond<=10000,'Timeline scale must be finite and positive.');
+  demand(Number.isFinite(tolerancePx)&&tolerancePx>=0&&tolerancePx<=32,'Snap distance must be 0–32 CSS pixels.');
+  demand(Number.isInteger(gridMs)&&gridMs>0&&gridMs<=10000,'Snap grid must use whole milliseconds.');
+  demand(typeof ripple==='boolean','Ripple must be a boolean.');
+  const scenes=sceneTimeline(project),scene=scenes.find(s=>s.id===clip.sceneId);
+  demand(playheadMs===undefined||(Number.isFinite(playheadMs)&&playheadMs>=0&&playheadMs<=scenes.at(-1).endMs),'Playhead is outside the project.');
+  const start=scene.startMs+clip.startMs,end=start+clip.durationMs;
+  let edges;
+  if(operation==='keyframe'){
+    demand(['camera','cursor'].includes(track.kind),'Select a camera or cursor keyframe.');
+    const key=clip.keys.find(k=>k.id===keyId);
+    demand(key&&key.atMs>=clip.offsetMs&&key.atMs<=clip.offsetMs+clip.durationMs,'Select a keyframe inside the visible clip.');
+    edges=[{timeMs:start+key.atMs-clip.offsetMs,edge:'keyframe'}];
+  }else edges=operation==='move'?[{timeMs:start,edge:'start'},{timeMs:end,edge:'end'}]:
+    [{timeMs:operation==='trim-start'?start:end,edge:operation==='trim-start'?'start':'end'}];
+  const points=[];
+  const add=(timeMs,kind,label,priority,identity)=>{
+    if(timeMs>=scene.startMs&&timeMs<=scene.endMs)points.push({timeMs,kind,label,priority,identity});
+  };
+  add(scene.startMs,'scene','Scene start',1,'scene.start');
+  add(scene.endMs,'scene','Scene end',1,'scene.end');
+  if(playheadMs!==undefined)add(Math.round(playheadMs),'playhead','Playhead',0,'playhead');
+  if(operation==='keyframe'){
+    add(start,'clip','Selected clip start',2,'own.start');
+    add(end,'clip','Selected clip end',2,'own.end');
+  }
+  for(const otherTrack of project.tracks){
+    // Invisible tracks are not magnets; locked visible tracks remain references.
+    if(!otherTrack.enabled)continue;
+    for(const other of otherTrack.clips){
+      if(other.sceneId!==clip.sceneId||other.id===clip.id)continue;
+      // Ripple followers move with this gesture and cannot be stationary anchors.
+      if(operation==='move'&&ripple&&otherTrack.id===track.id&&other.startMs>=clip.startMs+clip.durationMs)continue;
+      const absolute=scene.startMs+other.startMs;
+      add(absolute,'clip',otherTrack.name+' start',2,other.id+'.start');
+      add(absolute+other.durationMs,'clip',otherTrack.name+' end',2,other.id+'.end');
+      for(const key of other.keys||[])if(key.atMs>=other.offsetMs&&key.atMs<=other.offsetMs+other.durationMs)
+        add(absolute+key.atMs-other.offsetMs,'keyframe',otherTrack.name+' keyframe',3,key.id);
+    }
+  }
+  const compare=(a,b)=>a.timeMs-b.timeMs||a.priority-b.priority||(a.identity<b.identity?-1:a.identity>b.identity?1:0);
+  points.sort(compare);
+  const toleranceMs=tolerancePx/pixelsPerSecond*1000;
+  function lowerBound(timeMs){let lo=0,hi=points.length;while(lo<hi){const mid=(lo+hi)>>>1;if(points[mid].timeMs<timeMs)lo=mid+1;else hi=mid;}return lo;}
+  return Object.freeze({
+    snap(deltaMs,{bypass=false}={}){
+      demand(Number.isFinite(deltaMs),'Timeline movement must be finite.');
+      demand(typeof bypass==='boolean','Snap bypass must be a boolean.');
+      if(bypass)return {deltaMs:Math.round(deltaMs)||0,guide:null};
+      let best=null;
+      for(const [edgeOrder,edge] of edges.entries()){
+        const desired=edge.timeMs+deltaMs;
+        for(let i=lowerBound(desired-toleranceMs);i<points.length&&points[i].timeMs<=desired+toleranceMs;i++){
+          const point=points[i],distance=Math.abs(point.timeMs-desired);
+          if(!best||distance<best.distance-1e-7||(Math.abs(distance-best.distance)<1e-7&&
+            (point.priority<best.point.priority||(point.priority===best.point.priority&&
+              (compare(point,best.point)<0||(compare(point,best.point)===0&&edgeOrder<best.edgeOrder))))))
+            best={point,distance,edge,edgeOrder};
+        }
+      }
+      if(!best)return {deltaMs:Math.round(deltaMs/gridMs)*gridMs||0,guide:null};
+      return {deltaMs:best.point.timeMs-best.edge.timeMs,guide:Object.freeze({
+        timeMs:best.point.timeMs,kind:best.point.kind,label:best.point.label,edge:best.edge.edge,
+      })};
+    },
+  });
+}
+
+/** Move one visible key in clip-local time, preserving path/style and off-window source keys. */
+export function moveTimelineKeyframe(project,clipId,keyId,clipTimeMs){
+  const {track,clip}=findClip(project,clipId);
+  demand(['camera','cursor'].includes(track.kind),'Select a camera or cursor keyframe.');
+  const key=clip.keys.find(k=>k.id===keyId);
+  demand(key&&key.atMs>=clip.offsetMs&&key.atMs<=clip.offsetMs+clip.durationMs,'Select a keyframe inside the visible clip.');
+  demand(Number.isInteger(clipTimeMs)&&clipTimeMs>=0&&clipTimeMs<=clip.durationMs,'Keep the keyframe inside its clip.');
+  return updateKeyframe(project,clipId,keyId,{atMs:clip.offsetMs+clipTimeMs});
+}
