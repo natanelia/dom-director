@@ -35,6 +35,8 @@ jobs:
         run: |
           node --check tools/video-render-host.mjs
           python3 studio-tests/video_export_test.py
+      - name: Render the complete narrated sample at 720p
+        run: python3 tools/render_video.py --sample --output video-results/complete-demo.mp4 --width 1280 --fps 30
       - name: Preserve synthetic video evidence
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02

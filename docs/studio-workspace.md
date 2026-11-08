@@ -34,7 +34,7 @@ VTT/SRT export carries caption text and timing, not Studio appearance, camera mo
 
 ## Current limits
 
-This build does not provide MP4/WebM rendering, interactive project publishing, branch/wait authoring, a full audio-mixer workspace with buses/effects, automatic speech alignment, a built-in paid voice provider, arbitrary-site capture, cloud storage or collaboration. The public fixture has a fixed 960 × 540 Orbit surface and approved target names. Adopting applications need their own deliberate host integration.
+The [local video renderer](video-export.md) exports supported Orbit projects to MP4/WebM. This build does not provide browser-only video rendering, interactive project publishing, branch/wait authoring, a full audio-mixer workspace with buses/effects, automatic speech alignment, a built-in paid voice provider, arbitrary-site capture, cloud storage or collaboration. The public fixture has a fixed 960 × 540 Orbit surface and approved target names. Adopting applications need their own deliberate host integration.
 
 Physical-device microphone codecs, download behavior, on-screen keyboards, assistive technology and real-user usability remain manual acceptance work under issue #19. Linux browser-engine tests do not certify physical Safari/iOS/Android or screen readers. The Studio audit retains both automated violations and incomplete findings; user-chosen caption themes can still require contrast review.
 

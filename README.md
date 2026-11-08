@@ -12,7 +12,7 @@ Studio is the creator-facing video-style workspace: a real-DOM canvas, scene rai
 
 Save project downloads a `.director` file with the rich project and local audio. Open validates it before replacing the current draft. VTT/SRT exports preserve caption text and timing, not the visual theme. Save before refreshing; this build has no autosave.
 
-The public Studio uses a controlled Orbit example. Voice import and permissioned recording are available where supported; **no generation service is connected publicly**. A host can connect a provider that declares its voices and delivery styles. Rendered video, interactive branch authoring, automatic speech alignment and cloud collaboration are not implemented. The [Studio guide](docs/studio-workspace.md) records the exact boundaries. The original compact [storyboard editor](docs/visual-storyboard.md) remains in Agent lab for compatibility, not as the recommended creator entry.
+The public Studio uses a controlled Orbit example. Voice import and permissioned recording are available where supported; **no generation service is connected publicly**. A host can connect a provider that declares its voices and delivery styles. A [local video renderer](docs/video-export.md) exports supported Orbit projects to MP4/WebM using the same canvas and voice mix. Browser-only video export, interactive branch authoring, automatic speech alignment and cloud collaboration are not implemented. The [Studio guide](docs/studio-workspace.md) records the exact boundaries. The original compact [storyboard editor](docs/visual-storyboard.md) remains in Agent lab for compatibility, not as the recommended creator entry.
 
 ## Try the source checkout
 
@@ -100,4 +100,4 @@ Reduced motion, keyboard controls, captions and exit are part of the implementat
 
 See [compatibility and acceptance](docs/release-candidate.md), [Studio implementation and tests](docs/studio-workspace.md), [performance evidence](docs/evidence/performance.json), [security](SECURITY.md), [contribution commands](CONTRIBUTING.md), [agent working agreement](AGENTS.md), and [license inventory](THIRD_PARTY_NOTICES.md).
 
-The 22-chapter design atlas and its 48 use cases remain useful product direction. They do not imply that every proposed requirement or optional extension is shipped. Video export, interaction recording, advanced branch/wait editing, remote MCP transport, a connected live TTS service, collaboration and geographic/3D adapters remain separate work.
+The 22-chapter design atlas and its 48 use cases remain useful product direction. They do not imply that every proposed requirement or optional extension is shipped. In-browser video export, general-host video rendering, interaction recording, advanced branch/wait editing, remote MCP transport, a connected live TTS service, collaboration and geographic/3D adapters remain separate work.
