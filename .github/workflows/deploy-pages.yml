@@ -23,7 +23,9 @@ permissions:
   contents: read
 concurrency:
   group: github-pages-${{ github.ref }}
-  cancel-in-progress: false
+  # PRs never publish; obsolete test runs must not block the corrected revision.
+  # Main-branch publication remains serialized and is never cancelled by this rule.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 jobs:
   acceptance:
     name: Public artifact acceptance in ${{ matrix.browser }}
