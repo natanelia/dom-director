@@ -2,6 +2,7 @@ import {createSample,createProjectStore,createEvaluator,editProject,findClip,fre
 import {createMediaBank,createTransport,saveProjectBundle,readProjectBundle,generateVoiceTake} from './studio-sdk/media.js';
 import {setAppearance,applyCaptionPreset,distributeCaptionWords,addKeyframe,updateKeyframe,deleteKeyframe,addGesture,addScene,deleteScene,addCaption,proposeCaptionImport,proposeVoiceReplacement,createTimelineSnapper,moveTimelineKeyframe} from './studio-sdk/editing.js';
 import {createCanvas,TARGETS,drawWaveform} from './studio-view.mjs';
+import {planVoiceMix,renderVoiceMix} from './studio-sdk/audio-export.js';
 
 const $=id=>document.getElementById(id),copy=value=>JSON.parse(JSON.stringify(value)),seconds=ms=>(ms/1000).toFixed(2);
 const clock=ms=>{const n=Math.max(0,ms);return String(Math.floor(n/60000)).padStart(2,'0')+':'+(n/1000%60).toFixed(2).padStart(5,'0');};
@@ -279,7 +280,61 @@ async function openProject(file){await runAsync(async signal=>{
   if(file.size>36*1024*1024)throw Error('Project files must be smaller than 36 MiB.');const origin=revision(),bundle=await readProjectBundle(await file.text());hostCheck(bundle.project);signal.throwIfAborted();
   modal('Open this project?',body=>{node('p',bundle.project.title+' · '+bundle.project.scenes.length+' scenes',body);node('p','This replaces the current draft and its undo history. Save your current project first. Local audio is validated before replacement.',body);},[['Cancel',closeDialog],['Open project',()=>{closeDialog();void runAsync(async signal=>{const staging=makeBank();try{for(const m of bundle.media){const actual=await staging.ingest(m.asset.id,m.asset.name,m.asset.mime,m.bytes,{signal});if(Math.abs(actual.durationMs-m.asset.durationMs)>20)throw Error('Audio duration differs from the saved take.');}signal.throwIfAborted();if(revision()!==origin)throw Error('Your draft changed while opening the project. It was not replaced.');stop();transport.destroy();const old=bank;bank=staging;store.replace(bundle.project);selected={sceneId:bundle.project.scenes[0].id,kind:'captions',clipId:null,keyId:null};sound=false;loop=false;time=0;lastExport=revision();transport=makeTransport();transport.load(project());dirtyFields.clear();refresh();$('sound').textContent='Sound off';$('sound').setAttribute('aria-pressed','false');await old.destroy();message('Project reopened. Audio and all style tracks retained.');}catch(e){await staging.destroy();throw e;}});},true]]);
 });}
-function exportDialog(){if(!ensure())return;modal('Keep or share your work',body=>{node('p','Save project keeps all tracks, styles and local audio in a .director file. Subtitle files keep text and timing, not the visual theme.',body);node('p','Rendered video and interactive publishing are not available in this Studio build.',body).className='note';},[['Close',closeDialog],['VTT',()=>exportCC('vtt')],['SRT',()=>exportCC('srt')],['Save project',()=>{closeDialog();void save();},true]]);}
+function exportDialog(){if(!ensure())return;modal('Keep or share your work',body=>{node('p','Save project keeps all tracks, styles and local audio in a .director file. Subtitle files keep text and timing, not the visual theme.',body);node('p','Rendered video and interactive publishing are not available in this Studio build.',body).className='note';},[['Close',closeDialog],['VTT',()=>exportCC('vtt')],['SRT',()=>exportCC('srt')],['Voice WAV…',voiceMixDialog],['Save project',()=>{closeDialog();void save();},true]]);}
+function voiceMixDialog(){
+  if(!ensure())return;
+  const snapshot=store.snapshot(),current=sceneTimeline(snapshot.project).find(s=>s.id===selected.sceneId);
+  let range,channels,summary,renderButton;
+  const options=()=>({range:range.value==='scene'?{startMs:current.startMs,endMs:current.endMs}:null,channels:Number(channels.value)});
+  const update=()=>{try{const plan=planVoiceMix(snapshot.project,options());summary.textContent=plan.clips.length+' voice clips · '+seconds(plan.durationMs)+' seconds · '+(plan.bytes/1048576).toFixed(1)+' MiB. Muted tracks are excluded.';renderButton.disabled=false;}catch(e){summary.textContent=e.message;renderButton.disabled=true;}};
+  modal('Export voice mix',body=>{
+    node('p','Download narration with its timeline position, source trims, volume and fades. This is audio only: no camera, cursor or captions. Preview Sound off does not mute the export.',body);
+    const rangeLabel=node('label','Export range',body);rangeLabel.className='field';range=node('select',undefined,rangeLabel);range.id='mix-range';
+    for(const [value,label] of [['tour','Entire tour'],['scene','Selected scene · '+current.title]]){const option=node('option',label,range);option.value=value;}
+    const channelsLabel=node('label','Channels',body);channelsLabel.className='field';channels=node('select',undefined,channelsLabel);channels.id='mix-channels';
+    for(const [value,label] of [['2','Stereo'],['1','Mono']]){const option=node('option',label,channels);option.value=value;}
+    node('p','48 kHz · 16-bit WAV · up to five minutes. Audio is rendered locally; no microphone or voice service is used. Prepared sample audio may be loaded from this site.',body).className='note';
+    summary=node('p',undefined,body);summary.id='mix-summary';summary.setAttribute('role','status');
+    range.addEventListener('change',update);channels.addEventListener('change',update);
+  },[['Cancel',closeDialog],['Render WAV',()=>{
+    if(revision()!==snapshot.revision||dirtyFields.size){message('The project changed. Reopen export for the current draft.',true);closeDialog();return;}
+    const config=options();closeDialog();void exportVoiceMix(snapshot,config);
+  },true]]);
+  renderButton=$('dialog-actions').lastElementChild;renderButton.id='mix-render';update();
+}
+async function exportVoiceMix(snapshot,config){
+  await runAsync(async signal=>{
+    if(revision()!==snapshot.revision)throw Error('The project changed. Reopen export for the current draft.');
+    let progress;
+    modal('Rendering voice mix',body=>{progress=node('p','Preparing audio…',body);progress.id='mix-progress';progress.setAttribute('role','status');node('p','You can cancel without changing the project.',body);},[['Cancel',closeDialog]]);
+    const controller=operation;
+    const cancelExport=()=>controller.abort();
+    dialogCleanup=cancelExport;
+    let result;
+    try{
+      result=await renderVoiceMix(snapshot.project,bank,{...config,signal,onProgress:p=>{
+        progress.textContent=p.stage==='loading'?'Preparing audio '+p.completed+' of '+p.total+'…':p.stage==='rendering'?'Rendering tracks locally…':'Encoding WAV · '+Math.floor(p.completed/p.total*100)+'%';
+      }});
+      signal.throwIfAborted();
+      if(disposed||revision()!==snapshot.revision||dirtyFields.size)throw Error('The project changed during export. No file was downloaded.');
+      dialogCleanup=null;
+      modal('Voice mix ready',body=>{
+        node('p',seconds(result.durationMs)+' seconds · '+(result.channels===2?'Stereo':'Mono')+' · 48 kHz · 16-bit WAV',body);
+        node('p',result.clipCount+' voice clips rendered. Your editable project is unchanged.',body);
+        if(result.clippedSamples)node('p','Warning: '+result.clippedSamples+' channel samples exceeded full scale and were clipped. Lower the voice volume and export again for an undistorted mix.',body).className='error';
+        else node('p','No samples exceeded full scale. No loudness normalization was applied.',body).className='note';
+      },[['Close',closeDialog],['Download WAV',()=>{
+        if(!result||disposed||revision()!==snapshot.revision||dirtyFields.size){message('The project changed. Render the current draft before downloading.',true);closeDialog();return;}
+        download(result.wav,'walkthrough-voice.wav','audio/wav');closeDialog();message('Voice WAV download started. Check your downloads. Save project separately to keep editable tracks.');
+      },true]]);
+      $('dialog-actions').lastElementChild.id='mix-download';
+      dialogCleanup=()=>{result=null;};
+    }catch(error){
+      if(dialogCleanup===cancelExport){dialogCleanup=null;closeDialog();}
+      throw error;
+    }
+  });
+}
 function exportCC(format){try{const result=exportSubtitles(project(),{format});download(result.text,'walkthrough.'+format,'text/plain');message('Subtitle download started. Caption appearance is not included.');closeDialog();}catch(e){message(e.message,true);}}
 async function save(){await runAsync(async()=>{const snapshot=store.snapshot(),text=await saveProjectBundle(snapshot.project,bank);download(text,'walkthrough.director','application/x-dom-director');lastExport=snapshot.revision;$('revision').textContent='Revision '+revision()+(revision()===lastExport?' · exported':' · changes since export');message('Project download started. Check your downloads; this tab does not autosave.');});}
 function play(fromStart=false){if(!ensure())return;if(fromStart)seek(0);if(transport.inspect().state==='playing')stop();else void transport.play();}

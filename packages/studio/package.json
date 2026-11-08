@@ -18,6 +18,10 @@
     "./editing": {
       "types": "./src/editing.d.ts",
       "import": "./src/editing.js"
+    },
+    "./audio-export": {
+      "types": "./src/audio-export.d.ts",
+      "import": "./src/audio-export.js"
     }
   },
   "peerDependencies": {
