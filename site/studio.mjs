@@ -299,18 +299,115 @@ function setup(){
   on(window,'pagehide',e=>{stop();operation?.abort();if(recording)closeDialog();if(e.persisted)return;disposed=true;cleanups.splice(0).forEach(off=>off());if(paintRequest!==null)cancelAnimationFrame(paintRequest);for(const [url,timer] of urls){clearTimeout(timer);URL.revokeObjectURL(url);}urls.clear();transport.destroy();view.destroy();void bank.destroy();});
 }
 function installDrags(){
+  let cancelGesture=null,clickTimer=null;
+  const finishClick=token=>{
+    clearTimeout(clickTimer);
+    clickTimer=setTimeout(()=>{if(drag===token)drag=null;clickTimer=null;},0);
+  };
+  on(document,'keydown',event=>{
+    if(event.key==='Escape'&&cancelGesture){event.preventDefault();event.stopImmediatePropagation();cancelGesture();}
+  },{capture:true});
+  on(window,'blur',()=>cancelGesture?.());
+  on(document,'visibilitychange',()=>{if(document.hidden)cancelGesture?.();});
+  on(window,'pagehide',()=>{cancelGesture?.();clearTimeout(clickTimer);clickTimer=null;drag=null;});
   on($('lanes'),'pointerdown',event=>{
-    const b=event.target.closest('button[data-clip]');if(!b||event.button!==0||!ensure())return;const {track,clip}=findClip(project(),b.dataset.clip);if(track.locked){message('Unlock this track before dragging.',true);return;}
-    stop();const start=event.clientX,origin=revision(),original=project(),scale=Number($('timeline-zoom').value),edge=event.target.dataset.trim;drag={moved:false};b.setPointerCapture(event.pointerId);
-    function move(e){const delta=(e.clientX-start)/scale*1000;if(Math.abs(e.clientX-start)<4&&!drag.moved)return;drag.moved=true;const snapped=$('snap').checked?Math.round(delta/100)*100:Math.round(delta);b.style.transform='translateX('+snapped/1000*scale+'px)';message((edge?'Trim '+edge:'Move')+' · '+seconds(snapped)+'s');}
-    function end(e){b.removeEventListener('pointermove',move);b.removeEventListener('pointerup',end);b.removeEventListener('pointercancel',cancel);b.style.transform='';const moved=drag.moved;if(moved){let delta=(e.clientX-start)/scale*1000;delta=$('snap').checked?Math.round(delta/100)*100:Math.round(delta);try{const q=edge?trimClip(original,clip.id,clip.startMs+(edge==='start'?delta:0),clip.startMs+clip.durationMs+(edge==='end'?delta:0)):moveClip(original,clip.id,clip.startMs+delta,{ripple:$('ripple').checked});selected={sceneId:clip.sceneId,kind:track.kind,clipId:clip.id,keyId:null};commit(q,edge?'Trim clip':'Move clip',origin);}catch(error){message(error.message,true);}}setTimeout(()=>{drag=null;},0);}
-    function cancel(){b.removeEventListener('pointermove',move);b.removeEventListener('pointerup',end);b.removeEventListener('pointercancel',cancel);b.style.transform='';drag=null;message('Drag cancelled.');}
-    b.addEventListener('pointermove',move);b.addEventListener('pointerup',end);b.addEventListener('pointercancel',cancel);
+    const clicked=event.target.closest('button[data-clip]');
+    if(!clicked||event.button!==0||event.isPrimary===false)return;
+    const id=clicked.dataset.clip,edge=event.target.closest('[data-trim]')?.dataset.trim;
+    cancelGesture?.();
+    if(!ensure())return;
+    // Flushing a focused field can rebuild the timeline. Capture the current node.
+    const b=[...$('lanes').querySelectorAll('button[data-clip]')].find(n=>n.dataset.clip===id);
+    if(!b)return;
+    const {track,clip}=findClip(project(),id);
+    if(track.locked){message('Unlock this track before dragging.',true);return;}
+    stop();
+    const origin=revision(),original=project(),scale=Number($('timeline-zoom').value),start=event.clientX;
+    const pointer=event.pointerId,snap=$('snap').checked,ripple=$('ripple').checked,controller=new AbortController();
+    const token={moved:false},offsets=new Map(sceneTimeline(original).map(s=>[s.id,s.startMs]));
+    const nodes=[...$('lanes').querySelectorAll('button[data-clip]')].filter(n=>n.dataset.track===track.id);
+    const prior=nodes.map(n=>({node:n,style:n.getAttribute('style'),label:n.querySelector('.clip-label')?.textContent}));
+    let candidate=null,delta=0,frame=null,lastX=start,finished=false,invalid=false;
+    drag=token;
+    const restore=()=>{for(const item of prior){if(item.style===null)item.node.removeAttribute('style');else item.node.setAttribute('style',item.style);delete item.node.dataset.dragState;const label=item.node.querySelector('.clip-label');if(label)label.textContent=item.label;}};
+    const cleanup=()=>{
+      finished=true;controller.abort();if(frame!==null)cancelAnimationFrame(frame);frame=null;
+      if(cancelGesture===cancel)cancelGesture=null;
+      if(b.hasPointerCapture(pointer))b.releasePointerCapture(pointer);
+      restore();finishClick(token);
+    };
+    const cancel=(reason='Drag cancelled. No timing was changed.')=>{if(finished)return;cleanup();message(reason);};
+    const sample=x=>{
+      if(finished)return;
+      if(revision()!==origin||!b.isConnected){cancel('The timeline changed. Drag cancelled.');return;}
+      const pixels=x-start;
+      if(Math.abs(pixels)<4&&!token.moved)return;
+      token.moved=true;
+      delta=snap?Math.round(pixels/scale*10)*100:Math.round(pixels/scale*1000);
+      try{
+        candidate=edge?trimClip(original,id,clip.startMs+(edge==='start'?delta:0),clip.startMs+clip.durationMs+(edge==='end'?delta:0)):
+          moveClip(original,id,clip.startMs+delta,{ripple});
+        restore();
+        const proposed=candidate.tracks.find(t=>t.id===track.id);
+        for(const n of nodes){const c=proposed.clips.find(c=>c.id===n.dataset.clip);if(!c)continue;n.style.left=(offsets.get(c.sceneId)+c.startMs)/1000*scale+'px';n.style.width=Math.max(4,c.durationMs/1000*scale)+'px';}
+        const c=findClip(candidate,id).clip,label=b.querySelector('.clip-label');
+        if(label)label.textContent=seconds(c.startMs)+'–'+seconds(c.startMs+c.durationMs)+'s';
+        b.dataset.dragState='valid';
+        if(invalid)message('Timing is valid. Release to apply; Escape cancels.');
+        invalid=false;
+      }catch(error){
+        candidate=null;restore();b.dataset.dragState='invalid';b.style.outline='2px solid #92361e';
+        if(!invalid)message(error.message+' Release leaves the timing unchanged.',true);
+        invalid=true;
+      }
+    };
+    const move=e=>{if(e.pointerId!==pointer)return;lastX=e.clientX;if(frame===null)frame=requestAnimationFrame(()=>{frame=null;sample(lastX);});};
+    const end=e=>{
+      if(e.pointerId!==pointer||finished)return;
+      if(frame!==null)cancelAnimationFrame(frame);frame=null;sample(e.clientX);if(finished)return;
+      const next=candidate,moved=token.moved;cleanup();
+      if(!moved)return;
+      if(!next){message('Invalid timing. The clip was not changed.',true);return;}
+      if(delta===0){message('No timing change.');return;}
+      try{selected={sceneId:clip.sceneId,kind:track.kind,clipId:id,keyId:null};commit(next,edge?'Trim clip':'Move clip',origin);}catch(error){message(error.message,true);}
+    };
+    cancelGesture=cancel;
+    b.addEventListener('pointermove',move,{signal:controller.signal});
+    b.addEventListener('pointerup',end,{signal:controller.signal});
+    b.addEventListener('pointercancel',e=>{if(e.pointerId===pointer)cancel();},{signal:controller.signal});
+    b.addEventListener('lostpointercapture',e=>{if(e.pointerId===pointer)cancel();},{signal:controller.signal});
+    b.setPointerCapture(pointer);
+    message((edge?'Trim '+edge:'Move clip')+' · release to apply, Escape to cancel.');
   });
   on($('edit-handles'),'pointerdown',e=>{
-    const target=e.target.closest('[data-key]'),found=selectedClip();if(!target||!found||!ensure())return;const key=found.clip.keys.find(k=>k.id===target.dataset.key);if(!key)return;e.preventDefault();stop();selected.keyId=key.id;const origin=revision(),original=project(),start={x:e.clientX,y:e.clientY},scale=view.pose.scale;const controller=new AbortController();let patch=null;
-    const move=event=>{patch={x:Math.round(key.x+(event.clientX-start.x)/scale),y:Math.round(key.y+(event.clientY-start.y)/scale)};try{draw(updateKeyframe(original,found.clip.id,key.id,patch));}catch{};};
-    window.addEventListener('pointermove',move,{signal:controller.signal});window.addEventListener('pointerup',()=>{controller.abort();if(patch)try{commit(updateKeyframe(original,found.clip.id,key.id,patch),'Move keyframe',origin);}catch(err){message(err.message,true);draw();}else{renderInspector();draw();}},{signal:controller.signal,once:true});window.addEventListener('pointercancel',()=>{controller.abort();draw();},{signal:controller.signal,once:true});
+    const target=e.target.closest('[data-key]');
+    if(!target||e.button!==0||e.isPrimary===false)return;
+    cancelGesture?.();if(!ensure())return;
+    const found=selectedClip(),key=found?.clip.keys.find(k=>k.id===target.dataset.key);if(!key)return;
+    e.preventDefault();stop();selected.keyId=key.id;
+    const origin=revision(),original=project(),start={x:e.clientX,y:e.clientY},scale=view.pose.scale,pointer=e.pointerId,controller=new AbortController();
+    let patch=null,finished=false,moved=false;
+    const cleanup=()=>{finished=true;controller.abort();if(cancelGesture===cancel)cancelGesture=null;};
+    const cancel=()=>{if(finished)return;cleanup();draw();message('Keyframe drag cancelled. No path was changed.');};
+    cancelGesture=cancel;
+    const move=event=>{
+      if(event.pointerId!==pointer||finished)return;
+      if(revision()!==origin){cancel();return;}
+      const dx=event.clientX-start.x,dy=event.clientY-start.y;
+      if(!moved&&Math.hypot(dx,dy)<4)return;
+      moved=true;
+      const next={x:key.x+Math.round(dx/scale),y:key.y+Math.round(dy/scale)};
+      try{draw(updateKeyframe(original,found.clip.id,key.id,next));patch=next;}catch{patch=null;draw();}
+    };
+    window.addEventListener('pointermove',move,{signal:controller.signal});
+    window.addEventListener('pointerup',event=>{
+      if(event.pointerId!==pointer||finished)return;
+      // Sample the release point too, rather than committing the last move event.
+      move(event);if(finished)return;cleanup();
+      if(patch&&moved&&(patch.x!==key.x||patch.y!==key.y))try{commit(updateKeyframe(original,found.clip.id,key.id,patch),'Move keyframe',origin);}catch(err){message(err.message,true);draw();}
+      else{renderInspector();draw();}
+    },{signal:controller.signal});
+    window.addEventListener('pointercancel',event=>{if(event.pointerId===pointer)cancel();},{signal:controller.signal});
   });
 }
 try{setup();}catch(error){message('Studio could not start: '+error.message,true);$('studio').dataset.ready='error';}
