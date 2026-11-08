@@ -76,14 +76,18 @@ class StudioVideoHandoffTests(StudioTests):
 
     def test_clipboard_fallback_is_selectable_and_late_reply_cannot_change_new_dialog(self):
         self.open_video()
-        self.page.evaluate("Object.defineProperty(navigator,'clipboard',{configurable:true,value:{writeText:()=>Promise.reject(Error('denied'))}})")
+        self.page.evaluate("() => { Object.defineProperty(navigator,'clipboard',{configurable:true,value:{writeText:()=>Promise.reject(Error('denied'))}}); }")
         self.page.locator('#video-copy').click()
         self.page.wait_for_function("document.querySelector('#video-copy-status').textContent.includes('Clipboard unavailable')")
         self.assertTrue(self.page.locator('#video-command').evaluate('e=>e===document.activeElement&&e.selectionEnd===e.value.length'))
-        self.page.evaluate("navigator.clipboard.writeText=()=>new Promise(resolve=>window.resolveVideoCopy=resolve)")
+        # Returning the assigned function would make Playwright invoke it and await
+        # its deliberately pending promise before the button can ever be clicked.
+        self.page.evaluate("() => { navigator.clipboard.writeText=()=>new Promise(resolve=>{ window.resolveVideoCopy=resolve; }); }")
+        self.assertFalse(self.page.evaluate('Boolean(window.resolveVideoCopy)'))
         self.page.locator('#video-copy').click()
+        self.page.wait_for_function("typeof window.resolveVideoCopy==='function'", timeout=8000)
         self.page.locator('#video-close').click();self.page.locator('#shortcuts').click()
-        self.page.evaluate('window.resolveVideoCopy()')
+        self.page.evaluate('() => { window.resolveVideoCopy(); }')
         self.assertEqual(self.page.locator('#dialog-title').inner_text(),'Editing shortcuts')
         self.assertEqual(self.page.locator('#video-copy-status').count(),0)
 
