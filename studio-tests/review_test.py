@@ -137,6 +137,131 @@ class StudioReviewTests(baseline.StudioTests):
         self.assertEqual(after['tracks'][:3], before['tracks'][:3])
 
 
+    def prepare_drag_caption(self):
+        self.page.get_by_text('Scene and clip timing', exact=True).click()
+        self.edit('#clip-end', '2.0')
+        return self.project()
+
+    def drag_caption(self, seconds, edge=None):
+        clip = self.page.locator('.lane button[data-clip="cc.overview.0"]')
+        clip.scroll_into_view_if_needed()
+        box = clip.bounding_box()
+        x = box['x'] + (3 if edge == 'start' else box['width'] - 3 if edge == 'end' else box['width'] / 2)
+        y = box['y'] + box['height'] / 2
+        scale = float(self.page.locator('#timeline-zoom').input_value())
+        self.page.mouse.move(x, y)
+        self.page.mouse.down()
+        self.page.mouse.move(x + seconds * scale, y, steps=5)
+        self.page.wait_for_timeout(80)
+        return clip, box, scale
+
+    def test_trim_end_previews_the_boundary_and_commits_one_undo_step(self):
+        before = self.prepare_drag_caption()
+        rev = self.page.locator('#revision').inner_text()
+        clip, box, scale = self.drag_caption(.5, 'end')
+        preview = clip.bounding_box()
+        self.assertAlmostEqual(preview['x'], box['x'], delta=1)
+        self.assertAlmostEqual(preview['width'], box['width'] + scale * .5, delta=1)
+        self.assertEqual(self.page.locator('#revision').inner_text(), rev)
+        self.page.mouse.up()
+        after = self.project()
+        self.assertEqual(self.clip(after, 'cc.overview.0')['durationMs'], 2500)
+        self.assertEqual(after['tracks'][:3], before['tracks'][:3])
+        self.page.locator('#undo').click()
+        self.assertEqual(self.project(), before)
+
+    def test_trim_start_previews_shortening_without_moving_the_end(self):
+        self.prepare_drag_caption()
+        clip, box, scale = self.drag_caption(.5, 'start')
+        preview = clip.bounding_box()
+        self.assertAlmostEqual(preview['x'], box['x'] + scale * .5, delta=1)
+        self.assertAlmostEqual(preview['x'] + preview['width'], box['x'] + box['width'], delta=1)
+        self.page.mouse.up()
+        caption = self.clip(self.project(), 'cc.overview.0')
+        self.assertEqual((caption['startMs'], caption['durationMs']), (500, 1500))
+
+    def test_escape_cancels_timeline_preview_without_consuming_undo(self):
+        before = self.prepare_drag_caption()
+        rev = self.page.locator('#revision').inner_text()
+        clip, box, scale = self.drag_caption(.5, 'end')
+        self.page.keyboard.press('Escape')
+        self.page.mouse.up()
+        self.assertAlmostEqual(clip.bounding_box()['width'], box['width'], delta=1)
+        self.assertEqual(self.page.locator('#revision').inner_text(), rev)
+        self.assertEqual(self.project(), before)
+        self.assertEqual(self.page.locator('[data-drag-state]').count(), 0)
+        # A new gesture must still work after cancelling the previous one.
+        self.drag_caption(.5)
+        self.page.mouse.up()
+        self.assertEqual(self.clip(self.project(), 'cc.overview.0')['startMs'], 500)
+
+    def test_invalid_drop_restores_geometry_and_never_applies_last_valid_preview(self):
+        before = self.prepare_drag_caption()
+        clip, box, scale = self.drag_caption(.5, 'end')
+        # Continue into the next caption rather than dropping on the earlier valid point.
+        self.page.mouse.move(box['x'] + box['width'] - 3 + 4 * scale, box['y'] + box['height'] / 2, steps=5)
+        self.page.wait_for_timeout(80)
+        self.assertEqual(clip.get_attribute('data-drag-state'), 'invalid')
+        self.page.mouse.up()
+        self.assertAlmostEqual(clip.bounding_box()['width'], box['width'], delta=1)
+        self.assertEqual(self.project(), before)
+
+    def test_ripple_drag_previews_the_following_clip_and_escape_restores_both(self):
+        before = self.prepare_drag_caption()
+        # Create room at the scene end so a ripple move can be legal.
+        second = next(c for t in before['tracks'] if t['kind'] == 'captions' for c in t['clips']
+                      if c['sceneId'] == 'overview' and c['id'] != 'cc.overview.0')
+        self.page.locator('.lane button[data-clip="' + second['id'] + '"]').click()
+        self.edit('#clip-end', '6.0')
+        self.page.locator('.lane button[data-clip="cc.overview.0"]').click()
+        self.page.locator('#ripple').check()
+        before = self.project()
+        neighbor = self.page.locator('.lane button[data-clip="' + second['id'] + '"]')
+        original = neighbor.bounding_box()['x']
+        clip, box, scale = self.drag_caption(.5)
+        self.assertAlmostEqual(neighbor.bounding_box()['x'], original + scale * .5, delta=1)
+        self.page.keyboard.press('Escape')
+        self.page.mouse.up()
+        self.assertAlmostEqual(neighbor.bounding_box()['x'], original, delta=1)
+        self.assertEqual(self.project(), before)
+
+    def test_pointer_capture_loss_cancels_without_late_commit(self):
+        before = self.prepare_drag_caption()
+        self.page.evaluate("document.querySelector('#lanes').addEventListener('pointerdown',e=>window.dragPointerId=e.pointerId,{once:true})")
+        clip, box, scale = self.drag_caption(.5, 'end')
+        clip.evaluate('el=>el.releasePointerCapture(window.dragPointerId)')
+        # Force delivery of the queued native capture transition with another pointer event.
+        self.page.mouse.move(box['x'] + box['width'] + scale, box['y'] + box['height'] / 2)
+        self.page.mouse.up()
+        self.assertEqual(self.project(), before)
+        self.assertEqual(self.page.locator('[data-drag-state]').count(), 0)
+
+    def test_escape_cancels_a_canvas_keyframe_drag(self):
+        self.choose('cursor')
+        before = self.project()
+        handle = self.page.locator('#edit-handles [data-key]').first
+        handle.scroll_into_view_if_needed()
+        box = handle.bounding_box()
+        x, y = box['x'] + box['width'] / 2, box['y'] + box['height'] / 2
+        self.page.mouse.move(x, y)
+        self.page.mouse.down()
+        self.page.mouse.move(x + 30, y + 20, steps=5)
+        self.page.keyboard.press('Escape')
+        self.page.mouse.up()
+        self.assertEqual(self.project(), before)
+        self.assertEqual(self.page.locator('#studio').get_attribute('data-playback'), 'paused')
+
+    def test_locked_track_rejects_drag_without_preview_or_history_change(self):
+        self.prepare_drag_caption()
+        self.page.get_by_role('button', name='Lock CC · English', exact=True).click()
+        before = self.project()
+        clip, box, scale = self.drag_caption(.5)
+        self.page.mouse.up()
+        self.assertAlmostEqual(clip.bounding_box()['x'], box['x'], delta=1)
+        self.assertEqual(self.page.locator('[data-drag-state]').count(), 0)
+        self.assertEqual(self.project(), before)
+
+
 def load_tests(loader, tests, pattern):
     # The original suite runs separately; inherit only its fixture and helpers here.
     return unittest.TestSuite(StudioReviewTests(name) for name in StudioReviewTests.__dict__ if name.startswith('test_'))
