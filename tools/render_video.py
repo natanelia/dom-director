@@ -58,6 +58,11 @@ def render_template(template: str) -> bytes:
     if template.count(script) != 1 or template.count('</head>') != 1:
         raise ValueError('The Studio host template changed; review the renderer before exporting.')
     result = template.replace(script, '<script type="module" src="./render-host.mjs"></script>')
+    # Authoring-only export handoff must never execute in the render-only fixture.
+    helper = '<script type="module" src="./studio-video.mjs"></script>'
+    if template.count(helper) != 1:
+        raise ValueError('The Studio export helper changed; review the render-only boundary.')
+    result = result.replace(helper, '')
     result = result.replace('</head>', '<style>' + RENDER_CSS + '</style></head>')
     return result.encode()
 

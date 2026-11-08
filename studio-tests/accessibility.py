@@ -60,6 +60,14 @@ def main():
         audit('voice-export-ready')
         page.keyboard.press('Escape')
         assert page.locator('#export-open').evaluate('el=>el===document.activeElement')
+        page.locator('#export-open').click()
+        page.locator('#video-open').click()
+        audit('video-local-options')
+        page.locator('#video-range').select_option('range')
+        page.locator('#video-end').fill('0')
+        audit('video-local-invalid-range')
+        page.keyboard.press('Escape')
+        assert page.locator('#export-open').evaluate('el=>el===document.activeElement')
         assert page.locator('#timecode').get_attribute('aria-live') == 'off'
         report['passed'] = not any(a['violations'] for a in report['audits'])
         report['manualReviewStillRequired'] = True

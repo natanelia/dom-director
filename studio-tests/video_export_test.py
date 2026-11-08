@@ -63,6 +63,7 @@ class VideoModelTests(unittest.TestCase):
         template = (ROOT / 'site/studio.html').read_text()
         output = renderer.render_template(template).decode()
         self.assertNotIn('src="./studio.mjs"', output)
+        self.assertNotIn('studio-video.mjs', output)
         self.assertIn('src="./render-host.mjs"', output)
         self.assertIn('id="scene" class="orbit" inert', output)
         self.assertIn('id="app-review"', output)
