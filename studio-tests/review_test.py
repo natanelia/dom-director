@@ -11,7 +11,7 @@ from video_handoff_test import StudioVideoHandoffTests
 def load_tests(loader, tests, pattern):
     # Explicit own-method selection avoids rerunning the inherited baseline suite.
     cases = []
-    for case in (StudioReviewTests, StudioCanvasTests, StudioKeyframeTests, StudioTimelineTests, StudioAudioExportTests, StudioVideoHandoffTests):
+    for case in (StudioVideoHandoffTests, StudioReviewTests, StudioCanvasTests, StudioKeyframeTests, StudioTimelineTests, StudioAudioExportTests):
         cases.extend(case(name) for name in case.__dict__ if name.startswith('test_'))
     return unittest.TestSuite(cases)
 
