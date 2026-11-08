@@ -1,6 +1,6 @@
 import {createSample,createProjectStore,createEvaluator,editProject,findClip,freshId,duration,sceneTimeline,locate,updateClip,moveClip,trimClip,splitClip,deleteClip,duplicateClip,reorderScene,proposeRetime,exportSubtitles,CAPTION_THEME,CURSOR_THEME} from './studio-sdk/index.js';
 import {createMediaBank,createTransport,saveProjectBundle,readProjectBundle,generateVoiceTake} from './studio-sdk/media.js';
-import {setAppearance,applyCaptionPreset,distributeCaptionWords,addKeyframe,updateKeyframe,deleteKeyframe,addGesture,addScene,deleteScene,addCaption,proposeCaptionImport,proposeVoiceReplacement} from './studio-sdk/editing.js';
+import {setAppearance,applyCaptionPreset,distributeCaptionWords,addKeyframe,updateKeyframe,deleteKeyframe,addGesture,addScene,deleteScene,addCaption,proposeCaptionImport,proposeVoiceReplacement,createTimelineSnapper,moveTimelineKeyframe} from './studio-sdk/editing.js';
 import {createCanvas,TARGETS,drawWaveform} from './studio-view.mjs';
 
 const $=id=>document.getElementById(id),copy=value=>JSON.parse(JSON.stringify(value)),seconds=ms=>(ms/1000).toFixed(2);
@@ -57,6 +57,20 @@ function commit(next,label='Edit project',expected=revision()){
 function act(work){if(!ensure())return;try{work();}catch(error){message(error.message,true);}}
 function selectClip(id,{jump=true}={}){if(!ensure())return;const found=findClip(project(),id);stop();if(found.track.kind==='captions'&&project().captionTrack!==found.track.id)commit(editProject(project(),p=>{p.captionTrack=found.track.id;}),'Choose caption language');selected={sceneId:found.clip.sceneId,kind:found.track.kind,clipId:id,keyId:found.clip.keys?.[0]?.id||null};scope='clip';if(jump)seek(sceneTimeline(project()).find(s=>s.id===selected.sceneId).startMs+found.clip.startMs);refresh();}
 function selectScene(id){if(!ensure())return;selected.sceneId=id;selected.clipId=null;stop();seek(sceneTimeline(project()).find(s=>s.id===id).startMs);refresh();}
+function timelineKeyButton(clipId,keyId){return [...$('lanes').querySelectorAll('[data-timeline-key]')].find(b=>b.dataset.keyClip===clipId&&b.dataset.timelineKey===keyId);}
+function placeTimelineKey(button,clip,key,scale,sceneStart){
+  const local=key.atMs-clip.offsetMs,absolute=sceneStart+clip.startMs+local,pixels=absolute/1000*scale;
+  button.hidden=local<0||local>clip.durationMs;
+  button.style.left=Math.max(0,pixels-12)+'px';button.style.setProperty('--key-center',Math.min(12,pixels)+'px');
+  button.dataset.keyTime=String(absolute);
+}
+function selectTimelineKey(clipId,keyId){
+  if(!ensure())return;
+  const {track,clip}=findClip(project(),clipId),key=clip.keys.find(k=>k.id===keyId);if(!key)return;
+  selected={sceneId:clip.sceneId,kind:track.kind,clipId,keyId};scope='clip';
+  seek(sceneTimeline(project()).find(s=>s.id===clip.sceneId).startMs+clip.startMs+key.atMs-clip.offsetMs);
+  refresh();timelineKeyButton(clipId,keyId)?.focus({preventScroll:true});
+}
 function draw(override=project()){
   if(!ready||disposed)return;
   try{if(!view.render(override,time,{reducedMotion:reduced,captions:cc,zoom:viewZoom})){transport.pause();return;}let found;try{found=findClip(override,selected.clipId);}catch{}view.showHandles(transport.inspect().state==='playing'?null:found?.clip,selected.keyId);}
@@ -76,14 +90,22 @@ function renderTimeline(){
   function lane(label,kind){const row=node('div',undefined,lanes);row.className='lane';row.dataset.kind=kind;const head=node('div',undefined,row);head.className='lane-label';node('i',undefined,head).className='swatch';node('strong',label,head);const body=node('div',undefined,row);body.className='lane-body';return {row,head,body};}
   const scenes=lane('Scenes','scenes');scenes.row.classList.add('scene-lane');for(const s of project().scenes){const b=button(s.title,scenes.body,()=>selectScene(s.id));b.className='clip';b.style.left=offsets.get(s.id)/1000*scale+'px';b.style.width=s.durationMs/1000*scale+'px';}
   for(const track of project().tracks){
-    const l=lane(track.name,track.kind);l.row.classList.toggle('off',!track.enabled);
+    const l=lane(track.name,track.kind);l.row.classList.toggle('off',!track.enabled);l.row.classList.toggle('motion-lane',['camera','cursor'].includes(track.kind));
     const enabled=button(track.enabled?'●':'○',l.head,()=>act(()=>commit(editProject(project(),p=>{p.tracks.find(t=>t.id===track.id).enabled=!track.enabled;}),'Toggle '+track.name)));enabled.setAttribute('aria-label',(track.enabled?'Hide ':'Show ')+track.name);enabled.setAttribute('aria-pressed',String(track.enabled));
     const lock=button(track.locked?'▣':'□',l.head,()=>act(()=>commit(editProject(project(),p=>{p.tracks.find(t=>t.id===track.id).locked=!track.locked;}),'Toggle track lock')));lock.setAttribute('aria-label',(track.locked?'Unlock ':'Lock ')+track.name);lock.setAttribute('aria-pressed',String(track.locked));
     for(const clip of track.clips){
       const b=button('',l.body,()=>{if(drag?.moved)return;selectClip(clip.id);});b.className='clip';b.dataset.clip=clip.id;b.dataset.track=track.id;b.setAttribute('aria-pressed',String(clip.id===selected.clipId));b.classList.toggle('selected',clip.id===selected.clipId);b.setAttribute('aria-label',names[track.kind]+': '+(clip.text||clip.script||project().scenes.find(s=>s.id===clip.sceneId).title)+', '+seconds(clip.durationMs)+' seconds');b.style.left=(offsets.get(clip.sceneId)+clip.startMs)/1000*scale+'px';b.style.width=Math.max(4,clip.durationMs/1000*scale)+'px';
       if(track.kind==='voice'&&bank.waveform(clip.assetId)){const wave=document.createElementNS('http://www.w3.org/2000/svg','svg');wave.classList.add('wave-line');b.append(wave);drawWaveform(wave,bank.waveform(clip.assetId));}
       node('span',clip.text||clip.script||names[track.kind],b).className='clip-label';
-      for(const k of clip.keys||[])if(k.atMs>=clip.offsetMs&&k.atMs<=clip.offsetMs+clip.durationMs){const d=node('i',undefined,b);d.className='diamond';d.style.left=((k.atMs-clip.offsetMs)/1000*scale)+'px';}
+      for(const [index,key] of (clip.keys||[]).entries()){
+        // Siblings, not nested buttons: key timing has its own pointer/keyboard target.
+        const d=button('',l.body,()=>{if(!drag?.moved)selectTimelineKey(clip.id,key.id);});d.className='timeline-key';
+        d.dataset.timelineKey=key.id;d.dataset.keyClip=clip.id;d.dataset.keyTrack=track.id;
+        d.setAttribute('aria-label',names[track.kind]+' keyframe '+(index+1)+' · '+project().scenes.find(s=>s.id===clip.sceneId).title+' · '+((key.atMs-clip.offsetMs)/1000).toFixed(3)+' seconds in clip');
+        d.setAttribute('aria-pressed',String(clip.id===selected.clipId&&key.id===selected.keyId));d.setAttribute('aria-disabled',String(track.locked));
+        d.title='Drag to retime; ← / → nudge 10 ms; Shift 100 ms. Alt-drag bypasses snapping.';
+        placeTimelineKey(d,clip,key,scale,offsets.get(clip.sceneId));
+      }
       for(const side of ['start','end']){const h=node('span',undefined,b);h.className='trim '+side;h.dataset.trim=side;h.setAttribute('aria-hidden','true');}
     }
   }
@@ -179,7 +201,11 @@ function motionInspector(p,track,clip){
     else if(f.cursor)patch={...patch,x:f.cursor.x-r.x-r.width/2,y:f.cursor.y-r.y-r.height/2,curve:0};
     const next=addKeyframe(project(),clip.id,pos,patch);selected.keyId=findClip(next,clip.id).clip.keys.find(k=>k.atMs===pos+clip.offsetMs).id;commit(next,'Add keyframe');}),'add-key');
   button('Delete key',actions,()=>act(()=>commit(deleteKeyframe(project(),clip.id,key.id),'Delete keyframe')),'delete-key');
-  node('p','Drag a keyframe handle on the canvas, or use exact offsets above. Camera zoom changes the shot; Canvas view only magnifies the editor.',p).className='note';
+  button('Key to playhead',actions,()=>act(()=>{
+    const current=findClip(project(),clip.id).clip,offset=sceneTimeline(project()).find(s=>s.id===current.sceneId).startMs;
+    commit(moveTimelineKeyframe(project(),current.id,selected.keyId,Math.round(time-offset-current.startMs)),'Align keyframe to playhead');
+  }),'key-to-playhead');
+  node('p','Drag diamonds on the timeline to change timing, or handles on the canvas to change the path. Arrow keys nudge a focused timeline key. Camera zoom changes the shot; Canvas view only magnifies the editor.',p).className='note';
   if(!camera){const g=group('Visual gestures');for(const gesture of clip.gestures){const line=node('div',undefined,g);line.className='actions';node('span',gesture.kind+' · '+seconds(gesture.atMs-clip.offsetMs)+'s',line);button('Remove',line,()=>act(()=>commit(editProject(project(),d=>{findClip(d,clip.id).clip.gestures=findClip(d,clip.id).clip.gestures.filter(x=>x.id!==gesture.id);}),'Remove visual gesture')));}
     const a=node('div',undefined,g);a.className='actions';for(const kind of ['click','double-click','hold'])button('＋ '+kind,a,()=>act(()=>commit(addGesture(project(),clip.id,Math.round(locate(project(),time).timeMs-clip.startMs),kind),'Add visual '+kind)));node('p','These effects never click the real application.',g).className='note';
   }
@@ -282,7 +308,7 @@ function setup(){
   on($('audio-file'),'change',()=>{const f=$('audio-file').files[0];$('audio-file').value='';if(f)void importAudio(f);});
   on($('subtitle-file'),'change',()=>{const file=$('subtitle-file').files[0];$('subtitle-file').value='';if(!file)return;void runAsync(async()=>{if(file.size>1024*1024)throw Error('Subtitle files must be smaller than 1 MiB.');const origin=revision(),proposal=proposeCaptionImport(project(),await file.text(),{language:'und',name:file.name.slice(0,150)});modal('Import caption track?',body=>node('p',proposal.cueCount+' captions will be added as a new language track. '+proposal.warnings.join(' '),body),[['Cancel',closeDialog],['Import track',()=>{try{selected.clipId=null;commit(proposal.value,'Import captions',origin);closeDialog();}catch(e){message(e.message,true);}},true]]);});});
   on($('dialog'),'cancel',()=>{dialogCleanup?.();dialogCleanup=null;});
-  on($('shortcuts'),'click',()=>modal('Editing shortcuts',body=>node('p','Space: play or pause. S: split selected clip. Delete: remove selected clip. Ctrl/Cmd+Z: undo. Ctrl/Cmd+Shift+Z: redo. Escape: stop playback or close a dialog. Shortcuts do not override text editing. Every operation also has a labeled button.',body),[['Close',closeDialog]]));
+  on($('shortcuts'),'click',()=>modal('Editing shortcuts',body=>node('p','Space: play or pause. S: split selected clip. Delete: remove selected clip. Ctrl/Cmd+Z: undo. Ctrl/Cmd+Shift+Z: redo. Escape: cancel a drag, stop playback or close a dialog. On a timeline keyframe, Left/Right nudges 10 ms (Shift: 100 ms) and Delete removes only that key. Alt-drag bypasses magnetic and grid snapping. Shortcuts do not override text editing. Every operation also has a labeled button.',body),[['Close',closeDialog]]));
   on(document,'keydown',e=>{
     if(e.defaultPrevented||e.isComposing)return;
     if(e.key==='Escape'){stop();if(recording)closeDialog();return;}
@@ -300,6 +326,36 @@ function setup(){
 }
 function installDrags(){
   let cancelGesture=null,clickTimer=null;
+  const guide=node('div',undefined,$('timeline-content'));guide.id='snap-guide';guide.hidden=true;guide.setAttribute('aria-hidden','true');
+  const guideLabel=node('span','',guide);let announcedGuide='';
+  function showGuide(value,scale){
+    guide.hidden=!value;
+    if(!value){announcedGuide='';return;}
+    guide.style.left=(135+value.timeMs/1000*scale)+'px';guide.dataset.time=String(value.timeMs);
+    const text=value.label+' · '+(value.timeMs/1000).toFixed(3)+'s';guideLabel.textContent=text;
+    if(text!==announcedGuide){message('Snap: '+text+'. Alt bypasses; Escape cancels.');announcedGuide=text;}
+  }
+  const clearGuide=()=>showGuide(null,1);
+  on(window,'resize',()=>cancelGesture?.());
+  on($('timeline-zoom'),'input',()=>cancelGesture?.());
+  on($('fit-timeline'),'click',()=>cancelGesture?.());
+  on($('lanes'),'keydown',event=>{
+    const target=event.target.closest('[data-timeline-key]');
+    if(!target||event.isComposing||event.ctrlKey||event.metaKey||event.altKey||!['ArrowLeft','ArrowRight','Delete'].includes(event.key))return;
+    event.preventDefault();event.stopPropagation();cancelGesture?.();
+    const clipId=target.dataset.keyClip,keyId=target.dataset.timelineKey;
+    act(()=>{
+      const {track,clip}=findClip(project(),clipId),key=clip.keys.find(k=>k.id===keyId);if(!key)return;
+      selected={sceneId:clip.sceneId,kind:track.kind,clipId,keyId};
+      if(event.key==='Delete'){
+        commit(deleteKeyframe(project(),clipId,keyId),'Delete keyframe');
+        timelineKeyButton(clipId,selected.keyId)?.focus({preventScroll:true});return;
+      }
+      const delta=(event.key==='ArrowLeft'?-1:1)*(event.shiftKey?100:10);
+      commit(moveTimelineKeyframe(project(),clipId,keyId,key.atMs-clip.offsetMs+delta),'Nudge keyframe');
+      selectTimelineKey(clipId,keyId);
+    });
+  });
   const finishClick=token=>{
     clearTimeout(clickTimer);
     clickTimer=setTimeout(()=>{if(drag===token)drag=null;clickTimer=null;},0);
@@ -310,6 +366,64 @@ function installDrags(){
   on(window,'blur',()=>cancelGesture?.());
   on(document,'visibilitychange',()=>{if(document.hidden)cancelGesture?.();});
   on(window,'pagehide',()=>{cancelGesture?.();clearTimeout(clickTimer);clickTimer=null;drag=null;});
+  on($('lanes'),'pointerdown',event=>{
+    const clickedKey=event.target.closest('[data-timeline-key]');
+    if(!clickedKey||event.button!==0||event.isPrimary===false)return;
+    const clipId=clickedKey.dataset.keyClip,keyId=clickedKey.dataset.timelineKey;
+    cancelGesture?.();if(!ensure())return;
+    const b=timelineKeyButton(clipId,keyId),{track,clip}=findClip(project(),clipId),key=clip.keys.find(k=>k.id===keyId);
+    if(!b||!key)return;
+    if(track.locked){message('Unlock this track before moving its keyframes.',true);return;}
+    event.preventDefault();stop();
+    selected={sceneId:clip.sceneId,kind:track.kind,clipId,keyId};scope='clip';renderInspector();draw();
+    for(const n of $('lanes').querySelectorAll('[data-timeline-key]'))n.setAttribute('aria-pressed',String(n===b));
+    for(const n of $('lanes').querySelectorAll('[data-clip]'))n.setAttribute('aria-pressed',String(n.dataset.clip===clipId));
+    b.focus({preventScroll:true});
+    const origin=revision(),original=project(),scale=Number($('timeline-zoom').value),start=event.clientX,scrollStart=$('timeline-scroll').scrollLeft;
+    const pointer=event.pointerId,controller=new AbortController(),token={moved:false},local=key.atMs-clip.offsetMs;
+    const sceneStart=sceneTimeline(original).find(s=>s.id===clip.sceneId).startMs;
+    const snapper=createTimelineSnapper(original,{clipId,keyId,operation:'keyframe',pixelsPerSecond:scale,playheadMs:time});
+    const originalStyle=b.getAttribute('style');let candidate=null,finished=false,frame=null,lastX=start,lastAlt=event.altKey,delta=0,invalid=false;
+    drag=token;
+    const restore=()=>{b.setAttribute('style',originalStyle);b.dataset.keyTime=String(sceneStart+clip.startMs+local);delete b.dataset.dragState;};
+    const cleanup=()=>{
+      finished=true;controller.abort();if(frame!==null)cancelAnimationFrame(frame);frame=null;
+      if(cancelGesture===cancel)cancelGesture=null;
+      if(b.hasPointerCapture(pointer))b.releasePointerCapture(pointer);
+      clearGuide();restore();finishClick(token);
+    };
+    const cancel=()=>{if(finished)return;cleanup();draw();message('Keyframe timing cancelled. No project change.');};
+    const sample=(x,alt)=>{
+      if(finished)return;
+      if(revision()!==origin||!b.isConnected){cancel();return;}
+      const pixels=x-start+$('timeline-scroll').scrollLeft-scrollStart;
+      if(Math.abs(pixels)<4&&!token.moved)return;token.moved=true;
+      const snapped=snapper.snap(pixels/scale*1000,{bypass:alt||!$('snap').checked});delta=snapped.deltaMs;
+      try{
+        candidate=moveTimelineKeyframe(original,clipId,keyId,local+delta);
+        placeTimelineKey(b,clip,{...key,atMs:key.atMs+delta},scale,sceneStart);b.dataset.dragState='valid';
+        draw(candidate);showGuide(snapped.guide,scale);
+        if(invalid&&!snapped.guide)message('Key timing is valid. Release to apply; Escape cancels.');invalid=false;
+      }catch(error){candidate=null;restore();b.dataset.dragState='invalid';clearGuide();draw();if(!invalid)message(error.message+' Release leaves the key unchanged.',true);invalid=true;}
+    };
+    const schedule=()=>{if(frame===null)frame=requestAnimationFrame(()=>{frame=null;sample(lastX,lastAlt);});};
+    const move=e=>{if(e.pointerId!==pointer)return;lastX=e.clientX;lastAlt=e.altKey;schedule();};
+    const end=e=>{
+      if(e.pointerId!==pointer||finished)return;
+      if(frame!==null)cancelAnimationFrame(frame);frame=null;sample(e.clientX,e.altKey);if(finished)return;
+      const next=candidate,moved=token.moved;cleanup();
+      if(!moved){selectTimelineKey(clipId,keyId);return;}
+      if(!next){draw();message('Invalid key timing. The project was not changed.',true);return;}
+      if(delta===0){draw();message('No key timing change.');return;}
+      try{commit(next,'Move keyframe timing',origin);selectTimelineKey(clipId,keyId);}catch(error){draw();message(error.message,true);}
+    };
+    cancelGesture=cancel;
+    b.addEventListener('pointermove',move,{signal:controller.signal});b.addEventListener('pointerup',end,{signal:controller.signal});
+    b.addEventListener('pointercancel',e=>{if(e.pointerId===pointer)cancel();},{signal:controller.signal});
+    b.addEventListener('lostpointercapture',e=>{if(e.pointerId===pointer)cancel();},{signal:controller.signal});
+    $('timeline-scroll').addEventListener('scroll',schedule,{signal:controller.signal});
+    b.setPointerCapture(pointer);message('Move keyframe timing · release to apply, Escape cancels.');
+  });
   on($('lanes'),'pointerdown',event=>{
     const clicked=event.target.closest('button[data-clip]');
     if(!clicked||event.button!==0||event.isPrimary===false)return;
@@ -322,49 +436,53 @@ function installDrags(){
     const {track,clip}=findClip(project(),id);
     if(track.locked){message('Unlock this track before dragging.',true);return;}
     stop();
-    const origin=revision(),original=project(),scale=Number($('timeline-zoom').value),start=event.clientX;
-    const pointer=event.pointerId,snap=$('snap').checked,ripple=$('ripple').checked,controller=new AbortController();
+    const origin=revision(),original=project(),scale=Number($('timeline-zoom').value),start=event.clientX,scrollStart=$('timeline-scroll').scrollLeft;
+    const pointer=event.pointerId,ripple=$('ripple').checked,controller=new AbortController();
+    const snapper=createTimelineSnapper(original,{clipId:id,operation:edge?'trim-'+edge:'move',pixelsPerSecond:scale,playheadMs:time,ripple});
     const token={moved:false},offsets=new Map(sceneTimeline(original).map(s=>[s.id,s.startMs]));
     const nodes=[...$('lanes').querySelectorAll('button[data-clip]')].filter(n=>n.dataset.track===track.id);
-    const prior=nodes.map(n=>({node:n,style:n.getAttribute('style'),label:n.querySelector('.clip-label')?.textContent}));
-    let candidate=null,delta=0,frame=null,lastX=start,finished=false,invalid=false;
+    const keyNodes=[...$('lanes').querySelectorAll('[data-timeline-key]')].filter(n=>n.dataset.keyTrack===track.id);
+    const prior=[...nodes,...keyNodes].map(n=>({node:n,style:n.getAttribute('style'),label:n.querySelector('.clip-label')?.textContent,hidden:n.hidden,keyTime:n.dataset.keyTime}));
+    let candidate=null,delta=0,frame=null,lastX=start,lastAlt=event.altKey,finished=false,invalid=false;
     drag=token;
-    const restore=()=>{for(const item of prior){if(item.style===null)item.node.removeAttribute('style');else item.node.setAttribute('style',item.style);delete item.node.dataset.dragState;const label=item.node.querySelector('.clip-label');if(label)label.textContent=item.label;}};
+    const restore=()=>{for(const item of prior){if(item.style===null)item.node.removeAttribute('style');else item.node.setAttribute('style',item.style);item.node.hidden=item.hidden;if(item.keyTime!==undefined)item.node.dataset.keyTime=item.keyTime;delete item.node.dataset.dragState;const label=item.node.querySelector('.clip-label');if(label)label.textContent=item.label;}};
     const cleanup=()=>{
       finished=true;controller.abort();if(frame!==null)cancelAnimationFrame(frame);frame=null;
       if(cancelGesture===cancel)cancelGesture=null;
       if(b.hasPointerCapture(pointer))b.releasePointerCapture(pointer);
-      restore();finishClick(token);
+      clearGuide();restore();finishClick(token);
     };
     const cancel=(reason='Drag cancelled. No timing was changed.')=>{if(finished)return;cleanup();message(reason);};
-    const sample=x=>{
+    const sample=(x,alt)=>{
       if(finished)return;
       if(revision()!==origin||!b.isConnected){cancel('The timeline changed. Drag cancelled.');return;}
-      const pixels=x-start;
+      const pixels=x-start+$('timeline-scroll').scrollLeft-scrollStart;
       if(Math.abs(pixels)<4&&!token.moved)return;
       token.moved=true;
-      delta=snap?Math.round(pixels/scale*10)*100:Math.round(pixels/scale*1000);
+      const snapped=snapper.snap(pixels/scale*1000,{bypass:alt||!$('snap').checked});delta=snapped.deltaMs;
       try{
         candidate=edge?trimClip(original,id,clip.startMs+(edge==='start'?delta:0),clip.startMs+clip.durationMs+(edge==='end'?delta:0)):
           moveClip(original,id,clip.startMs+delta,{ripple});
         restore();
         const proposed=candidate.tracks.find(t=>t.id===track.id);
         for(const n of nodes){const c=proposed.clips.find(c=>c.id===n.dataset.clip);if(!c)continue;n.style.left=(offsets.get(c.sceneId)+c.startMs)/1000*scale+'px';n.style.width=Math.max(4,c.durationMs/1000*scale)+'px';}
+        for(const n of keyNodes){const c=proposed.clips.find(c=>c.id===n.dataset.keyClip),key=c?.keys.find(k=>k.id===n.dataset.timelineKey);if(key)placeTimelineKey(n,c,key,scale,offsets.get(c.sceneId));}
         const c=findClip(candidate,id).clip,label=b.querySelector('.clip-label');
         if(label)label.textContent=seconds(c.startMs)+'–'+seconds(c.startMs+c.durationMs)+'s';
-        b.dataset.dragState='valid';
-        if(invalid)message('Timing is valid. Release to apply; Escape cancels.');
+        b.dataset.dragState='valid';showGuide(snapped.guide,scale);
+        if(invalid&&!snapped.guide)message('Timing is valid. Release to apply; Escape cancels.');
         invalid=false;
       }catch(error){
-        candidate=null;restore();b.dataset.dragState='invalid';b.style.outline='2px solid #92361e';
+        candidate=null;clearGuide();restore();b.dataset.dragState='invalid';b.style.outline='2px solid #92361e';
         if(!invalid)message(error.message+' Release leaves the timing unchanged.',true);
         invalid=true;
       }
     };
-    const move=e=>{if(e.pointerId!==pointer)return;lastX=e.clientX;if(frame===null)frame=requestAnimationFrame(()=>{frame=null;sample(lastX);});};
+    const schedule=()=>{if(frame===null)frame=requestAnimationFrame(()=>{frame=null;sample(lastX,lastAlt);});};
+    const move=e=>{if(e.pointerId!==pointer)return;lastX=e.clientX;lastAlt=e.altKey;schedule();};
     const end=e=>{
       if(e.pointerId!==pointer||finished)return;
-      if(frame!==null)cancelAnimationFrame(frame);frame=null;sample(e.clientX);if(finished)return;
+      if(frame!==null)cancelAnimationFrame(frame);frame=null;sample(e.clientX,e.altKey);if(finished)return;
       const next=candidate,moved=token.moved;cleanup();
       if(!moved)return;
       if(!next){message('Invalid timing. The clip was not changed.',true);return;}
@@ -376,6 +494,7 @@ function installDrags(){
     b.addEventListener('pointerup',end,{signal:controller.signal});
     b.addEventListener('pointercancel',e=>{if(e.pointerId===pointer)cancel();},{signal:controller.signal});
     b.addEventListener('lostpointercapture',e=>{if(e.pointerId===pointer)cancel();},{signal:controller.signal});
+    $('timeline-scroll').addEventListener('scroll',schedule,{signal:controller.signal});
     b.setPointerCapture(pointer);
     message((edge?'Trim '+edge:'Move clip')+' · release to apply, Escape to cancel.');
   });
