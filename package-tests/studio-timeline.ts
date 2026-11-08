@@ -18,3 +18,19 @@ createTimelineSnapper(project,{clipId:'camera.overview',operation:'transfer',pix
 moveTimelineKeyframe(project,'camera.overview','camera.to.overview','00:03');
 // @ts-expect-error bypass must be boolean
 magnetic.snap(100,{bypass:'yes'});
+
+import {captionWordAnchors,stampCaptionWord,alignKeyframeToCaptionWord,type CaptionWordAnchor} from '@dom-director/studio/editing';
+const anchors:ReadonlyArray<CaptionWordAnchor>=captionWordAnchors(project,'overview');
+const stamped:Project=stampCaptionWord(project,'cc.overview.0',0,'start',10);
+const aligned:Project=alignKeyframeToCaptionWord(stamped,'camera.overview','camera.to.overview',{captionId:'cc.overview.0',wordIndex:1,boundary:'end'});
+void aligned;
+// @ts-expect-error returned anchor arrays are readonly
+anchors.push(anchors[0]);
+// @ts-expect-error returned anchors are immutable
+anchors[0].projectTimeMs=0;
+// @ts-expect-error a word boundary is start or end
+stampCaptionWord(project,'cc.overview.0',0,'middle',10);
+// @ts-expect-error project time is numeric milliseconds
+stampCaptionWord(project,'cc.overview.0',0,'start','00:01');
+// @ts-expect-error the word index is required
+alignKeyframeToCaptionWord(project,'camera.overview','camera.to.overview',{captionId:'cc.overview.0'});
