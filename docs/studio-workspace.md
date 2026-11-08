@@ -34,7 +34,7 @@ VTT/SRT export carries caption text and timing, not Studio appearance, camera mo
 
 ## Current limits
 
-This build does not provide MP4/WebM rendering, interactive project publishing, branch/wait authoring, full multitrack audio mixing, automatic speech alignment, a built-in paid voice provider, arbitrary-site capture, cloud storage or collaboration. The public fixture has a fixed 960 × 540 Orbit surface and approved target names. Adopting applications need their own deliberate host integration.
+This build does not provide MP4/WebM rendering, interactive project publishing, branch/wait authoring, a full audio-mixer workspace with buses/effects, automatic speech alignment, a built-in paid voice provider, arbitrary-site capture, cloud storage or collaboration. The public fixture has a fixed 960 × 540 Orbit surface and approved target names. Adopting applications need their own deliberate host integration.
 
 Physical-device microphone codecs, download behavior, on-screen keyboards, assistive technology and real-user usability remain manual acceptance work under issue #19. Linux browser-engine tests do not certify physical Safari/iOS/Android or screen readers. The Studio audit retains both automated violations and incomplete findings; user-chosen caption themes can still require contrast review.
 
@@ -45,3 +45,44 @@ Physical-device microphone codecs, download behavior, on-screen keyboards, assis
 `studio-tests/browser_test.py` and `review_test.py` run creator workflows in Chromium, Firefox and WebKit against staged artifacts and then the verified public revision. Permission denial/cancellation tests use explicitly synthetic recording boundaries; a separate test checks the unsupported-recording fallback without asking for a microphone. Duration-retiming assertions remain exact across engines.
 
 `studio-tests/accessibility.py` audits the actual Studio's CC, voice, cursor, camera, word-timing, invalid-input, mobile and export-dialog states using pinned axe-core. It is a separate audit from the older demo and agent playground. Inspect its retained report, screenshots and current CI conclusion; this document does not turn a test definition into a passing result.
+
+## Voice mix export
+
+Export → Voice WAV renders the whole tour or the selected scene to a 48 kHz,
+16-bit mono/stereo WAV. It uses enabled voice tracks, their timeline placement,
+source trims, gain and fades. Gaps remain silent; simultaneous voice tracks are
+mixed. Preview's Sound off switch does not mute this export. Disabled tracks and
+zero-gain clips are excluded. An enabled, audible clip without a take blocks export
+rather than silently dropping narration. Missing or undecodable audio also blocks it.
+
+The operation uses local OfflineAudioContext rendering, not screen or microphone
+capture. Prepared sample takes may load from the approved host; no audio is sent
+to a provider. Rendering does not play through the speakers. The ready dialog reports
+clipping; samples above full scale are clamped when converted to PCM16. Lower gain
+and render again to avoid distortion. There is no automatic normalization or mastering.
+
+Render and download are separate explicit actions. Cancellation, closing the progress
+dialog, or a stale project revision prevents download. The browser's offline render
+itself has no close API; cancellation disconnects owned nodes and discards its late
+result. WAV encoding yields between blocks so cancellation remains responsive.
+
+Exports are limited to five minutes and 64 MiB of output to bound memory. Use a
+scene/range for longer projects. Source decode and browser resampling can vary across
+engines; this is not a bit-identical cross-browser or physical-device certification.
+Saving the editable `.director` project remains separate. A WAV contains no captions,
+camera animation, cursor, project metadata or interactivity, and is not video export.
+
+The reusable `@dom-director/studio/audio-export` entry exposes `planVoiceMix` (pure,
+no loading) and `renderVoiceMix` (host-provided media bank, optional bounded range,
+44.1/48 kHz, mono/stereo, AbortSignal and stage progress). It imports in Node without
+creating browser globals; actual rendering needs OfflineAudioContext or an explicit
+host factory. The public fixture offers only the tested 48 kHz preset.
+
+Evidence: `packages/studio/test/audio-export.test.js` covers planning, WAV structure,
+fades, overlapping tracks, clipping, failure and cancellation. `studio-tests/audio_export_test.py`
+checks actual browser-rendered sample values, decoded WAV downloads and creator flows,
+and is included in the existing staged and public three-engine review runner.
+Test definitions alone are not passing results; inspect the associated CI run.
+
+Platform reference: [Web Audio API 1.0 — OfflineAudioContext](https://www.w3.org/TR/webaudio-1.0/#OfflineAudioContext)
+(accessed 8 November 2026). Rendering and encoding do not trigger application actions.
