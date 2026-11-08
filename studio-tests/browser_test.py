@@ -283,23 +283,28 @@ class StudioTests(unittest.TestCase):
         self.assertTrue(Path(pending.value.path()).read_text().startswith('WEBVTT'))
 
     def mock_recording_boundary(self):
-        # These cases test permission ownership, not a microphone or native codec.
-        # Linux WebKit may not expose MediaRecorder. Make the boundary deterministic
-        # and fail if any cancelled/rejected request reaches recorder construction.
+        # Permission ownership is tested with an explicit synthetic boundary, not
+        # a native microphone or codec. Pin the complete boundary to the navigator
+        # rather than relying on an expando of a platform-owned wrapper.
         self.page.evaluate("""() => {
+          const devices={getUserMedia(){throw Error('Set an explicit synthetic microphone outcome.');}};
+          Object.defineProperty(navigator,'mediaDevices',{configurable:true,value:devices});
           Object.defineProperty(window,'MediaRecorder',{configurable:true,value:function SyntheticRecorder(){
             throw Error('A cancelled or rejected permission must not construct a recorder.');
           }});
+          window.syntheticMediaDevices=devices;
         }""")
+        self.assertTrue(self.page.evaluate('navigator.mediaDevices===window.syntheticMediaDevices'))
 
     def test_unavailable_recording_is_explicit_without_requesting_a_microphone(self):
         capability = self.page.evaluate("({mediaRecorder:typeof MediaRecorder, microphone:typeof navigator.mediaDevices?.getUserMedia})")
         print(json.dumps({'nativeRecordingCapability': capability, 'engine': self.engine}), flush=True)
         before = self.project()
+        self.mock_recording_boundary()
         self.page.evaluate("""() => {
           window.micCalls=0;
           Object.defineProperty(window,'MediaRecorder',{configurable:true,value:undefined});
-          Object.defineProperty(navigator.mediaDevices,'getUserMedia',{configurable:true,value:()=>{micCalls++;throw Error('Must not request microphone');}});
+          Object.defineProperty(navigator.mediaDevices,'getUserMedia',{configurable:true,value:()=>{window.micCalls++;throw Error('Must not request microphone');}});
         }""")
         self.choose('voice')
         self.page.locator('#record-audio').click()
