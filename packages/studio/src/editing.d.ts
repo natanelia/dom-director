@@ -16,7 +16,7 @@ export function distributeCaptionWords(project:Project,clipId:string):Project;
 
 export interface TimelineSnapGuide {
   readonly timeMs:number;
-  readonly kind:'scene'|'clip'|'keyframe'|'playhead';
+  readonly kind:'scene'|'clip'|'keyframe'|'playhead'|'word';
   readonly label:string;
   readonly edge:'start'|'end'|'keyframe';
 }
@@ -36,3 +36,20 @@ export interface TimelineSnapper {
 export function createTimelineSnapper(project:Project,options:TimelineSnapOptions):TimelineSnapper;
 /** Move a visible camera/cursor key using clip-local milliseconds. Source windows and other tracks are preserved. */
 export function moveTimelineKeyframe(project:Project,clipId:string,keyId:string,clipTimeMs:number):Project;
+
+export type WordBoundary = 'start'|'end';
+export interface CaptionWordAnchor {
+  readonly captionId:string;
+  readonly wordIndex:number;
+  readonly text:string;
+  readonly boundary:WordBoundary;
+  readonly captionTimeMs:number;
+  readonly sceneTimeMs:number;
+  readonly projectTimeMs:number;
+}
+/** Authored words in one scene of the active, visible caption track. No speech recognition. */
+export function captionWordAnchors(project:Project,sceneId:string):ReadonlyArray<CaptionWordAnchor>;
+/** Stamp exactly one word boundary from absolute project time; overlaps and locked-track changes are rejected. */
+export function stampCaptionWord(project:Project,captionId:string,wordIndex:number,boundary:WordBoundary,projectTimeMs:number):Project;
+/** A one-time timing edit, not a persistent link. Target path, easing and voice audio are unchanged. */
+export function alignKeyframeToCaptionWord(project:Project,clipId:string,keyId:string,anchor:{captionId:string;wordIndex:number;boundary?:WordBoundary}):Project;

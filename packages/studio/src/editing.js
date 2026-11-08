@@ -170,6 +170,12 @@ export function createTimelineSnapper(input,{
       const absolute=scene.startMs+other.startMs;
       add(absolute,'clip',otherTrack.name+' start',2,other.id+'.start');
       add(absolute+other.durationMs,'clip',otherTrack.name+' end',2,other.id+'.end');
+      // Only the active, visible caption language contributes word magnets.
+      if(otherTrack.kind==='captions'&&otherTrack.id===project.captionTrack)
+        for(const [index,word] of (other.words||[]).entries()){
+          add(absolute+word.startMs,'word','Word '+(index+1)+' start',4,other.id+'.word.'+index+'.start');
+          add(absolute+word.endMs,'word','Word '+(index+1)+' end',4,other.id+'.word.'+index+'.end');
+        }
       for(const key of other.keys||[])if(key.atMs>=other.offsetMs&&key.atMs<=other.offsetMs+other.durationMs)
         add(absolute+key.atMs-other.offsetMs,'keyframe',otherTrack.name+' keyframe',3,key.id);
     }
@@ -210,4 +216,44 @@ export function moveTimelineKeyframe(project,clipId,keyId,clipTimeMs){
   demand(key&&key.atMs>=clip.offsetMs&&key.atMs<=clip.offsetMs+clip.durationMs,'Select a keyframe inside the visible clip.');
   demand(Number.isInteger(clipTimeMs)&&clipTimeMs>=0&&clipTimeMs<=clip.durationMs,'Keep the keyframe inside its clip.');
   return updateKeyframe(project,clipId,keyId,{atMs:clip.offsetMs+clipTimeMs});
+}
+
+/** Word anchors are authored timing, not speech recognition or persistent links. */
+export function captionWordAnchors(input,sceneId){
+  const project=requireProject(input),scene=sceneTimeline(project).find(s=>s.id===sceneId);
+  demand(scene,'Choose an existing scene.');
+  const track=project.tracks.find(t=>t.id===project.captionTrack);
+  if(!track.enabled)return Object.freeze([]);
+  const anchors=[];
+  for(const clip of track.clips.filter(c=>c.sceneId===sceneId)){
+    for(const [wordIndex,word] of (clip.words||[]).entries())for(const boundary of ['start','end']){
+      const captionTimeMs=word[boundary==='start'?'startMs':'endMs'],sceneTimeMs=clip.startMs+captionTimeMs;
+      anchors.push(Object.freeze({captionId:clip.id,wordIndex,text:word.text,boundary,captionTimeMs,sceneTimeMs,projectTimeMs:scene.startMs+sceneTimeMs}));
+    }
+  }
+  return Object.freeze(anchors.sort((a,b)=>a.sceneTimeMs-b.sceneTimeMs||(a.captionId<b.captionId?-1:a.captionId>b.captionId?1:0)||a.wordIndex-b.wordIndex||(a.boundary==='start'?-1:1)));
+}
+
+/** Stamp one boundary in absolute project time. Never shift neighbouring words or audio. */
+export function stampCaptionWord(input,captionId,wordIndex,boundary,projectTimeMs){
+  const project=requireProject(input),{track,clip}=findClip(project,captionId);
+  demand(track.kind==='captions'&&Number.isInteger(wordIndex)&&wordIndex>=0&&clip.words?.[wordIndex],'Choose a caption with an existing timed word.');
+  demand(boundary==='start'||boundary==='end','Choose the start or end of a word.');
+  demand(Number.isInteger(projectTimeMs),'Word timing must use whole milliseconds.');
+  const scene=sceneTimeline(project).find(s=>s.id===clip.sceneId),local=projectTimeMs-scene.startMs-clip.startMs;
+  demand(local>=0&&local<=clip.durationMs,'Move the playhead inside this caption.');
+  const word=clip.words[wordIndex],start=boundary==='start'?local:word.startMs,end=boundary==='end'?local:word.endMs;
+  demand(start<end,'A word must end after it starts.');
+  demand(start>=(clip.words[wordIndex-1]?.endMs??0)&&end<=(clip.words[wordIndex+1]?.startMs??clip.durationMs),'Keep this boundary between its neighbouring words. Other words were not moved.');
+  return editProject(project,next=>{findClip(next,captionId).clip.words[wordIndex][boundary==='start'?'startMs':'endMs']=local;});
+}
+
+/** One explicit alignment transaction. Future caption edits do not silently move this key. */
+export function alignKeyframeToCaptionWord(input,clipId,keyId,{captionId,wordIndex,boundary='start'}={}){
+  const project=requireProject(input),{track,clip}=findClip(project,clipId);
+  demand(['camera','cursor'].includes(track.kind),'Choose a camera or cursor keyframe.');
+  demand(Number.isInteger(wordIndex)&&wordIndex>=0&&(boundary==='start'||boundary==='end'),'Choose an existing word boundary.');
+  const anchor=captionWordAnchors(project,clip.sceneId).find(a=>a.captionId===captionId&&a.wordIndex===wordIndex&&a.boundary===boundary);
+  demand(anchor,'Choose a timed word in this scene’s visible caption language.');
+  return moveTimelineKeyframe(project,clipId,keyId,anchor.sceneTimeMs-clip.startMs);
 }
