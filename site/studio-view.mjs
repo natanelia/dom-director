@@ -19,6 +19,15 @@ export function createCanvas({stage,scene,overlay,caption,cursor,handles,onInval
   }
   function render(input,timeMs,{reducedMotion=false,captions=true,zoom=1}={}){
     if(disposed)return null;if(project!==input){evaluator=createEvaluator(input);project=input;}
+    // A responsive layout or hidden host panel can briefly have no drawing area.
+    // Do not feed that transient viewport into strict geometry validation or retain
+    // handles measured for an earlier layout. Missing real targets still fail below.
+    if(stage.isConnected&&scene.isConnected&&overlay.isConnected&&(!stage.clientWidth||!stage.clientHeight)){
+      dirty=true;measurement=null;lastFrame=null;caption.hidden=true;
+      cursor.replaceChildren();handles.replaceChildren();stage.dataset.layout='pending';
+      return null;
+    }
+    stage.dataset.layout='ready';
     viewZoom=zoom;const {bounds,box}=geometry(),frame=evaluator.sample(timeMs,bounds,box,{reducedMotion});lastFrame=frame;
     const cx=box.width/2,cy=box.height/2,display={x:cx+(frame.camera.x-cx)*zoom,y:cy+(frame.camera.y-cy)*zoom,scale:frame.camera.scale*zoom};
     surface.apply(display);

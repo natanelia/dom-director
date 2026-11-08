@@ -139,7 +139,10 @@ class StudioReviewTests(baseline.StudioTests):
 
 def load_tests(loader, tests, pattern):
     # The original suite runs separately; inherit only its fixture and helpers here.
-    return unittest.TestSuite(StudioReviewTests(name) for name in StudioReviewTests.__dict__ if name.startswith('test_'))
+    from canvas_test import StudioCanvasTests
+    cases = [StudioReviewTests(name) for name in StudioReviewTests.__dict__ if name.startswith('test_')]
+    cases += [StudioCanvasTests(name) for name in StudioCanvasTests.__dict__ if name.startswith('test_')]
+    return unittest.TestSuite(cases)
 
 if __name__ == '__main__':
     unittest.main(verbosity=2)
