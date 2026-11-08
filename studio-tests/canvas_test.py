@@ -40,7 +40,7 @@ class StudioCanvasTests(baseline.StudioTests):
 
     def tearDown(self):
         try:
-            trace=self.page.evaluate('window.canvasProbe')
+            trace=self.page.evaluate('({...window.canvasProbe,microphone:window.microphoneProbe||null})')
             (self.output/(self._testMethodName+'.json')).write_text(json.dumps(trace,indent=2))
             print(json.dumps({'canvasCase':self._testMethodName,'trace':trace}),flush=True)
         finally:
@@ -83,7 +83,10 @@ class StudioCanvasTests(baseline.StudioTests):
         self.mock_recording_boundary()
         before=self.project()
         self.page.evaluate("""()=>{window.micCalls=0;Object.defineProperty(navigator.mediaDevices,'getUserMedia',{
-          configurable:true,value:()=>{micCalls++;return Promise.reject(new DOMException('Synthetic denial','NotAllowedError'));}
+          configurable:true,value:()=>{micCalls++;try{const error=new DOMException('Synthetic denial','NotAllowedError');
+            window.microphoneProbe={name:error.name,message:error.message,code:error.code,tag:Object.prototype.toString.call(error)};
+            return Promise.reject(error);
+          }catch(error){window.microphoneProbe={constructionFailure:true,name:error.name,message:error.message};throw error;}}
         });}""")
         self.choose('voice')
         self.page.locator('#record-audio').click()
