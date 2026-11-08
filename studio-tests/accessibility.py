@@ -23,7 +23,7 @@ def main():
         result = page.evaluate("""async()=>{
           if(axe.version!=='4.10.3')throw Error('Unexpected axe version');
           return axe.run(document,{runOnly:{type:'tag',values:
-            ['wcag2a','wcag2aa','wcag21a','wcag21aa','wcag22aa','best-practice']}});
+            ['wcag2a','wcag2aa','wcag21a','wcag21aa','wcag22aa','best-practice']} });
         }""")
         report['audits'].append({'name': name, 'violations': result['violations'],
                                 'incomplete': result['incomplete'], 'passes': len(result['passes'])})
@@ -52,6 +52,12 @@ def main():
         audit('mobile-caption')
         page.locator('#export-open').click()
         audit('project-export-dialog')
+        page.get_by_role('button', name='Voice WAV…', exact=True).click()
+        audit('voice-export-options')
+        page.locator('#mix-render').focus()
+        page.keyboard.press('Enter')
+        page.locator('#mix-download').wait_for(timeout=15000)
+        audit('voice-export-ready')
         page.keyboard.press('Escape')
         assert page.locator('#export-open').evaluate('el=>el===document.activeElement')
         assert page.locator('#timecode').get_attribute('aria-live') == 'off'
