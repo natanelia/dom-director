@@ -13,3 +13,26 @@ export function proposeVoiceReplacement(project:Project,clipId:string,asset:Audi
 
 /** Evenly spaced manual timing; preserves the voice and obeys caption-track locks. */
 export function distributeCaptionWords(project:Project,clipId:string):Project;
+
+export interface TimelineSnapGuide {
+  readonly timeMs:number;
+  readonly kind:'scene'|'clip'|'keyframe'|'playhead';
+  readonly label:string;
+  readonly edge:'start'|'end'|'keyframe';
+}
+export type TimelineSnapOptions = {
+  clipId:string;
+  pixelsPerSecond:number;
+  tolerancePx?:number;
+  gridMs?:number;
+  playheadMs?:number;
+  ripple?:boolean;
+} & ({operation:'keyframe';keyId:string}|{operation?:'move'|'trim-start'|'trim-end';keyId?:never});
+export interface TimelineSnapper {
+  /** Returns a relative millisecond delta; guides use absolute project time. Bypass disables both magnets and grid. */
+  snap(deltaMs:number,options?:{bypass?:boolean}):{deltaMs:number;guide:TimelineSnapGuide|null};
+}
+/** Snapshot anchors once per gesture; validate the proposed edit separately. Does not mutate the project. */
+export function createTimelineSnapper(project:Project,options:TimelineSnapOptions):TimelineSnapper;
+/** Move a visible camera/cursor key using clip-local milliseconds. Source windows and other tracks are preserved. */
+export function moveTimelineKeyframe(project:Project,clipId:string,keyId:string,clipTimeMs:number):Project;
