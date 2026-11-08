@@ -59,7 +59,7 @@ function selectClip(id,{jump=true}={}){if(!ensure())return;const found=findClip(
 function selectScene(id){if(!ensure())return;selected.sceneId=id;selected.clipId=null;stop();seek(sceneTimeline(project()).find(s=>s.id===id).startMs);refresh();}
 function draw(override=project()){
   if(!ready||disposed)return;
-  try{view.render(override,time,{reducedMotion:reduced,captions:cc,zoom:viewZoom});let found;try{found=findClip(override,selected.clipId);}catch{}view.showHandles(transport.inspect().state==='playing'?null:found?.clip,selected.keyId);}
+  try{if(!view.render(override,time,{reducedMotion:reduced,captions:cc,zoom:viewZoom})){transport.pause();return;}let found;try{found=findClip(override,selected.clipId);}catch{}view.showHandles(transport.inspect().state==='playing'?null:found?.clip,selected.keyId);}
   catch(error){transport.pause();message(error.message,true);}
   $('timecode').textContent=clock(time)+' / '+clock(duration(project()));$('seek').value=String(time/1000);$('playhead').style.left=(135+time/1000*Number($('timeline-zoom').value))+'px';
   const at=locate(project(),time),index=project().scenes.findIndex(s=>s.id===at.scene.id);$('scene-name').textContent=String(index+1).padStart(2,'0')+' / '+at.scene.title;
@@ -257,7 +257,7 @@ function exportDialog(){if(!ensure())return;modal('Keep or share your work',body
 function exportCC(format){try{const result=exportSubtitles(project(),{format});download(result.text,'walkthrough.'+format,'text/plain');message('Subtitle download started. Caption appearance is not included.');closeDialog();}catch(e){message(e.message,true);}}
 async function save(){await runAsync(async()=>{const snapshot=store.snapshot(),text=await saveProjectBundle(snapshot.project,bank);download(text,'walkthrough.director','application/x-dom-director');lastExport=snapshot.revision;$('revision').textContent='Revision '+revision()+(revision()===lastExport?' · exported':' · changes since export');message('Project download started. Check your downloads; this tab does not autosave.');});}
 function play(fromStart=false){if(!ensure())return;if(fromStart)seek(0);if(transport.inspect().state==='playing')stop();else void transport.play();}
-function selectKind(kind){if(!ensure())return;stop();selected.kind=kind;selected.clipId=null;selected.keyId=null;normalizeSelection();const c=selectedClip();if(c)seek(sceneTimeline(project()).find(s=>s.id===c.clip.sceneId).startMs+c.clip.startMs);refresh();}
+function selectKind(kind){if(!ensure())return;stop();selected.kind=kind;selected.clipId=null;selected.keyId=null;normalizeSelection();const c=selectedClip();if(c)seek(sceneTimeline(project()).find(s=>s.id===c.sceneId).startMs+c.clip.startMs);refresh();}
 function changeSelection(work){act(()=>{work();refresh();});}
 function setup(){
   view=createCanvas({stage:$('stage'),scene:$('scene'),overlay:$('stage-overlays'),caption:$('caption-overlay'),cursor:$('cursor-layer'),handles:$('edit-handles'),onInvalidate:()=>{if(!ready||disposed||paintRequest!==null)return;paintRequest=requestAnimationFrame(()=>{paintRequest=null;draw();});}});
