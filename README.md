@@ -2,9 +2,17 @@
 
 Cinematic walkthroughs of a living interface. Pan and zoom real DOM, synchronize prepared narration and captions, simulate a pointer, and hand control back to the user without turning the application into a recording.
 
-**Implementation candidate: `0.1.0-rc.0`.** The framework-neutral core and optional React adapter are implemented and tested from source and packed tarballs. Both packages remain private: these names are not a claim of npm availability. The [release-candidate report](docs/release-candidate.md) separates automated evidence, supported integration boundaries, and outstanding manual acceptance work.
+**Implementation candidate: `0.1.0-rc.0`.** The framework-neutral core, optional React adapter and Studio editing packages are implemented and tested from source and packed tarballs. All packages remain private: these names are not a claim of npm availability. The [release-candidate report](docs/release-candidate.md) and [Studio guide](docs/studio-workspace.md) separate automated evidence, supported integration boundaries, and outstanding work.
 
-[Live experience](https://natanelia.github.io/dom-director/) · [Agent playground](https://natanelia.github.io/dom-director/agent.html) · [Visual authoring](docs/visual-storyboard.md) · [Core API](packages/core/README.md) · [React](packages/react/README.md) · [Design index](docs/README.md)
+[Open Studio](https://natanelia.github.io/dom-director/studio.html) · [Live experience](https://natanelia.github.io/dom-director/) · [Agent lab](https://natanelia.github.io/dom-director/agent.html) · [Studio guide](docs/studio-workspace.md) · [Core API](packages/core/README.md) · [React](packages/react/README.md) · [Design index](docs/README.md)
+
+## Edit a living story
+
+Studio is the creator-facing video-style workspace: a real-DOM canvas, scene rail, four timeline tracks and selected-item settings for **CC, Voice, Cursor and Camera**. Preview uses one transport. Caption styling, voice takes, cursor paths and camera keyframes remain independently editable. Open inspector sections stay open during edits; explicitly closing them is respected.
+
+Save project downloads a `.director` file with the rich project and local audio. Open validates it before replacing the current draft. VTT/SRT exports preserve caption text and timing, not the visual theme. Save before refreshing; this build has no autosave.
+
+The public Studio uses a controlled Orbit example. Voice import and permissioned recording are available where supported; **no generation service is connected publicly**. A host can connect a provider that declares its voices and delivery styles. Rendered video, interactive branch authoring, automatic speech alignment and cloud collaboration are not implemented. The [Studio guide](docs/studio-workspace.md) records the exact boundaries. The original compact [storyboard editor](docs/visual-storyboard.md) remains in Agent lab for compatibility, not as the recommended creator entry.
 
 ## Try the source checkout
 
@@ -17,7 +25,7 @@ python3 tools/build_runtime.py
 python3 -m http.server 8080
 ```
 
-Open `http://localhost:8080/examples/browser/` for the small SDK example. The shared three-mode scenario lives under `examples/`; the richer public-site sources live under `site/`. To build the public experience, install FFmpeg, run `python3 tools/build_site.py`, then serve `site-dist/`. The builder refuses to overwrite an existing output directory. See [deployment](DEPLOYMENT.md) and [local package installation](PUBLISHING.md).
+Open `http://localhost:8080/examples/browser/` for the small SDK example. The shared three-mode scenario lives under `examples/`; the richer public-site sources live under `site/`. To build Studio and the public experience, install FFmpeg, run `python3 tools/build_site.py`, then serve `site-dist/` and open `studio.html`. The builder refuses to overwrite an existing output directory. See [deployment](DEPLOYMENT.md) and [local package installation](PUBLISHING.md).
 
 ## A camera without a new application
 
@@ -78,7 +86,7 @@ Watch, Try and Guide share a script. Hosts own conditions, actions, authorizatio
 
 The in-process JSON agent bridge supports discovery, validation, preview, inspection and playback commands with explicit grants, revisions, bounded storage and cancellation. Repair helpers propose narrow reviewed patches; they never choose a destructive lookalike or apply a patch automatically. The agent playground uses a deterministic draft helper, not a live model service.
 
-The optional [storyboard builder](docs/storyboard-authoring.md) creates canonical linear Watch tours with stable IDs. The [visual editor](docs/visual-storyboard.md) adds approved-target selection, captions, timing, zoom, scene ordering, bounded undo/redo and JSON export. Editing invalidates agent review; advanced scripts are preserved instead of being converted lossily. Both authoring subpaths are separate from the main runtime entry.
+The optional [storyboard builder](docs/storyboard-authoring.md) creates canonical linear Watch tours with stable IDs. The compact [storyboard editor](docs/visual-storyboard.md) adds approved-target selection, captions, timing, zoom, scene ordering, bounded undo/redo and JSON export. Editing invalidates agent review; advanced scripts are preserved instead of being converted lossily. Both authoring subpaths are separate from the main runtime entry. Studio's richer project model is a separate format; it is not silently flattened through that importer.
 
 React bindings cover owned lifecycle, semantic state subscriptions, imperative frame callbacks, callback-ref targets, portals and server rendering. The core does not depend on React.
 
@@ -90,6 +98,6 @@ Reduced motion, keyboard controls, captions and exit are part of the implementat
 
 ## Evidence and development
 
-See [compatibility and acceptance](docs/release-candidate.md), [performance evidence](docs/evidence/performance.json), [security](SECURITY.md), [contribution commands](CONTRIBUTING.md), [agent working agreement](AGENTS.md), and [license inventory](THIRD_PARTY_NOTICES.md).
+See [compatibility and acceptance](docs/release-candidate.md), [Studio implementation and tests](docs/studio-workspace.md), [performance evidence](docs/evidence/performance.json), [security](SECURITY.md), [contribution commands](CONTRIBUTING.md), [agent working agreement](AGENTS.md), and [license inventory](THIRD_PARTY_NOTICES.md).
 
-The 22-chapter design atlas and its 48 use cases remain useful product direction. They do not imply that every proposed requirement or optional extension is shipped. Video export, interaction recording, an advanced branching/timeline studio, remote MCP transport, live TTS, collaboration and geographic/3D adapters remain separate projects.
+The 22-chapter design atlas and its 48 use cases remain useful product direction. They do not imply that every proposed requirement or optional extension is shipped. Video export, interaction recording, advanced branch/wait editing, remote MCP transport, a connected live TTS service, collaboration and geographic/3D adapters remain separate work.

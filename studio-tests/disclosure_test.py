@@ -1,6 +1,5 @@
 """Repeated real pointer disclosure checks with bounded, synthetic-only diagnostics."""
 import json
-from pathlib import Path
 import unittest
 from browser_test import StudioTests
 
@@ -39,8 +38,43 @@ class DisclosureTests(StudioTests):
         (self.output / 'disclosure.json').write_text(json.dumps({'attempts':12,'failures':failures},indent=2))
         self.assertEqual(len(failures),0,'Disclosure activation failed; inspect retained event/geometry evidence.')
 
+    def test_word_timing_controls_stay_expanded_after_add_and_style_edits(self):
+        self.page.get_by_text('Word highlighting',exact=True).click()
+        self.page.locator('#add-word-timing').click()
+        self.assertTrue(self.page.locator('#word-0-startMs').is_visible())
+        self.page.locator('#preset-contrast').click()
+        self.assertTrue(self.page.locator('#word-0-startMs').is_visible())
+        self.page.locator('#undo').click()
+        self.assertTrue(self.page.locator('#word-0-startMs').is_visible())
+        self.choose('camera')
+        self.choose('captions')
+        self.assertTrue(self.page.locator('#word-0-startMs').is_visible())
+
+    def test_explicitly_closed_sections_stay_closed_after_edits(self):
+        self.page.get_by_text('Word highlighting',exact=True).click()
+        self.assertTrue(self.page.locator('#add-word-timing').is_visible())
+        self.page.get_by_text('Word highlighting',exact=True).click()
+        self.assertFalse(self.page.locator('#add-word-timing').is_visible())
+        self.page.locator('#preset-clean').click()
+        self.assertFalse(self.page.locator('#add-word-timing').is_visible())
+        self.page.locator('#undo').click()
+        self.assertFalse(self.page.locator('#add-word-timing').is_visible())
+
+    def test_native_keyboard_disclosure_and_project_file_are_independent(self):
+        before=self.project()
+        summary=self.page.get_by_text('Word highlighting',exact=True)
+        summary.focus()
+        self.page.keyboard.press('Space')
+        self.assertTrue(self.page.locator('#add-word-timing').is_visible())
+        self.assertEqual(self.project(),before)
+        summary.focus()
+        self.page.keyboard.press('Space')
+        self.assertFalse(self.page.locator('#add-word-timing').is_visible())
+        self.assertEqual(self.project(),before)
+        self.assertEqual(self.page.locator('#studio').get_attribute('data-playback'),'paused')
+
 def load_tests(loader, tests, pattern):
-    return unittest.TestSuite([DisclosureTests('test_caption_edit_then_open_word_controls')])
+    return unittest.TestSuite(DisclosureTests(name) for name in DisclosureTests.__dict__ if name.startswith('test_'))
 
 if __name__=='__main__':
     unittest.main(verbosity=2)
