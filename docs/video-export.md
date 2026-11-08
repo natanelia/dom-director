@@ -10,7 +10,29 @@ production application action is involved.
 This is the first **local rendering path**, not an in-browser video-download
 button, arbitrary-site recorder, interactive bundle publisher or general host
 adapter. Studio's Save project remains the way to transfer the editable draft.
-The public website and its publication allowlist are unchanged by this tooling.
+The CLI itself is not published to the website. Studio provides the separate
+local-export settings panel described below.
+
+## Prepare settings in Studio
+
+Open **Export → Video (local)…** to choose MP4/WebM, resolution, frame rate,
+an entire saved project or exact time range, narration, styled captions and
+reduced motion. The panel generates a command for this CLI; it does not start a
+render, execute shell commands, contact a rendering service or upload your work.
+These output choices are independent of preview Sound off, CC and Motion switches.
+
+Use **Save current project (.director)** in that panel. Place the intended download
+in the prepared checkout as `walkthrough.director`; browsers may rename repeated
+downloads, so check the filename. Copy the command, then run it locally after the
+setup below. It reads that saved project, not later edits in the browser. Existing
+output files and their reports are never overwritten. Settings live only in memory.
+Closing the panel keeps the draft; opening it pauses preview without resetting it.
+
+The command accepts only supported format/resolution/frame-rate choices and exact
+millisecond ranges. Invalid or over-two-minute ranges clear the command and disable
+Copy. When clipboard permission is unavailable, the command remains selectable.
+The Studio publication allowlist includes the small settings module explicitly;
+the render-only host removes it and never runs the editor or export-panel code.
 
 ## Run it
 

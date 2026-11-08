@@ -45,7 +45,7 @@ def render_html(template,css,revision):
     if any(marker in html for marker in ['/*__CSS__*/','/*__DATA__*/','/*__APP__*/','/*__MODEL__*/']):raise ValueError('Unresolved template marker')
     return html
 
-STUDIO_SITE_FILES = ('studio.html', 'studio.css', 'studio.mjs', 'studio-view.mjs')
+STUDIO_SITE_FILES = ('studio.html', 'studio.css', 'studio.mjs', 'studio-view.mjs', 'studio-video.mjs')
 STUDIO_MODULES = ('index.js', 'project.js', 'sample.js', 'evaluator.js', 'editing.js', 'media.js', 'subtitles.js', 'audio-export.js')
 
 def studio_files(revision):
