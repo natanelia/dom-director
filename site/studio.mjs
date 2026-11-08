@@ -59,7 +59,7 @@ function selectClip(id,{jump=true}={}){if(!ensure())return;const found=findClip(
 function selectScene(id){if(!ensure())return;selected.sceneId=id;selected.clipId=null;stop();seek(sceneTimeline(project()).find(s=>s.id===id).startMs);refresh();}
 function draw(override=project()){
   if(!ready||disposed)return;
-  try{view.render(override,time,{reducedMotion:reduced,captions:cc,zoom:viewZoom});let found;try{found=findClip(override,selected.clipId);}catch{}view.showHandles(transport.inspect().state==='playing'?null:found?.clip,selected.keyId);}
+  try{if(!view.render(override,time,{reducedMotion:reduced,captions:cc,zoom:viewZoom})){transport.pause();return;}let found;try{found=findClip(override,selected.clipId);}catch{}view.showHandles(transport.inspect().state==='playing'?null:found?.clip,selected.keyId);}
   catch(error){transport.pause();message(error.message,true);}
   $('timecode').textContent=clock(time)+' / '+clock(duration(project()));$('seek').value=String(time/1000);$('playhead').style.left=(135+time/1000*Number($('timeline-zoom').value))+'px';
   const at=locate(project(),time),index=project().scenes.findIndex(s=>s.id===at.scene.id);$('scene-name').textContent=String(index+1).padStart(2,'0')+' / '+at.scene.title;
@@ -386,14 +386,17 @@ function installDrags(){
     const found=selectedClip(),key=found?.clip.keys.find(k=>k.id===target.dataset.key);if(!key)return;
     e.preventDefault();stop();selected.keyId=key.id;
     const origin=revision(),original=project(),start={x:e.clientX,y:e.clientY},scale=view.pose.scale,pointer=e.pointerId,controller=new AbortController();
-    let patch=null,finished=false;
+    let patch=null,finished=false,moved=false;
     const cleanup=()=>{finished=true;controller.abort();if(cancelGesture===cancel)cancelGesture=null;};
     const cancel=()=>{if(finished)return;cleanup();draw();message('Keyframe drag cancelled. No path was changed.');};
     cancelGesture=cancel;
     const move=event=>{
       if(event.pointerId!==pointer||finished)return;
       if(revision()!==origin){cancel();return;}
-      const next={x:Math.round(key.x+(event.clientX-start.x)/scale),y:Math.round(key.y+(event.clientY-start.y)/scale)};
+      const dx=event.clientX-start.x,dy=event.clientY-start.y;
+      if(!moved&&Math.hypot(dx,dy)<4)return;
+      moved=true;
+      const next={x:key.x+Math.round(dx/scale),y:key.y+Math.round(dy/scale)};
       try{draw(updateKeyframe(original,found.clip.id,key.id,next));patch=next;}catch{patch=null;draw();}
     };
     window.addEventListener('pointermove',move,{signal:controller.signal});
@@ -401,7 +404,7 @@ function installDrags(){
       if(event.pointerId!==pointer||finished)return;
       // Sample the release point too, rather than committing the last move event.
       move(event);if(finished)return;cleanup();
-      if(patch)try{commit(updateKeyframe(original,found.clip.id,key.id,patch),'Move keyframe',origin);}catch(err){message(err.message,true);draw();}
+      if(patch&&moved&&(patch.x!==key.x||patch.y!==key.y))try{commit(updateKeyframe(original,found.clip.id,key.id,patch),'Move keyframe',origin);}catch(err){message(err.message,true);draw();}
       else{renderInspector();draw();}
     },{signal:controller.signal});
     window.addEventListener('pointercancel',event=>{if(event.pointerId===pointer)cancel();},{signal:controller.signal});
