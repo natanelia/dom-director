@@ -182,6 +182,20 @@ def probe_output(path: Path, width: int, height: int, fps: int, frames: int, aud
             'durationSeconds': float(data['format']['duration'])}
 
 
+@contextmanager
+def encoder_diagnostics(log_path: Path):
+    """Preserve diagnostics when either a buffered write or close loses its reader."""
+    try:
+        yield
+    except BrokenPipeError:
+        with log_path.open('rb') as log:
+            log.seek(0, os.SEEK_END)
+            log.seek(max(0, log.tell() - 2000))
+            tail = log.read().decode('utf-8', errors='replace').strip()
+        detail = tail or 'No encoder diagnostics were produced; the export may have timed out.'
+        raise ValueError('Video encoder stopped early: ' + detail) from None
+
+
 def publish_files(staged: list[tuple[Path, Path]]):
     """Same-filesystem exclusive creation: never overwrite another export, even on a race."""
     created = []
@@ -248,7 +262,7 @@ def render(args, *, on_frame=None) -> dict:
                             target.write(base64.b64decode(chunk, validate=True))
                 video = temp / ('video' + output.suffix)
                 stderr_path = temp / 'encoder.log'
-                with stderr_path.open('wb') as encoder_log:
+                with stderr_path.open('wb') as encoder_log, encoder_diagnostics(stderr_path):
                     process = subprocess.Popen(encoder_command(video, args.fps, frames, audio), stdin=subprocess.PIPE, stdout=subprocess.DEVNULL, stderr=encoder_log)
                     # Bound a stalled pipe/encoder as well as ordinary per-frame work.
                     watchdog = threading.Timer(1200, process.kill)

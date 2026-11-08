@@ -79,6 +79,25 @@ class VideoModelTests(unittest.TestCase):
         self.assertIn('libvpx-vp9', webm);self.assertIn('-an', webm)
         self.assertNotIn('libopus', webm)
 
+    def test_broken_encoder_write_and_close_preserve_bounded_diagnostics(self):
+        class BrokenPipe:
+            def write(self):raise BrokenPipeError('write failed')
+            def close(self):raise BrokenPipeError('close failed')
+        with tempfile.TemporaryDirectory() as root:
+            log = Path(root) / 'encoder.log'
+            log.write_text('not retained ' * 1000 + 'encoder cannot continue')
+            for method in ['write', 'close']:
+                with self.subTest(method=method), self.assertRaisesRegex(ValueError, 'Video encoder stopped early:') as caught:
+                    with renderer.encoder_diagnostics(log):
+                        getattr(BrokenPipe(), method)()
+                self.assertTrue(str(caught.exception).endswith('encoder cannot continue'))
+                self.assertLessEqual(len(str(caught.exception)), 2100)
+            log.write_bytes(b'')
+            with self.assertRaisesRegex(ValueError, 'may have timed out'):
+                with renderer.encoder_diagnostics(log):raise BrokenPipeError()
+            with self.assertRaises(KeyboardInterrupt):
+                with renderer.encoder_diagnostics(log):raise KeyboardInterrupt()
+
     def test_publication_never_overwrites_and_rolls_back_its_own_files(self):
         with tempfile.TemporaryDirectory() as root:
             root = Path(root)
@@ -230,6 +249,21 @@ class VideoBrowserTests(unittest.TestCase):
         with self.assertRaises(KeyboardInterrupt):renderer.render(args,on_frame=cancel)
         self.assertFalse(args.output.exists());self.assertFalse(list(self.path.glob('.director-render-*')))
         self.assertFalse(args.output.with_suffix('.mp4.json').exists())
+
+    def test_early_encoder_failure_reports_its_log_and_cleans_output(self):
+        from unittest.mock import patch
+        original = renderer.encoder_command
+        def broken_encoder(*args, **kwargs):
+            command = original(*args, **kwargs)
+            command[command.index('-c:v') + 1] = 'director_missing_encoder'
+            return command
+        args = options(self.path / 'encoder-failure.mp4', '--silent')
+        with patch.object(renderer, 'encoder_command', broken_encoder):
+            with self.assertRaisesRegex(ValueError, 'director_missing_encoder'):
+                renderer.render(args)
+        self.assertFalse(args.output.exists())
+        self.assertFalse(args.output.with_suffix('.mp4.json').exists())
+        self.assertFalse(list(self.path.glob('.director-render-*')))
 
     def test_partial_final_frame_uses_fixed_rate_without_timeline_drift(self):
         _,report,frames=self.render('fraction.mp4',start=6980,end=7081,extra=['--fps','30','--silent'],probes=[0,3])
