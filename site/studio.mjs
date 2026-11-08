@@ -7,7 +7,7 @@ const $=id=>document.getElementById(id),copy=value=>JSON.parse(JSON.stringify(va
 const clock=ms=>{const n=Math.max(0,ms);return String(Math.floor(n/60000)).padStart(2,'0')+':'+(n/1000%60).toFixed(2).padStart(5,'0');};
 const names={camera:'Camera',cursor:'Cursor',voice:'Voiceover',captions:'Closed captions'};
 const approved=new Set(TARGETS.map(t=>t.id)),samples=new Set(['voice.overview','voice.signal','voice.story']);
-const cleanups=[],urls=new Map(),dirtyFields=new Set();
+const cleanups=[],urls=new Map(),dirtyFields=new Set(),inspectorSections=new Map();
 let store=createProjectStore(createSample()),selected={sceneId:'overview',kind:'captions',clipId:'cc.overview.0',keyId:null};
 let time=0,scope='clip',viewZoom=1,reduced=matchMedia('(prefers-reduced-motion: reduce)').matches,cc=true,sound=false,loop=false;
 let disposed=false,busy=false,drag=null,recording=null,operation=null,transport,view,ready=false,paintRequest=null,lastExport=-1,dialogCleanup=null,fieldCommit=false;
@@ -88,7 +88,11 @@ function renderTimeline(){
     }
   }
 }
-function group(title,{collapsed=false}={}){const p=$('inspector'),g=node(collapsed?'details':'section',undefined,p);g.className='inspector-group';node(collapsed?'summary':'h3',title,g);return g;}
+function group(title,{collapsed=false}={}){
+  const p=$('inspector'),g=node(collapsed?'details':'section',undefined,p);g.className='inspector-group';
+  if(collapsed){g.dataset.section=title;g.open=inspectorSections.get(title)??false;}
+  node(collapsed?'summary':'h3',title,g);return g;
+}
 function field(parent,id,label,value,change,{type='text',min,max,step,options,maxLength,preview}={}){
   const wrap=node('label',label,parent);wrap.className='field'+(type==='checkbox'?' checkbox':'');const input=node(options?'select':type==='textarea'?'textarea':'input',undefined,wrap);input.id=id;
   if(options){for(const option of options){const [v,text]=Array.isArray(option)?option:[option,option];const n=node('option',text,input);n.value=v;}}
@@ -117,7 +121,11 @@ function timing(parent,clip){
   field(row,'clip-end','End in scene (s)',seconds(clip.startMs+clip.durationMs),v=>commit(trimClip(project(),clip.id,findClip(project(),clip.id).clip.startMs,Math.round(v*1000)),'Trim clip'),{type:'number',min:0,step:.01});
 }
 function renderInspector(){
-  const p=$('inspector'),scroll=p.scrollTop;p.replaceChildren();normalizeSelection();const found=selectedClip();
+  const p=$('inspector'),scroll=p.scrollTop;
+  // Capture native disclosure state synchronously, before replacing any DOM.
+  // Queued toggle events from detached nodes must not overwrite the new controls.
+  for(const detail of p.querySelectorAll(':scope > details[data-section]'))inspectorSections.set(detail.dataset.section,detail.open);
+  p.replaceChildren();normalizeSelection();const found=selectedClip();
   document.querySelectorAll('[data-kind]').forEach(b=>{if(b.tagName==='BUTTON')b.setAttribute('aria-pressed',String(b.dataset.kind===selected.kind));});
   node('span',names[selected.kind],p).className='eyebrow';node('h2',selected.kind==='captions'?'Make every word clear.':selected.kind==='voice'?'Give the story a voice.':selected.kind==='cursor'?'Lead the eye.':'Frame the moment.',p);
   node('div',scene().title,p).className='context';
