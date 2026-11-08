@@ -50,7 +50,7 @@ function installVideoHandoff() {
 
   function show() {
     $('stop').click();
-    const token=++epoch;
+    ++epoch;
     title.textContent='Prepare a local video export';body.replaceChildren();actions.replaceChildren();
     node('p','Render an MP4 or WebM on your computer using Python, Chromium and FFmpeg. This panel prepares a command; it does not render video in this browser or upload your project.',body);
     const guide=node('p',undefined,body);
@@ -87,7 +87,8 @@ function installVideoHandoff() {
     button('Back','video-back',()=>{dialog.close();trigger.click();});
     button('Close','video-close',()=>dialog.close());
     const copy=button('Copy command','video-copy',async()=>{
-      const text=command.value;
+      // Each copy has its own navigation epoch; a restored dialog can copy again.
+      const text=command.value, token=epoch;
       try{
         if(!navigator.clipboard?.writeText)throw Error('Clipboard unavailable');
         await navigator.clipboard.writeText(text);

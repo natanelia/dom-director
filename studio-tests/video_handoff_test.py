@@ -91,6 +91,20 @@ class StudioVideoHandoffTests(StudioTests):
         self.assertEqual(self.page.locator('#dialog-title').inner_text(),'Editing shortcuts')
         self.assertEqual(self.page.locator('#video-copy-status').count(),0)
 
+    def test_restored_dialog_rejects_old_copy_feedback_but_allows_a_new_copy(self):
+        self.open_video()
+        self.page.evaluate("() => { Object.defineProperty(navigator,'clipboard',{configurable:true,value:{writeText:()=>new Promise(resolve=>{ window.resolveVideoCopy=resolve; })}}); }")
+        self.page.locator('#video-copy').click()
+        self.page.wait_for_function("typeof window.resolveVideoCopy==='function'", timeout=8000)
+        self.page.evaluate("() => { dispatchEvent(new PageTransitionEvent('pagehide',{persisted:true})); dispatchEvent(new PageTransitionEvent('pageshow',{persisted:true})); window.resolveVideoCopy(); }")
+        self.assertTrue(self.page.locator('#dialog').is_visible())
+        self.assertEqual(self.page.locator('#video-copy-status').inner_text(),'')
+        self.page.evaluate("() => { navigator.clipboard.writeText=()=>Promise.resolve(); }")
+        self.page.locator('#video-copy').click()
+        self.page.wait_for_function("document.querySelector('#video-copy-status').textContent.startsWith('Command copied.')", timeout=8000)
+        self.page.locator('#video-close').click()
+        self.assertEqual(self.page.locator('#studio').get_attribute('data-playback'),'paused')
+
     def test_settings_persist_in_memory_but_not_after_reload_and_opening_pauses(self):
         self.page.locator('#preview-tour').click()
         self.page.wait_for_function("document.querySelector('#studio').dataset.playback==='playing'")
