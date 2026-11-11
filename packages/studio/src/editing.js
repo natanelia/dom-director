@@ -44,13 +44,14 @@ export function updateKeyframe(project,clipId,keyId,patch){
 }
 export function addKeyframe(project,clipId,clipTimeMs,patch={}){
   demand(Number.isInteger(clipTimeMs),'Keyframe time must be in whole milliseconds.');
-  demand(!Object.hasOwn(patch,'id')&&!Object.hasOwn(patch,'atMs'),'Use the playhead to set the new keyframe time.');
+  demand(!Object.hasOwn(patch,'id')&&!Object.hasOwn(patch,'atMs')&&!Object.hasOwn(patch,'timing'),'Use the playhead to set the new keyframe time.');
   return editProject(project,next=>{
     const {track,clip}=findClip(next,clipId);demand(['camera','cursor'].includes(track.kind),'Select a motion clip.');
     demand(clipTimeMs>=0&&clipTimeMs<=clip.durationMs,'Place the playhead inside the selected clip.');
     const atMs=clip.offsetMs+clipTimeMs;demand(!clip.keys.some(k=>k.atMs===atMs),'A keyframe already exists at this time.');
     const previous=clip.keys.filter(k=>k.atMs<=atMs).at(-1)||clip.keys[0];
-    clip.keys.push({...previous,...copy(patch),id:freshId(next,'key'),atMs});clip.keys.sort((a,b)=>a.atMs-b.atMs);
+    const {timing,...absolute}=previous;
+    clip.keys.push({...absolute,...copy(patch),id:freshId(next,'key'),atMs});clip.keys.sort((a,b)=>a.atMs-b.atMs);
   });
 }
 export function deleteKeyframe(project,clipId,keyId){
@@ -255,5 +256,6 @@ export function alignKeyframeToCaptionWord(input,clipId,keyId,{captionId,wordInd
   demand(Number.isInteger(wordIndex)&&wordIndex>=0&&(boundary==='start'||boundary==='end'),'Choose an existing word boundary.');
   const anchor=captionWordAnchors(project,clip.sceneId).find(a=>a.captionId===captionId&&a.wordIndex===wordIndex&&a.boundary===boundary);
   demand(anchor,'Choose a timed word in this scene’s visible caption language.');
+  demand(!clip.keys.find(k=>k.id===keyId)?.timing,'Detach this persistent word link before using one-time alignment.');
   return moveTimelineKeyframe(project,clipId,keyId,anchor.sceneTimeMs-clip.startMs);
 }

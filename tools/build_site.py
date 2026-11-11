@@ -46,7 +46,7 @@ def render_html(template,css,revision):
     return html
 
 STUDIO_SITE_FILES = ('studio.html', 'studio.css', 'studio.mjs', 'studio-view.mjs', 'studio-video.mjs')
-STUDIO_MODULES = ('index.js', 'project.js', 'sample.js', 'evaluator.js', 'editing.js', 'media.js', 'subtitles.js', 'audio-export.js')
+STUDIO_MODULES = ('index.js', 'project.js', 'sample.js', 'evaluator.js', 'editing.js', 'media.js', 'subtitles.js', 'audio-export.js', 'timing.js', 'timing-links.js')
 
 def studio_files(revision):
     """Exact public Studio inputs; no package metadata, test or arbitrary file upload."""
