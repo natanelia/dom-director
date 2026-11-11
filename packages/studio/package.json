@@ -22,6 +22,10 @@
     "./audio-export": {
       "types": "./src/audio-export.d.ts",
       "import": "./src/audio-export.js"
+    },
+    "./timing-links": {
+      "types": "./src/timing-links.d.ts",
+      "import": "./src/timing-links.js"
     }
   },
   "peerDependencies": {

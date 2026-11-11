@@ -2,7 +2,7 @@ import type {Project,CaptionStyle,CursorStyle,CameraKey,CursorKey,AudioAsset} fr
 export function setAppearance(project:Project,clipId:string,patch:CaptionStyle|CursorStyle,options?:{scope?:'clip'|'track'|'project';reset?:boolean}):Project;
 export function applyCaptionPreset(project:Project,clipId:string,name:'clean'|'contrast'|'minimal',scope?:'clip'|'track'|'project'):Project;
 export function updateKeyframe(project:Project,clipId:string,keyId:string,patch:Partial<Omit<CameraKey,'id'>>|Partial<Omit<CursorKey,'id'>>):Project;
-export function addKeyframe(project:Project,clipId:string,clipTimeMs:number,patch?:Partial<Omit<CameraKey,'id'|'atMs'>>|Partial<Omit<CursorKey,'id'|'atMs'>>):Project;
+export function addKeyframe(project:Project,clipId:string,clipTimeMs:number,patch?:Partial<Omit<CameraKey,'id'|'atMs'|'timing'>>|Partial<Omit<CursorKey,'id'|'atMs'|'timing'>>):Project;
 export function deleteKeyframe(project:Project,clipId:string,keyId:string):Project;
 export function addGesture(project:Project,clipId:string,clipTimeMs:number,kind?:'click'|'double-click'|'hold'):Project;
 export function addScene(project:Project,options?:{afterId?:string;target?:string;title?:string;durationMs?:number}):{value:Project;sceneId:string};
@@ -28,16 +28,13 @@ export type TimelineSnapOptions = {
   playheadMs?:number;
   ripple?:boolean;
 } & ({operation:'keyframe';keyId:string}|{operation?:'move'|'trim-start'|'trim-end';keyId?:never});
-export interface TimelineSnapper {
-  /** Returns a relative millisecond delta; guides use absolute project time. Bypass disables both magnets and grid. */
+export function createTimelineSnapper(project:Project,options:TimelineSnapOptions):Readonly<{
   snap(deltaMs:number,options?:{bypass?:boolean}):{deltaMs:number;guide:TimelineSnapGuide|null};
-}
-/** Snapshot anchors once per gesture; validate the proposed edit separately. Does not mutate the project. */
-export function createTimelineSnapper(project:Project,options:TimelineSnapOptions):TimelineSnapper;
-/** Move a visible camera/cursor key using clip-local milliseconds. Source windows and other tracks are preserved. */
+}>;
+/** Moves one visible key in clip-local time, not source/project time. */
 export function moveTimelineKeyframe(project:Project,clipId:string,keyId:string,clipTimeMs:number):Project;
 
-export type WordBoundary = 'start'|'end';
+export type WordBoundary='start'|'end';
 export interface CaptionWordAnchor {
   readonly captionId:string;
   readonly wordIndex:number;
@@ -47,9 +44,9 @@ export interface CaptionWordAnchor {
   readonly sceneTimeMs:number;
   readonly projectTimeMs:number;
 }
-/** Authored words in one scene of the active, visible caption track. No speech recognition. */
+/** Returns only authored words from the active, enabled caption-language track. */
 export function captionWordAnchors(project:Project,sceneId:string):ReadonlyArray<CaptionWordAnchor>;
-/** Stamp exactly one word boundary from absolute project time; overlaps and locked-track changes are rejected. */
+/** Changes one authored boundary to an exact project playhead; does not align speech. */
 export function stampCaptionWord(project:Project,captionId:string,wordIndex:number,boundary:WordBoundary,projectTimeMs:number):Project;
 /** A one-time timing edit, not a persistent link. Target path, easing and voice audio are unchanged. */
 export function alignKeyframeToCaptionWord(project:Project,clipId:string,keyId:string,anchor:{captionId:string;wordIndex:number;boundary?:WordBoundary}):Project;
