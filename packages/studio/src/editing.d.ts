@@ -28,13 +28,16 @@ export type TimelineSnapOptions = {
   playheadMs?:number;
   ripple?:boolean;
 } & ({operation:'keyframe';keyId:string}|{operation?:'move'|'trim-start'|'trim-end';keyId?:never});
-export function createTimelineSnapper(project:Project,options:TimelineSnapOptions):Readonly<{
+export interface TimelineSnapper {
+  /** Returns a relative millisecond delta; guides use absolute project time. Bypass disables both magnets and grid. */
   snap(deltaMs:number,options?:{bypass?:boolean}):{deltaMs:number;guide:TimelineSnapGuide|null};
-}>;
-/** Moves one visible key in clip-local time, not source/project time. */
+}
+/** Snapshot anchors once per gesture; validate the proposed edit separately. Does not mutate the project. */
+export function createTimelineSnapper(project:Project,options:TimelineSnapOptions):TimelineSnapper;
+/** Move a visible camera/cursor key using clip-local milliseconds. Source windows and other tracks are preserved. */
 export function moveTimelineKeyframe(project:Project,clipId:string,keyId:string,clipTimeMs:number):Project;
 
-export type WordBoundary='start'|'end';
+export type WordBoundary = 'start'|'end';
 export interface CaptionWordAnchor {
   readonly captionId:string;
   readonly wordIndex:number;
@@ -44,9 +47,9 @@ export interface CaptionWordAnchor {
   readonly sceneTimeMs:number;
   readonly projectTimeMs:number;
 }
-/** Returns only authored words from the active, enabled caption-language track. */
+/** Authored words in one scene of the active, visible caption track. No speech recognition. */
 export function captionWordAnchors(project:Project,sceneId:string):ReadonlyArray<CaptionWordAnchor>;
-/** Changes one authored boundary to an exact project playhead; does not align speech. */
+/** Stamp exactly one word boundary from absolute project time; overlaps and locked-track changes are rejected. */
 export function stampCaptionWord(project:Project,captionId:string,wordIndex:number,boundary:WordBoundary,projectTimeMs:number):Project;
 /** A one-time timing edit, not a persistent link. Target path, easing and voice audio are unchanged. */
 export function alignKeyframeToCaptionWord(project:Project,clipId:string,keyId:string,anchor:{captionId:string;wordIndex:number;boundary?:WordBoundary}):Project;
