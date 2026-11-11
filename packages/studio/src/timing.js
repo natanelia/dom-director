@@ -11,7 +11,7 @@ const isId = value => typeof value === 'string' && identifier.test(value);
 
 /** Internal: structural project validation precedes public use of these rows. */
 export function timingRows(project) {
-  const captions = new Map();
+  const captions = new Map(), wordIndexes = new Map();
   for (const track of project.tracks) if (track.kind === 'captions')
     for (const clip of track.clips) captions.set(clip.id, {track, clip});
   const rows = [];
@@ -28,7 +28,17 @@ export function timingRows(project) {
         Number.isInteger(link.offsetMs) && Math.abs(link.offsetMs) <= 180000, 'Invalid word boundary or timing offset.', path);
       const source = captions.get(link.captionId);
       demand(source?.clip.sceneId === clip.sceneId, 'The linked caption must exist in the same scene. Detach or relink this key first.', path);
-      const wordIndex = source.clip.words?.findIndex(w => w.id === link.wordId) ?? -1;
+      // Index only referenced captions, once per pass. Never retain indexes across edits.
+      let indexes = wordIndexes.get(link.captionId);
+      if (!indexes) {
+        indexes = new Map();
+        source.clip.words?.forEach((word, index) => {
+          const id = word.id;
+          if (!indexes.has(id)) indexes.set(id, index);
+        });
+        wordIndexes.set(link.captionId, indexes);
+      }
+      const wordIndex = indexes.get(link.wordId) ?? -1;
       demand(wordIndex >= 0, 'The linked word is missing. Detach or relink its camera/cursor keys before removing word timing.', path);
       const word = source.clip.words[wordIndex];
       const baseMs = clip.offsetMs + source.clip.startMs + word[link.boundary === 'start' ? 'startMs' : 'endMs'] - clip.startMs;
