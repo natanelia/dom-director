@@ -267,6 +267,35 @@ class StudioTimingLinkTests(StudioTests):
         self.assertNotIn('timing', new)
         self.assertEqual(self.key(after), self.key(before))
 
+    def test_crowded_key_targets_remain_separate_at_their_exact_time_positions(self):
+        self.words()
+        self.link()
+        self.seek(.01)
+        self.page.locator('#add-key').click()
+        before = self.project()
+        ids = [k['id'] for k in self.clip(before, 'camera.overview')['keys']]
+        self.assertEqual(len(ids), 3)
+        for zoom in [20, 40, 180]:
+            self.page.locator('#timeline-zoom').evaluate(
+                '(el,value)=>{el.value=String(value);el.dispatchEvent(new Event("input",{bubbles:true}));}', zoom)
+            boxes = self.page.locator('.lane[data-kind="camera"] [data-timeline-key]:not([hidden])').evaluate_all("""keys=>keys.map(el=>{
+                const b=el.getBoundingClientRect(),parent=el.parentElement.getBoundingClientRect();
+                return {left:b.left,right:b.right,top:b.top,bottom:b.bottom,width:b.width,height:b.height,
+                    point:b.left-parent.left+parseFloat(el.style.getPropertyValue('--key-center')),time:Number(el.dataset.keyTime)};
+            })""")
+            for i, box in enumerate(boxes):
+                self.assertGreaterEqual(box['width'], 24)
+                self.assertGreaterEqual(box['height'], 24)
+                self.assertAlmostEqual(box['point'], box['time'] / 1000 * zoom, delta=.06)
+                for other in boxes[:i]:
+                    self.assertTrue(box['right'] <= other['left'] or box['left'] >= other['right'] or
+                                    box['bottom'] <= other['top'] or box['top'] >= other['bottom'])
+            for key_id in ids:
+                button = self.page.locator('[data-timeline-key="' + key_id + '"]')
+                button.click()
+                self.assertEqual(button.get_attribute('aria-pressed'), 'true')
+            self.assertEqual(self.project(), before, 'Reflowing or selecting keys must not change timing.')
+
     def test_keyboard_mobile_and_dependency_navigation_are_usable(self):
         self.words()
         self.motion_key()

@@ -62,3 +62,5 @@ keyboard focus and mobile layout. It joins the existing three-engine staged and
 verified-public review runner. The Studio axe audit adds the link review, inspector,
 mobile, dependency, and destructive-edit review states. These are test definitions,
 not blanket claims of browser, device or accessibility certification.
+
+Crowded timeline keys keep their exact horizontal time position and use separate hit-target rows. This also covers coincident keys at split boundaries; no key is hidden or moved in time to make the controls fit. Rows settle between gestures, not under an active pointer drag.

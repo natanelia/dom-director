@@ -66,6 +66,21 @@ function placeTimelineKey(button,clip,key,scale,sceneStart){
   button.style.left=Math.max(0,pixels-12)+'px';button.style.setProperty('--key-center',Math.min(12,pixels)+'px');
   button.dataset.keyTime=String(absolute);
 }
+// Keep exact x/time coordinates; crowded hit areas use separate rows instead of hiding keys.
+// Reflow only between gestures, so pointer capture never moves vertically under the author.
+function layoutTimelineKeys(body){
+  const ends=[];
+  const keys=[...body.querySelectorAll('[data-timeline-key]')].filter(key=>!key.hidden)
+    .sort((a,b)=>parseFloat(a.style.left)-parseFloat(b.style.left));
+  for(const key of keys){
+    const left=parseFloat(key.style.left);
+    let row=ends.findIndex(right=>right<=left);
+    if(row<0)row=ends.length;
+    ends[row]=left+26; // 24px target plus a 2px gap, including coincident split boundaries.
+    key.style.top=(35+row*26)+'px';
+  }
+  body.parentElement.style.height=(36+Math.max(1,ends.length)*26)+'px';
+}
 function selectTimelineKey(clipId,keyId){
   if(!ensure())return;
   const {track,clip}=findClip(project(),clipId),key=clip.keys.find(k=>k.id===keyId);if(!key)return;
@@ -110,6 +125,7 @@ function renderTimeline(){
       }
       for(const side of ['start','end']){const h=node('span',undefined,b);h.className='trim '+side;h.dataset.trim=side;h.setAttribute('aria-hidden','true');}
     }
+    if(['camera','cursor'].includes(track.kind))layoutTimelineKeys(l.body);
   }
 }
 function group(title,{collapsed=false}={}){
@@ -756,4 +772,3 @@ function removeSelectedClip() {
     title:'Delete linked caption?',description:'This caption supplies timing to camera or cursor keys.',label:'Detach links and delete caption',
     confirm:'Delete caption',linkedConfirm:'Detach links and delete caption'});
 }
-
