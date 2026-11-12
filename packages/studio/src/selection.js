@@ -115,8 +115,9 @@ export function setVoiceMix(input,clipIds,changes){
   for(const field of ['fadeInMs','fadeOutMs'])if(Object.hasOwn(patch,field))
     demand(Number.isInteger(patch[field])&&patch[field]>=0&&patch[field]<=180000,
       'Voice fades must use whole milliseconds between 0 and 180 seconds.');
-  demand(rows.every(({clip})=>(patch.fadeInMs??clip.fadeInMs)+(patch.fadeOutMs??clip.fadeOutMs)<=clip.durationMs),
-    'Fade in and fade out together must fit every selected clip. Shorten a fade or select longer clips.');
+  if(!rows.every(({clip})=>(patch.fadeInMs??clip.fadeInMs)+(patch.fadeOutMs??clip.fadeOutMs)<=clip.durationMs))
+    throw Object.assign(new Error('Fade in and fade out together must fit every selected clip. Shorten a fade or select longer clips.'),
+      {code:'VOICE_MIX_FADE_RANGE'});
   return editProject(project,next=>{
     for(const track of next.tracks)for(const clip of track.clips)if(ids.has(clip.id))Object.assign(clip,patch);
   });

@@ -50,7 +50,7 @@ test('fade sums are checked per destination including retained fades before any 
   const p=editProject(createSample(),q=>{const c=findClip(q,ids[1]).clip;Object.assign(c,{durationMs:500,fadeInMs:100,fadeOutMs:100});});
   const before=plain(p);
   for(const patch of [{fadeInMs:401},{fadeOutMs:401},{gain:.3,fadeInMs:300,fadeOutMs:201}])
-    assert.throws(()=>setVoiceMix(p,ids,patch),/fit every selected clip/);
+    assert.throws(()=>setVoiceMix(p,ids,patch),error=>error.code==='VOICE_MIX_FADE_RANGE'&&/fit every selected clip/.test(error.message));
   const q=setVoiceMix(p,ids,{fadeInMs:300,fadeOutMs:200});assert.equal(clip(q,ids[1]).fadeInMs+clip(q,ids[1]).fadeOutMs,500);
   assert.deepEqual(plain(p),before);
 });
@@ -59,7 +59,7 @@ test('mixed or locked groups fail atomically, including locked clips on a second
   const p=editProject(createSample(),q=>{const copy=plain(q.tracks.find(t=>t.kind==='voice'));copy.id='other.voice';copy.name='Other voice';
     copy.locked=true;copy.clips=copy.clips.slice(0,1);copy.clips[0].id='other.take';q.tracks.push(copy);});
   const before=plain(p);
-  assert.throws(()=>setVoiceMix(p,[ids[0],'other.take'],{gain:.5}),/locked/);
+  assert.throws(()=>setVoiceMix(p,[ids[0],'other.take'],{gain:.5}),error=>/locked/.test(error.message)&&error.code!=='VOICE_MIX_FADE_RANGE');
   for(const id of ['camera.overview','cc.overview.0','cursor.overview'])assert.throws(()=>setVoiceMix(p,[ids[0],id],{gain:.5}),/only voice/);
   assert.deepEqual(plain(p),before);
 });

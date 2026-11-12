@@ -109,7 +109,10 @@ export function createSelectionTools(host){
         for(let i=0;i<controls.length;i++)$(controls[i].input.id).value=values[i];
         $('selection-mix-apply').disabled=false;$('selection-mix-apply').focus({preventScroll:true});
         $('selection-mix-status').textContent='Mix applied. Undo restores all selected clips together.';
-      }catch(error){status.textContent=error.message;host.message(error.message,true);}
+      }catch(error){
+        status.textContent=error.message;host.message(error.message,true);
+        if(error.code==='VOICE_MIX_FADE_RANGE')for(const {key,input} of controls)if(key!=='gain')input.setAttribute('aria-invalid','true');
+      }
     });
   }
   function renderInspector(root){

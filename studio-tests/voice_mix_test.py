@@ -93,9 +93,14 @@ class StudioVoiceMixTests(StudioSelectionTests):
         self.page.locator('#selection-mix-fade-in').fill('0.401')
         self.page.locator('#selection-mix-apply').click()
         self.assertIn('fit every selected clip', self.page.locator('#selection-mix-status').inner_text())
+        for field in ['fade-in', 'fade-out']:
+            self.assertEqual(self.page.locator('#selection-mix-' + field).get_attribute('aria-invalid'), 'true')
+        self.assertIsNone(self.page.locator('#selection-mix-volume').get_attribute('aria-invalid'))
         self.assertEqual(self.project(), before)
         self.assertEqual(self.page.locator('#selection-mix-fade-in').input_value(), '0.401')
         self.page.locator('#selection-mix-fade-in').fill('')
+        for field in ['fade-in', 'fade-out']:
+            self.assertIsNone(self.page.locator('#selection-mix-' + field).get_attribute('aria-invalid'))
         self.page.locator('#selection-mix-volume').fill('201')
         self.page.locator('#selection-mix-apply').click()
         self.assertEqual(self.page.locator('#selection-mix-volume').get_attribute('aria-invalid'), 'true')
@@ -116,6 +121,8 @@ class StudioVoiceMixTests(StudioSelectionTests):
         self.page.locator('#selection-mix-volume').fill('50')
         self.page.locator('#selection-mix-apply').click()
         self.assertIn('locked', self.page.locator('#selection-mix-status').inner_text())
+        for field in ['volume', 'fade-in', 'fade-out']:
+            self.assertIsNone(self.page.locator('#selection-mix-' + field).get_attribute('aria-invalid'))
         self.assertEqual(self.project(), before)
 
     def test_mobile_keyboard_mix_is_reachable_and_undo_restores_values(self):
