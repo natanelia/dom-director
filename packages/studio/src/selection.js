@@ -101,6 +101,28 @@ export function matchClipAppearance(input,sourceId,clipIds){
   });
 }
 
+/** Set only explicitly supplied voice mix fields. Invalid or locked groups change nothing. */
+export function setVoiceMix(input,clipIds,changes){
+  const {project,ids,rows}=selectedRows(input,clipIds);
+  const patch=cloneData(changes),fields=['gain','fadeInMs','fadeOutMs'];
+  demand(patch&&typeof patch==='object'&&!Array.isArray(patch)&&Object.keys(patch).length>0&&
+    Object.keys(patch).every(key=>fields.includes(key)),
+    'Choose volume, fade in or fade out. Other voice properties cannot be changed by a mix edit.');
+  demand(rows.every(row=>row.track.kind==='voice'),'Select only voice clips to adjust their mix.');
+  demand(rows.every(row=>!row.track.locked),'A selected voice track is locked. Unlock it or remove its clips from the selection.');
+  if(Object.hasOwn(patch,'gain'))demand(typeof patch.gain==='number'&&Number.isFinite(patch.gain)&&patch.gain>=0&&patch.gain<=2,
+    'Voice volume must be between 0% and 200%.');
+  for(const field of ['fadeInMs','fadeOutMs'])if(Object.hasOwn(patch,field))
+    demand(Number.isInteger(patch[field])&&patch[field]>=0&&patch[field]<=180000,
+      'Voice fades must use whole milliseconds between 0 and 180 seconds.');
+  if(!rows.every(({clip})=>(patch.fadeInMs??clip.fadeInMs)+(patch.fadeOutMs??clip.fadeOutMs)<=clip.durationMs))
+    throw Object.assign(new Error('Fade in and fade out together must fit every selected clip. Shorten a fade or select longer clips.'),
+      {code:'VOICE_MIX_FADE_RANGE'});
+  return editProject(project,next=>{
+    for(const track of next.tracks)for(const clip of track.clips)if(ids.has(clip.id))Object.assign(clip,patch);
+  });
+}
+
 /** Snapshot magnets once; selected clips and their keys are not stationary references. */
 export function createSelectionSnapper(input,clipIds,{pixelsPerSecond,tolerancePx=8,gridMs=100,playheadMs}={}){
   const {project,ids,rows}=selectedRows(input,clipIds),scenes=sceneTimeline(project);

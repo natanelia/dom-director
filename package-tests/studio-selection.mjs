@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import {createSample,editProject,findClip} from '@dom-director/studio';
-import {selectionBounds,includeLinkedClips,moveClips,duplicateClips,deleteClips,matchClipAppearance} from '@dom-director/studio/selection';
+import {selectionBounds,includeLinkedClips,moveClips,duplicateClips,deleteClips,matchClipAppearance,setVoiceMix} from '@dom-director/studio/selection';
 assert.equal(typeof document,'undefined');
 const ids=['camera.overview','cursor.overview'];
 const p=editProject(createSample(),q=>{for(const t of q.tracks)for(const c of t.clips)if(ids.includes(c.id))c.durationMs=1000;});
@@ -19,3 +19,12 @@ assert.equal(findClip(matched,'cc.signal.0').clip.style.color,'#123456');
 assert.equal(findClip(matched,'cc.signal.0').clip.text,findClip(styled,'cc.signal.0').clip.text);
 assert.deepEqual(matched.assets,styled.assets);
 console.log('Installed selection appearance contract passed');
+
+const mixed=setVoiceMix(p,['voice.overview','voice.signal'],{gain:.7,fadeInMs:100});
+for(const id of ['voice.overview','voice.signal']){
+  assert.equal(findClip(mixed,id).clip.gain,.7);assert.equal(findClip(mixed,id).clip.fadeInMs,100);
+  assert.equal(findClip(mixed,id).clip.fadeOutMs,findClip(p,id).clip.fadeOutMs);
+  assert.equal(findClip(mixed,id).clip.assetId,findClip(p,id).clip.assetId);
+}
+assert.deepEqual(mixed.assets,p.assets);
+console.log('Installed batch voice mix contract passed');

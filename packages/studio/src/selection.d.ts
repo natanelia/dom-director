@@ -19,6 +19,11 @@ export function deleteClips(project:Project,clipIds:ReadonlyArray<string>):Proje
 /** Copies effective caption/cursor styling into explicit clip overrides; other content, timing and links are preserved.
  * All destinations must match the source kind; any locked destination rejects the whole edit. The source is read-only. */
 export function matchClipAppearance(project:Project,sourceId:string,clipIds:ReadonlyArray<string>):Project;
+export interface VoiceMixPatch {readonly gain?:number;readonly fadeInMs?:number;readonly fadeOutMs?:number;}
+/** Atomic voice-only edit. Supply at least one mix field; omitted fields keep each clip's own value.
+ * Gain is linear (0–2); fades are whole milliseconds and together must fit each clip.
+ * Locked tracks reject the entire edit. Audio, trims, scripts, timing and track switches are unchanged. */
+export function setVoiceMix(project:Project,clipIds:ReadonlyArray<string>,changes:VoiceMixPatch):Project;
 export interface SelectionSnapOptions {pixelsPerSecond:number;tolerancePx?:number;gridMs?:number;playheadMs?:number;}
 /** Snap any selected edge to unselected clips/keys/words, scene boundaries or the playhead. Validate movement separately. */
 export function createSelectionSnapper(project:Project,clipIds:ReadonlyArray<string>,options:SelectionSnapOptions):{
