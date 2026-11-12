@@ -1,0 +1,20 @@
+name: Prepare reviewed PR37 blobs
+on:
+  push:
+    branches: [prep/pr37-a11y-review-20261112]
+permissions:
+  contents: read
+jobs:
+  prepare:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - name: Verify patch and create immutable blobs only
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 .review-transfer/prepare-pr37.py
