@@ -2,6 +2,7 @@ import {createSample,createProjectStore,createEvaluator,editProject,findClip,fre
 import {createMediaBank,createTransport,saveProjectBundle,readProjectBundle,generateVoiceTake,createTakeAuditioner} from './studio-sdk/media.js';
 import {setAppearance,applyCaptionPreset,distributeCaptionWords,addKeyframe,updateKeyframe,deleteKeyframe,addGesture,addScene,deleteScene,addCaption,proposeCaptionImport,proposeVoiceReplacement,createTimelineSnapper,moveTimelineKeyframe,captionWordAnchors} from './studio-sdk/editing.js';
 import {createCanvas,TARGETS,drawWaveform} from './studio-view.mjs';
+import {createSelectionTools} from './studio-selection.mjs';
 import {planVoiceMix,renderVoiceMix} from './studio-sdk/audio-export.js';
 import {linkKeyframeToCaptionWord,detachTimingLink,detachCaptionTimingLinks,describeTimingLinks} from './studio-sdk/timing-links.js';
 
@@ -14,7 +15,7 @@ let store=createProjectStore(createSample()),selected={sceneId:'overview',kind:'
 let time=0,scope='clip',viewZoom=1,reduced=matchMedia('(prefers-reduced-motion: reduce)').matches,cc=true,sound=false,loop=false;
 let disposed=false,busy=false,drag=null,recording=null,operation=null,transport,view,ready=false,paintRequest=null,lastExport=-1,dialogCleanup=null,fieldCommit=false;
 // Optional host adapter. No service is contacted or configured by this public fixture.
-let voiceProvider=null,activeAudition=null;
+let voiceProvider=null,activeAudition=null,selectionTools=null;
 const project=()=>store.snapshot().project;
 const revision=()=>store.snapshot().revision;
 const scene=()=>project().scenes.find(s=>s.id===selected.sceneId)||project().scenes[0];
@@ -47,6 +48,7 @@ function flush(){
 function ensure(){return !disposed&&!busy&&!recording&&flush();}
 function seek(at){stop();time=Math.max(0,Math.min(duration(project()),Math.round(at)));transport.seek(time);draw();}
 function normalizeSelection(){
+  if(selectionTools?.normalize())return;
   if(!project().scenes.some(s=>s.id===selected.sceneId))selected.sceneId=project().scenes[0].id;
   let found=selectedClip();
   if(!found||found.clip.sceneId!==selected.sceneId||found.track.kind!==selected.kind||(found.track.kind==='captions'&&found.track.id!==project().captionTrack)){const tracks=project().tracks.filter(t=>t.kind===selected.kind&&(t.kind!=='captions'||t.id===project().captionTrack));found=tracks.map(track=>({track,clip:track.clips.find(c=>c.sceneId===selected.sceneId)})).find(x=>x.clip);selected.clipId=found?.clip.id||null;}
@@ -57,8 +59,8 @@ function commit(next,label='Edit project',expected=revision()){
   hostCheck(next);stop();const at=time;store.commit(next,label,expected);loop=false;$('loop').setAttribute('aria-pressed','false');transport.load(project());transport.setSound(sound);transport.seek(Math.min(at,duration(project())));dirtyFields.clear();refresh();message(label+' · undo available. Save project to keep your work.');
 }
 function act(work){if(!ensure())return;try{work();}catch(error){message(error.message,true);}}
-function selectClip(id,{jump=true}={}){if(!ensure())return;const found=findClip(project(),id);stop();if(found.track.kind==='captions'&&project().captionTrack!==found.track.id)commit(editProject(project(),p=>{p.captionTrack=found.track.id;}),'Choose caption language');selected={sceneId:found.clip.sceneId,kind:found.track.kind,clipId:id,keyId:found.clip.keys?.[0]?.id||null};scope='clip';if(jump)seek(sceneTimeline(project()).find(s=>s.id===selected.sceneId).startMs+found.clip.startMs);refresh();}
-function selectScene(id){if(!ensure())return;selected.sceneId=id;selected.clipId=null;stop();seek(sceneTimeline(project()).find(s=>s.id===id).startMs);refresh();}
+function selectClip(id,{jump=true}={}){if(!ensure())return;selectionTools?.clear();const found=findClip(project(),id);stop();if(found.track.kind==='captions'&&project().captionTrack!==found.track.id)commit(editProject(project(),p=>{p.captionTrack=found.track.id;}),'Choose caption language');selected={sceneId:found.clip.sceneId,kind:found.track.kind,clipId:id,keyId:found.clip.keys?.[0]?.id||null};scope='clip';if(jump)seek(sceneTimeline(project()).find(s=>s.id===selected.sceneId).startMs+found.clip.startMs);refresh();}
+function selectScene(id){if(!ensure())return;selectionTools?.clear();selected.sceneId=id;selected.clipId=null;stop();seek(sceneTimeline(project()).find(s=>s.id===id).startMs);refresh();}
 function timelineKeyButton(clipId,keyId){return [...$('lanes').querySelectorAll('[data-timeline-key]')].find(b=>b.dataset.keyClip===clipId&&b.dataset.timelineKey===keyId);}
 function placeTimelineKey(button,clip,key,scale,sceneStart){
   const local=key.atMs-clip.offsetMs,absolute=sceneStart+clip.startMs+local,pixels=absolute/1000*scale;
@@ -84,13 +86,13 @@ function layoutTimelineKeys(body){
 function selectTimelineKey(clipId,keyId){
   if(!ensure())return;
   const {track,clip}=findClip(project(),clipId),key=clip.keys.find(k=>k.id===keyId);if(!key)return;
-  selected={sceneId:clip.sceneId,kind:track.kind,clipId,keyId};scope='clip';
+  selectionTools?.clear();selected={sceneId:clip.sceneId,kind:track.kind,clipId,keyId};scope='clip';
   seek(sceneTimeline(project()).find(s=>s.id===clip.sceneId).startMs+clip.startMs+key.atMs-clip.offsetMs);
   refresh();timelineKeyButton(clipId,keyId)?.focus({preventScroll:true});
 }
 function draw(override=project()){
   if(!ready||disposed)return;
-  try{if(!view.render(override,time,{reducedMotion:reduced,captions:cc,zoom:viewZoom})){transport.pause();return;}let found;try{found=findClip(override,selected.clipId);}catch{}view.showHandles(transport.inspect().state==='playing'?null:found?.clip,selected.keyId);}
+  try{if(!view.render(override,time,{reducedMotion:reduced,captions:cc,zoom:viewZoom})){transport.pause();return;}let found;try{found=findClip(override,selected.clipId);}catch{}view.showHandles(transport.inspect().state==='playing'||selectionTools?.size>1?null:found?.clip,selected.keyId);}
   catch(error){transport.pause();message(error.message,true);}
   $('timecode').textContent=clock(time)+' / '+clock(duration(project()));$('seek').value=String(time/1000);$('playhead').style.left=(135+time/1000*Number($('timeline-zoom').value))+'px';
   const at=locate(project(),time),index=project().scenes.findIndex(s=>s.id===at.scene.id);$('scene-name').textContent=String(index+1).padStart(2,'0')+' / '+at.scene.title;
@@ -111,7 +113,7 @@ function renderTimeline(){
     const enabled=button(track.enabled?'●':'○',l.head,()=>act(()=>commit(editProject(project(),p=>{p.tracks.find(t=>t.id===track.id).enabled=!track.enabled;}),'Toggle '+track.name)));enabled.setAttribute('aria-label',(track.enabled?'Hide ':'Show ')+track.name);enabled.setAttribute('aria-pressed',String(track.enabled));
     const lock=button(track.locked?'▣':'□',l.head,()=>act(()=>commit(editProject(project(),p=>{p.tracks.find(t=>t.id===track.id).locked=!track.locked;}),'Toggle track lock')));lock.setAttribute('aria-label',(track.locked?'Unlock ':'Lock ')+track.name);lock.setAttribute('aria-pressed',String(track.locked));
     for(const clip of track.clips){
-      const b=button('',l.body,()=>{if(drag?.moved)return;selectClip(clip.id);});b.className='clip';b.dataset.clip=clip.id;b.dataset.track=track.id;b.setAttribute('aria-pressed',String(clip.id===selected.clipId));b.classList.toggle('selected',clip.id===selected.clipId);b.setAttribute('aria-label',names[track.kind]+': '+(clip.text||clip.script||project().scenes.find(s=>s.id===clip.sceneId).title)+', '+seconds(clip.durationMs)+' seconds');b.style.left=(offsets.get(clip.sceneId)+clip.startMs)/1000*scale+'px';b.style.width=Math.max(4,clip.durationMs/1000*scale)+'px';
+      const b=button('',l.body,()=>{if(drag?.moved)return;selectClip(clip.id);});b.className='clip';b.dataset.clip=clip.id;b.dataset.track=track.id;b.setAttribute('aria-pressed',String(selectionTools?.contains(clip.id)??clip.id===selected.clipId));b.classList.toggle('selected',selectionTools?.contains(clip.id)??clip.id===selected.clipId);b.setAttribute('aria-label',names[track.kind]+': '+(clip.text||clip.script||project().scenes.find(s=>s.id===clip.sceneId).title)+', '+seconds(clip.durationMs)+' seconds');b.style.left=(offsets.get(clip.sceneId)+clip.startMs)/1000*scale+'px';b.style.width=Math.max(4,clip.durationMs/1000*scale)+'px';
       if(track.kind==='voice'&&bank.waveform(clip.assetId)){const wave=document.createElementNS('http://www.w3.org/2000/svg','svg');wave.classList.add('wave-line');b.append(wave);drawWaveform(wave,bank.waveform(clip.assetId));}
       node('span',clip.text||clip.script||names[track.kind],b).className='clip-label';
       for(const [index,key] of (clip.keys||[]).entries()){
@@ -119,7 +121,7 @@ function renderTimeline(){
         const d=button('',l.body,()=>{if(!drag?.moved)selectTimelineKey(clip.id,key.id);});d.className='timeline-key';
         d.dataset.timelineKey=key.id;d.dataset.keyClip=clip.id;d.dataset.keyTrack=track.id;d.dataset.wordLinked=String(!!key.timing);
         d.setAttribute('aria-label',names[track.kind]+' keyframe '+(index+1)+' · '+project().scenes.find(s=>s.id===clip.sceneId).title+' · '+((key.atMs-clip.offsetMs)/1000).toFixed(3)+' seconds in clip'+(key.timing?' · linked to a caption word':''));
-        d.setAttribute('aria-pressed',String(clip.id===selected.clipId&&key.id===selected.keyId));d.setAttribute('aria-disabled',String(track.locked));
+        d.setAttribute('aria-pressed',String(!(selectionTools?.size>1)&&clip.id===selected.clipId&&key.id===selected.keyId));d.setAttribute('aria-disabled',String(track.locked));
         d.title=(key.timing?'Linked: moving changes its delay. ':'')+'Drag to retime; ← / → nudge 10 ms; Shift 100 ms. Alt-drag bypasses snapping.';
         placeTimelineKey(d,clip,key,scale,offsets.get(clip.sceneId));
       }
@@ -165,7 +167,7 @@ function renderInspector(){
   // Capture native disclosure state synchronously, before replacing any DOM.
   // Queued toggle events from detached nodes must not overwrite the new controls.
   for(const detail of p.querySelectorAll(':scope > details[data-section]'))inspectorSections.set(detail.dataset.section,detail.open);
-  p.replaceChildren();normalizeSelection();const found=selectedClip();
+  p.replaceChildren();normalizeSelection();if(selectionTools?.renderInspector(p)){p.scrollTop=Math.min(scroll,p.scrollHeight);return;}const found=selectedClip();
   document.querySelectorAll('[data-kind]').forEach(b=>{if(b.tagName==='BUTTON')b.setAttribute('aria-pressed',String(b.dataset.kind===selected.kind));});
   node('span',names[selected.kind],p).className='eyebrow';node('h2',selected.kind==='captions'?'Make every word clear.':selected.kind==='voice'?'Give the story a voice.':selected.kind==='cursor'?'Lead the eye.':'Frame the moment.',p);
   node('div',scene().title,p).className='context';
@@ -329,7 +331,7 @@ async function startRecording(clipId){
 }
 async function openProject(file){await runAsync(async signal=>{
   if(file.size>36*1024*1024)throw Error('Project files must be smaller than 36 MiB.');const origin=revision(),bundle=await readProjectBundle(await file.text());hostCheck(bundle.project);signal.throwIfAborted();
-  modal('Open this project?',body=>{node('p',bundle.project.title+' · '+bundle.project.scenes.length+' scenes',body);node('p','This replaces the current draft and its undo history. Save your current project first. Local audio is validated before replacement.',body);},[['Cancel',closeDialog],['Open project',()=>{closeDialog();void runAsync(async signal=>{const staging=makeBank();try{for(const m of bundle.media){const actual=await staging.ingest(m.asset.id,m.asset.name,m.asset.mime,m.bytes,{signal});if(Math.abs(actual.durationMs-m.asset.durationMs)>20)throw Error('Audio duration differs from the saved take.');}signal.throwIfAborted();if(revision()!==origin)throw Error('Your draft changed while opening the project. It was not replaced.');stop();transport.destroy();const old=bank;bank=staging;store.replace(bundle.project);selected={sceneId:bundle.project.scenes[0].id,kind:'captions',clipId:null,keyId:null};sound=false;loop=false;time=0;lastExport=revision();transport=makeTransport();transport.load(project());dirtyFields.clear();refresh();$('sound').textContent='Sound off';$('sound').setAttribute('aria-pressed','false');await old.destroy();message('Project reopened. Audio and all style tracks retained.');}catch(e){await staging.destroy();throw e;}});},true]]);
+  modal('Open this project?',body=>{node('p',bundle.project.title+' · '+bundle.project.scenes.length+' scenes',body);node('p','This replaces the current draft and its undo history. Save your current project first. Local audio is validated before replacement.',body);},[['Cancel',closeDialog],['Open project',()=>{closeDialog();void runAsync(async signal=>{const staging=makeBank();try{for(const m of bundle.media){const actual=await staging.ingest(m.asset.id,m.asset.name,m.asset.mime,m.bytes,{signal});if(Math.abs(actual.durationMs-m.asset.durationMs)>20)throw Error('Audio duration differs from the saved take.');}signal.throwIfAborted();if(revision()!==origin)throw Error('Your draft changed while opening the project. It was not replaced.');stop();selectionTools?.clear();transport.destroy();const old=bank;bank=staging;store.replace(bundle.project);selected={sceneId:bundle.project.scenes[0].id,kind:'captions',clipId:null,keyId:null};sound=false;loop=false;time=0;lastExport=revision();transport=makeTransport();transport.load(project());dirtyFields.clear();refresh();$('sound').textContent='Sound off';$('sound').setAttribute('aria-pressed','false');await old.destroy();message('Project reopened. Audio and all style tracks retained.');}catch(e){await staging.destroy();throw e;}});},true]]);
 });}
 function exportDialog(){if(!ensure())return;modal('Keep or share your work',body=>{node('p','Save project keeps all tracks, styles and local audio in a .director file. Subtitle files keep text and timing, not the visual theme.',body);node('p','Rendered video and interactive publishing are not available in this Studio build.',body).className='note';},[['Close',closeDialog],['VTT',()=>exportCC('vtt')],['SRT',()=>exportCC('srt')],['Voice WAV…',voiceMixDialog],['Save project',()=>{closeDialog();void save();},true]]);}
 function voiceMixDialog(){
@@ -389,33 +391,37 @@ async function exportVoiceMix(snapshot,config){
 function exportCC(format){try{const result=exportSubtitles(project(),{format});download(result.text,'walkthrough.'+format,'text/plain');message('Subtitle download started. Caption appearance is not included.');closeDialog();}catch(e){message(e.message,true);}}
 async function save(){await runAsync(async()=>{const snapshot=store.snapshot(),text=await saveProjectBundle(snapshot.project,bank);download(text,'walkthrough.director','application/x-dom-director');lastExport=snapshot.revision;$('revision').textContent='Revision '+revision()+(revision()===lastExport?' · exported':' · changes since export');message('Project download started. Check your downloads; this tab does not autosave.');});}
 function play(fromStart=false){if(!ensure())return;activeAudition?.stop();if(fromStart)seek(0);if(transport.inspect().state==='playing')stop();else void transport.play();}
-function selectKind(kind){if(!ensure())return;stop();selected.kind=kind;selected.clipId=null;selected.keyId=null;normalizeSelection();const c=selectedClip();if(c)seek(sceneTimeline(project()).find(s=>s.id===c.clip.sceneId).startMs+c.clip.startMs);refresh();}
+function selectKind(kind){if(!ensure())return;selectionTools?.clear();stop();selected.kind=kind;selected.clipId=null;selected.keyId=null;normalizeSelection();const c=selectedClip();if(c)seek(sceneTimeline(project()).find(s=>s.id===c.clip.sceneId).startMs+c.clip.startMs);refresh();}
 function changeSelection(work){act(()=>{work();refresh();});}
 function setup(){
   view=createCanvas({stage:$('stage'),scene:$('scene'),overlay:$('stage-overlays'),caption:$('caption-overlay'),cursor:$('cursor-layer'),handles:$('edit-handles'),onInvalidate:()=>{if(!ready||disposed||paintRequest!==null)return;paintRequest=requestAnimationFrame(()=>{paintRequest=null;draw();});}});
-  transport=makeTransport();transport.load(project());ready=true;refresh();$('studio').dataset.ready='true';
+  transport=makeTransport();transport.load(project());
+  selectionTools=createSelectionTools({document,snapshot:()=>store.snapshot(),active:()=>selected,
+    setActive:value=>{selected=value;scope='clip';},ensure,stop,commit,refresh,message,modal,closeDialog,
+    selectSingle:selectClip,time:()=>time,resetLoop:()=>{loop=false;transport.setLoop(null);$('loop').setAttribute('aria-pressed','false');}});
+  ready=true;refresh();$('studio').dataset.ready='true';
   for(const b of document.querySelectorAll('.inspector-tabs button'))on(b,'click',()=>selectKind(b.dataset.kind));
   on($('project-title'),'input',()=>{stop();dirtyFields.add($('project-title'));});on($('project-title'),'change',()=>{try{dirtyFields.delete($('project-title'));commit(editProject(project(),p=>{p.title=$('project-title').value;}),'Rename project');}catch(e){dirtyFields.add($('project-title'));message(e.message,true);}});
   on($('play'),'click',()=>play());on($('preview-tour'),'click',()=>play(true));on($('stop'),'click',()=>{stop();message('Preview stopped. Your application and draft were not reset.');});on($('restart'),'click',()=>act(()=>seek(0)));
   on($('seek'),'input',()=>{if(flush())seek(Number($('seek').value)*1000);});
   on($('sound'),'click',()=>act(()=>{sound=!sound;transport.setSound(sound);$('sound').textContent=sound?'Sound on':'Sound off';$('sound').setAttribute('aria-pressed',String(sound));message(sound?'Sound enabled. Play prepares the selected takes.':'Silent preview.');}));
   on($('captions'),'click',()=>{cc=!cc;draw();});on($('motion'),'click',()=>{reduced=!reduced;draw();});on($('canvas-zoom'),'change',()=>{viewZoom=Number($('canvas-zoom').value);draw();});
-  on($('loop'),'click',()=>act(()=>{const c=selectedClip()?.clip;if(!c)throw Error('Select a clip to loop.');loop=!loop;const start=sceneTimeline(project()).find(s=>s.id===c.sceneId).startMs+c.startMs;transport.setLoop(loop?{startMs:start,endMs:start+c.durationMs}:null);$('loop').setAttribute('aria-pressed',String(loop));}));
+  on($('loop'),'click',()=>act(()=>{const range=selectionTools.bounds();loop=!loop;transport.setLoop(loop?{startMs:range.startMs,endMs:range.endMs}:null);$('loop').setAttribute('aria-pressed',String(loop));}));
   for(const command of ['undo','redo'])on($(command),'click',()=>act(()=>{stop();const at=time;store[command]();transport.load(project());transport.setSound(sound);loop=false;$('loop').setAttribute('aria-pressed','false');transport.seek(Math.min(at,duration(project())));refresh();message(command==='undo'?'Edit undone.':'Edit restored.');}));
-  on($('add-scene'),'click',()=>act(()=>modal('Choose the new scene’s focus',body=>{for(const target of TARGETS)button(target.label,body,()=>{try{const r=addScene(project(),{afterId:selected.sceneId,target:target.id,title:target.label});selected.sceneId=r.sceneId;selected.clipId=null;commit(r.value,'Add scene');seek(sceneTimeline(project()).find(s=>s.id===r.sceneId).startMs);closeDialog();}catch(e){message(e.message,true);}}).className='clip-list-item';},[['Cancel',closeDialog]])));
+  on($('add-scene'),'click',()=>act(()=>modal('Choose the new scene’s focus',body=>{for(const target of TARGETS)button(target.label,body,()=>{try{const r=addScene(project(),{afterId:selected.sceneId,target:target.id,title:target.label});selectionTools?.clear();selected.sceneId=r.sceneId;selected.clipId=null;commit(r.value,'Add scene');seek(sceneTimeline(project()).find(s=>s.id===r.sceneId).startMs);closeDialog();}catch(e){message(e.message,true);}}).className='clip-list-item';},[['Cancel',closeDialog]])));
   for(const [id,delta] of [['scene-up',-1],['scene-down',1]])on($(id),'click',()=>act(()=>commit(reorderScene(project(),selected.sceneId,delta),'Reorder scene')));
   on($('scene-delete'),'click',()=>act(()=>commit(deleteScene(project(),selected.sceneId),'Delete scene')));
-  on($('split'),'click',()=>act(()=>{const c=selectedClip()?.clip;if(!c)throw Error('Select a clip first.');const at=locate(project(),time);if(at.scene.id!==c.sceneId)throw Error('Place the playhead inside the clip.');commit(splitClip(project(),c.id,Math.round(at.timeMs)),'Split clip');}));
-  on($('duplicate'),'click',()=>act(()=>commit(duplicateClip(project(),selected.clipId),'Duplicate clip')));on($('delete-clip'),'click',()=>act(removeSelectedClip));
+  on($('split'),'click',()=>act(()=>{if(selectionTools.size>1)throw Error('Select one clip before splitting.');const c=selectedClip()?.clip;if(!c)throw Error('Select a clip first.');const at=locate(project(),time);if(at.scene.id!==c.sceneId)throw Error('Place the playhead inside the clip.');commit(splitClip(project(),c.id,Math.round(at.timeMs)),'Split clip');}));
+  on($('duplicate'),'click',()=>act(()=>selectionTools.size>1?selectionTools.duplicate():commit(duplicateClip(project(),selected.clipId),'Duplicate clip')));on($('delete-clip'),'click',()=>act(removeSelectedClip));
   on($('timeline-zoom'),'input',()=>{renderTimeline();draw();});on($('fit-timeline'),'click',()=>{$('timeline-zoom').value=String(Math.max(20,Math.min(180,Math.floor(($('timeline-scroll').clientWidth-165)/(duration(project())/1000)))));renderTimeline();draw();});
   on($('ruler'),'pointerdown',e=>{if(ensure())seek((e.clientX-$('ruler').getBoundingClientRect().left)/Number($('timeline-zoom').value)*1000);});
-  on($('clip-list'),'click',()=>act(()=>modal('All clips',body=>{for(const t of project().tracks){node('h3',t.name,body);for(const c of t.clips)button(sceneTimeline(project()).find(s=>s.id===c.sceneId).title+' · '+seconds(c.startMs)+'–'+seconds(c.startMs+c.durationMs)+'s',body,()=>{closeDialog();selectClip(c.id);}).className='clip-list-item';}},[['Close',closeDialog]])));
+  on($('clip-list'),'click',()=>selectionTools.openList());
   on($('open-project'),'click',()=>{if(ensure())$('project-file').click();});on($('project-file'),'change',()=>{const f=$('project-file').files[0];$('project-file').value='';if(f)void openProject(f);});on($('save-project'),'click',()=>void save());on($('export-open'),'click',exportDialog);
   on($('audio-file'),'change',()=>{const f=$('audio-file').files[0];$('audio-file').value='';if(f)void importAudio(f);});
   on($('subtitle-file'),'change',()=>{const file=$('subtitle-file').files[0];$('subtitle-file').value='';if(!file)return;void runAsync(async()=>{if(file.size>1024*1024)throw Error('Subtitle files must be smaller than 1 MiB.');const origin=revision(),proposal=proposeCaptionImport(project(),await file.text(),{language:'und',name:file.name.slice(0,150)});modal('Import caption track?',body=>node('p',proposal.cueCount+' captions will be added as a new language track. '+proposal.warnings.join(' '),body),[['Cancel',closeDialog],['Import track',()=>{try{selected.clipId=null;commit(proposal.value,'Import captions',origin);closeDialog();}catch(e){message(e.message,true);}},true]]);});});
   on($('dialog'),'cancel',()=>{dialogCleanup?.();dialogCleanup=null;});
   on($('dialog'),'close',()=>{if(!$('dialog').open){dialogCleanup?.();dialogCleanup=null;}});
-  on($('shortcuts'),'click',()=>modal('Editing shortcuts',body=>node('p','Space: play or pause. S: split selected clip. Delete: remove selected clip. Ctrl/Cmd+Z: undo. Ctrl/Cmd+Shift+Z: redo. Escape: cancel a drag, stop playback or close a dialog. On a timeline keyframe, Left/Right nudges 10 ms (Shift: 100 ms) and Delete removes only that key. Alt-drag bypasses magnetic and grid snapping. Shortcuts do not override text editing. Every operation also has a labeled button.',body),[['Close',closeDialog]]));
+  on($('shortcuts'),'click',()=>modal('Editing shortcuts',body=>node('p','Shift/Ctrl/Cmd-click timeline clips to select several, or use the checkbox Clip list. Left/Right on a selected group nudges 10 ms (Shift: 100 ms). Group moves have no ripple. Space: play or pause. S: split one selected clip. Delete: remove selected clip. Ctrl/Cmd+Z: undo. Ctrl/Cmd+Shift+Z: redo. Escape: cancel a drag, stop playback or close a dialog. On a timeline keyframe, Left/Right nudges 10 ms (Shift: 100 ms) and Delete removes only that key. Alt-drag bypasses magnetic and grid snapping. Shortcuts do not override text editing. Every operation also has a labeled button.',body),[['Close',closeDialog]]));
   on(document,'keydown',e=>{
     if(e.defaultPrevented||e.isComposing)return;
     if(e.key==='Escape'){stop();if(recording)closeDialog();return;}
@@ -429,7 +435,7 @@ function setup(){
   installDrags();
   const preference=matchMedia('(prefers-reduced-motion: reduce)');on(preference,'change',event=>{reduced=event.matches;draw();});
   on(document,'visibilitychange',()=>{if(document.hidden){stop();if(recording)closeDialog();}});
-  on(window,'pagehide',e=>{stop();operation?.abort();if(recording)closeDialog();if(e.persisted)return;closeDialog();disposed=true;cleanups.splice(0).forEach(off=>off());if(paintRequest!==null)cancelAnimationFrame(paintRequest);for(const [url,timer] of urls){clearTimeout(timer);URL.revokeObjectURL(url);}urls.clear();transport.destroy();view.destroy();void bank.destroy();});
+  on(window,'pagehide',e=>{stop();operation?.abort();if(recording)closeDialog();if(e.persisted)return;selectionTools.destroy();closeDialog();disposed=true;cleanups.splice(0).forEach(off=>off());if(paintRequest!==null)cancelAnimationFrame(paintRequest);for(const [url,timer] of urls){clearTimeout(timer);URL.revokeObjectURL(url);}urls.clear();transport.destroy();view.destroy();void bank.destroy();});
 }
 function installDrags(){
   let cancelGesture=null,clickTimer=null;
@@ -453,7 +459,7 @@ function installDrags(){
     const clipId=target.dataset.keyClip,keyId=target.dataset.timelineKey;
     act(()=>{
       const {track,clip}=findClip(project(),clipId),key=clip.keys.find(k=>k.id===keyId);if(!key)return;
-      selected={sceneId:clip.sceneId,kind:track.kind,clipId,keyId};
+      selectionTools?.clear();selected={sceneId:clip.sceneId,kind:track.kind,clipId,keyId};
       if(event.key==='Delete'){
         commit(deleteKeyframe(project(),clipId,keyId),'Delete keyframe');
         timelineKeyButton(clipId,selected.keyId)?.focus({preventScroll:true});return;
@@ -482,7 +488,7 @@ function installDrags(){
     if(!b||!key)return;
     if(track.locked){message('Unlock this track before moving its keyframes.',true);return;}
     event.preventDefault();stop();
-    selected={sceneId:clip.sceneId,kind:track.kind,clipId,keyId};scope='clip';renderInspector();draw();
+    selectionTools?.clear();selected={sceneId:clip.sceneId,kind:track.kind,clipId,keyId};scope='clip';renderInspector();draw();
     for(const n of $('lanes').querySelectorAll('[data-timeline-key]'))n.setAttribute('aria-pressed',String(n===b));
     for(const n of $('lanes').querySelectorAll('[data-clip]'))n.setAttribute('aria-pressed',String(n.dataset.clip===clipId));
     b.focus({preventScroll:true});
@@ -533,7 +539,7 @@ function installDrags(){
   });
   on($('lanes'),'pointerdown',event=>{
     const clicked=event.target.closest('button[data-clip]');
-    if(!clicked||event.button!==0||event.isPrimary===false)return;
+    if(!clicked||event.button!==0||event.isPrimary===false||event.shiftKey||event.ctrlKey||event.metaKey)return;
     const id=clicked.dataset.clip,edge=event.target.closest('[data-trim]')?.dataset.trim;
     cancelGesture?.();
     if(!ensure())return;
@@ -809,6 +815,7 @@ function usePlainCaption(id) {
     label:'Detach links and remove word timing',confirm:'Use plain caption',linkedConfirm:'Detach links and use plain caption'});
 }
 function removeSelectedClip() {
+  if(selectionTools?.size>1){selectionTools.remove();return;}
   const {track,clip}=findClip(project(),selected.clipId);
   if(track.kind!=='captions'||!describeTimingLinks(project()).some(row=>row.captionId===clip.id)){commit(deleteClip(project(),clip.id),'Delete clip');return;}
   reviewCaptionChange(clip.id,next=>{const t=findClip(next,clip.id).track;t.clips=t.clips.filter(c=>c.id!==clip.id);},{
