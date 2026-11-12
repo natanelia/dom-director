@@ -12,3 +12,17 @@
 dialog[open]:has(.selection-track){display:flex;flex-direction:column;overflow:hidden}
 dialog:has(.selection-track) h2,dialog:has(.selection-track) #dialog-actions{flex:0 0 auto}
 dialog:has(.selection-track) #dialog-body{min-height:0;overflow:auto;overscroll-behavior:contain;max-height:calc(85dvh - 150px)}
+
+/* Search and review share one bounded dialog; raw text is never HTML. */
+#find-captions{margin-top:8px}
+.caption-search-results{list-style:none;padding:0;margin:12px 0}
+.caption-search-result{padding:12px 0;border-bottom:1px solid var(--line);overflow-wrap:anywhere}
+.caption-search-result strong,.caption-search-result small,.caption-match-text{display:block}
+.caption-search-result p,.caption-match-text{white-space:pre-wrap;margin:6px 0}
+.caption-search-result mark{background:#f1d787;color:#17251d}
+.caption-search .selection-choice{font-size:13px}
+dialog[open]:has(.caption-search){display:flex;flex-direction:column;overflow:hidden}
+dialog:has(.caption-search) h2,dialog:has(.caption-search) #dialog-actions{flex:0 0 auto}
+dialog:has(.caption-search) #dialog-body{min-height:0;overflow:auto;overscroll-behavior:contain;max-height:calc(85dvh - 150px)}
+
+#caption-replace-review:disabled{opacity:.45;cursor:not-allowed}

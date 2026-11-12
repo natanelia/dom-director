@@ -3,6 +3,7 @@ import json
 import os
 from pathlib import Path
 from browser_test import StudioTests, ROOT
+from caption_search_audit import audit_caption_search
 
 
 def main():
@@ -134,6 +135,7 @@ def main():
         page.set_viewport_size({'width': 390, 'height': 844})
         assert not page.evaluate('document.documentElement.scrollWidth > innerWidth')
         audit('selection-voice-mix-mobile')
+        audit_caption_search(case, audit)
         assert page.locator('#timecode').get_attribute('aria-live') == 'off'
         report['passed'] = not any(a['violations'] for a in report['audits'])
         report['manualReviewStillRequired'] = True
