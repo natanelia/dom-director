@@ -37,8 +37,9 @@ cross-scene reassignment. Scene bounds, overlaps and track locks are checked on
 the complete result: any failure rejects the whole edit, never a partial subset.
 
 `duplicateClips` takes an explicit offset and returns `{value, clipIds}`. Copies
-have fresh globally unique clip, keyframe, gesture and authored-word identities.
-Internal caption-word links are remapped to the copied captions/words; original
+have fresh globally unique clip, keyframe and gesture identities. Authored words
+that already carry IDs get fresh ones; optional IDs remain absent on unlinked
+words that do not have them. Internal caption-word links are remapped to the copied captions/words; original
 links still refer to the original items. Asset references and source windows are
 shared, not copied or re-encoded. Duplicating into occupied time is an error; the
 helper does not guess where free space or a new scene should be.

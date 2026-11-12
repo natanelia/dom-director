@@ -12,7 +12,7 @@ export function selectionBounds(project:Project,clipIds:ReadonlyArray<string>):S
 export function includeLinkedClips(project:Project,clipIds:ReadonlyArray<string>):ReadonlyArray<string>;
 /** Atomic non-ripple move within each clip's current scene. Incomplete word-link groups are refused. */
 export function moveClips(project:Project,clipIds:ReadonlyArray<string>,deltaMs:number):Project;
-/** New clip/key/gesture/word IDs; internal timing links are rebound to the copied captions. */
+/** New clip/key/gesture IDs and fresh IDs for copied words that already have one; internal timing links are rebound to the copied captions. */
 export function duplicateClips(project:Project,clipIds:ReadonlyArray<string>,deltaMs:number):{readonly value:Project;readonly clipIds:ReadonlyArray<string>};
 /** Removes all selected clips or none; unselected dependent keys are never silently detached. */
 export function deleteClips(project:Project,clipIds:ReadonlyArray<string>):Project;
