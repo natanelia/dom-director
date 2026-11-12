@@ -37,7 +37,10 @@ class StudioStartupTests(StudioTests):
     def test_cold_start_requires_ready_and_actual_tracks_without_retries(self):
         navigate_studio(self.page, self.url, self.report)
         self.assertEqual(self.page.locator('#studio').get_attribute('data-ready'), 'true')
-        self.assertEqual(self.page.locator('.lane').count(), 4)
+        # Scene navigation is also a lane, not a fifth editing track.
+        kinds = self.page.locator('#lanes > .lane').evaluate_all(
+            'rows => rows.map(row => row.dataset.kind)')
+        self.assertEqual(kinds, ['scenes', 'camera', 'cursor', 'voice', 'captions'])
         self.assertFalse(self.report.exists())
 
     def test_failed_dependency_is_recorded_not_treated_as_ready(self):
