@@ -14,6 +14,7 @@ import time
 import unittest
 import wave
 from playwright.sync_api import sync_playwright
+from startup import navigate_studio
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -63,14 +64,14 @@ class StudioTests(unittest.TestCase):
 
     def setUp(self):
         self.page = self.browser.new_page(viewport={'width': 1440, 'height': 1000})
+        self.addCleanup(lambda: self.page.close() if not self.page.is_closed() else None)
         self.page.set_default_timeout(8000)
         self.errors = []
         self.requests = []
         self.page.on('pageerror', lambda error: self.errors.append(str(error)))
         self.page.on('request', lambda request: self.requests.append(request.url))
-        self.page.goto(self.url + '?verify=' + os.environ.get('DEPLOYED_SHA', 'local'))
-        self.page.wait_for_function("document.querySelector('#studio')?.dataset.ready !== 'false'")
-        self.assertEqual(self.page.locator('#studio').get_attribute('data-ready'), 'true', self.page.locator('#status').inner_text())
+        navigate_studio(self.page, self.url + '?verify=' + os.environ.get('DEPLOYED_SHA', 'local'),
+                        self.output / (self.__class__.__name__ + '-' + self._testMethodName + '-startup.json'))
 
     def tearDown(self):
         try:

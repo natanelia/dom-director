@@ -40,3 +40,11 @@ jobs:
           python3 site-tests/storyboard_test.py
           python3 studio-tests/browser_test.py
           python3 studio-tests/review_test.py
+      - name: Retain synthetic Studio verification diagnostics
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: public-studio-${{ matrix.browser }}
+          path: studio-results/
+          if-no-files-found: ignore
+          retention-days: 7

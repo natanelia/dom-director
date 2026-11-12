@@ -28,6 +28,7 @@ jobs:
         run: |
           node --test packages/studio/test/*.test.js
           python3 studio-tests/publication_test.py
+          python3 studio-tests/startup_test.py
       - name: Pack and install actual local candidates
         run: python3 tools/check_studio.py
   browser:
@@ -84,6 +85,7 @@ jobs:
         run: |
           python3 studio-tests/browser_test.py
           python3 studio-tests/review_test.py
+          python3 studio-tests/startup_browser_test.py
       - name: Audit actual Studio accessibility states
         if: matrix.browser == 'chromium'
         env:
