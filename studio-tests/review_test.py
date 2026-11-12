@@ -2,6 +2,7 @@
 import unittest
 from selection_test import StudioSelectionTests
 from appearance_test import StudioAppearanceTests
+from voice_mix_test import StudioVoiceMixTests
 from gesture_test import StudioReviewTests
 from canvas_test import StudioCanvasTests
 from keyframe_test import StudioKeyframeTests
@@ -16,7 +17,7 @@ from timing_link_accessibility_test import StudioTimingLinkAccessibilityTests
 def load_tests(loader, tests, pattern):
     # Explicit own-method selection avoids rerunning the inherited baseline suite.
     cases = []
-    for case in (StudioAppearanceTests, StudioSelectionTests, StudioVoiceAuditionTests, StudioTimingLinkTests, StudioTimingLinkAccessibilityTests, StudioVideoHandoffTests, StudioReviewTests, StudioCanvasTests, StudioKeyframeTests, StudioTimelineTests, StudioAudioExportTests):
+    for case in (StudioVoiceMixTests,StudioAppearanceTests, StudioSelectionTests, StudioVoiceAuditionTests, StudioTimingLinkTests, StudioTimingLinkAccessibilityTests, StudioVideoHandoffTests, StudioReviewTests, StudioCanvasTests, StudioKeyframeTests, StudioTimelineTests, StudioAudioExportTests):
         cases.extend(case(name) for name in case.__dict__ if name.startswith('test_'))
     return unittest.TestSuite(cases)
 

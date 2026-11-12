@@ -1,5 +1,5 @@
 import {findClip} from './studio-sdk/index.js';
-import {selectionBounds,includeLinkedClips,moveClips,duplicateClips,deleteClips,createSelectionSnapper,matchClipAppearance} from './studio-sdk/selection.js';
+import {selectionBounds,includeLinkedClips,moveClips,duplicateClips,deleteClips,createSelectionSnapper,matchClipAppearance,setVoiceMix} from './studio-sdk/selection.js';
 
 /** UI-only selection. All project edits still use the host's revision-checked commit. */
 export function createSelectionTools(host){
@@ -59,6 +59,59 @@ export function createSelectionTools(host){
     return Math.round(input.valueAsNumber*1000);
   }
   function duplicateWithOffset(){return safe(()=>duplicate(offset()));}
+  function renderVoiceMix(root,rows){
+    const section=el('details',undefined,root);section.id='selection-voice-mix';
+    el('summary','Voice mix',section);
+    const summary=el('p',undefined,section);summary.className='note';
+    const range=(key,format)=>{const values=rows.map(row=>row.clip[key]),low=Math.min(...values),high=Math.max(...values);
+      return low===high?format(low):format(low)+'–'+format(high);};
+    summary.textContent='Current volume: '+range('gain',n=>String(Math.round(n*100000)/1000)+'%')+
+      ' · fade in: '+range('fadeInMs',textTime)+' · fade out: '+range('fadeOutMs',textTime)+'.';
+    const hint=el('p','Enter only the settings to replace. Empty fields keep each clip’s own value. Apply mix changes all selected voice clips together; it does not change their takes, trims, timing, narration text or track mute state. Values are absolute, not loudness normalization.',section);
+    hint.className='note';hint.id='selection-mix-hint';
+    const form=el('form',undefined,section);form.noValidate=true;form.id='selection-mix-form';
+    const controls=[];
+    for(const [key,id,labelText,max,step,scale] of [
+      ['gain','volume','Volume (%)',200,'any',.01],
+      ['fadeInMs','fade-in','Fade in (seconds)',180,'.001',1000],
+      ['fadeOutMs','fade-out','Fade out (seconds)',180,'.001',1000],
+    ]){
+      const label=el('label',labelText,form);label.className='field';
+      const input=el('input',undefined,label);input.type='number';input.id='selection-mix-'+id;
+      input.min='0';input.max=String(max);input.step=step;input.placeholder='Keep existing';
+      input.setAttribute('aria-describedby','selection-mix-hint selection-mix-status');
+      controls.push({key,input,scale});
+    }
+    const status=el('p','No new settings. Enter a value, then apply.',form);status.id='selection-mix-status';status.className='note';status.setAttribute('role','status');
+    const apply=el('button','Apply mix',form);apply.type='submit';apply.id='selection-mix-apply';apply.disabled=true;
+    form.addEventListener('input',()=>{
+      host.stop();for(const {input} of controls)input.removeAttribute('aria-invalid');
+      apply.disabled=!controls.some(({input})=>input.value!==''||input.validity.badInput);
+      status.textContent='Not applied yet. Choose Apply mix to update the selected clips.';
+    });
+    form.addEventListener('submit',event=>{
+      event.preventDefault();if(!host.ensure())return;
+      const values=controls.map(({input})=>input.value),changes={};
+      try{
+        for(const {key,input,scale} of controls){
+          if(!input.checkValidity()){
+            input.setAttribute('aria-invalid','true');input.focus();
+            throw Error(key==='gain'?'Enter a volume from 0% to 200%.':'Enter a fade from 0 to 180 seconds, with up to three decimal places.');
+          }
+          if(input.value==='')continue;
+          const value=input.valueAsNumber*scale;
+          if(!Number.isFinite(value))throw Error('Enter a finite mix value.');
+          changes[key]=scale===1000?Math.round(value):value;
+        }
+        const before=snapshot();
+        host.commit(setVoiceMix(before.project,ids(),changes),'Update selected voice mix',before.revision);
+        $('selection-voice-mix').open=true;
+        for(let i=0;i<controls.length;i++)$(controls[i].input.id).value=values[i];
+        $('selection-mix-apply').disabled=false;$('selection-mix-apply').focus({preventScroll:true});
+        $('selection-mix-status').textContent='Mix applied. Undo restores all selected clips together.';
+      }catch(error){status.textContent=error.message;host.message(error.message,true);}
+    });
+  }
   function renderInspector(root){
     if(!normalize())return false;
     const range=selectionBounds(project(),group),rows=group.map(id=>findClip(project(),id));
@@ -78,6 +131,7 @@ export function createSelectionTools(host){
     button('selection-duplicate','Duplicate by offset',actions,()=>duplicateWithOffset());
     button('selection-delete','Delete selected clips',actions,remove);
     const kind=rows[0].track.kind;
+    if(kind==='voice'&&rows.every(row=>row.track.kind===kind))renderVoiceMix(root,rows);
     if((kind==='captions'||kind==='cursor')&&rows.every(row=>row.track.kind===kind)){
       const section=el('details',undefined,root);section.id='selection-appearance';
       el('summary','Match appearance',section);
