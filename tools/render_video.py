@@ -63,6 +63,12 @@ def render_template(template: str) -> bytes:
     if template.count(helper) != 1:
         raise ValueError('The Studio export helper changed; review the render-only boundary.')
     result = result.replace(helper, '')
+    # Selection controls are authoring-only. Do not widen the render server's
+    # resource allowlist merely because Studio adds another editor stylesheet.
+    authoring_style = '<link rel="stylesheet" href="./studio-selection.css">'
+    if template.count(authoring_style) != 1:
+        raise ValueError('The Studio authoring stylesheet changed; review the render-only boundary.')
+    result = result.replace(authoring_style, '')
     result = result.replace('</head>', '<style>' + RENDER_CSS + '</style></head>')
     return result.encode()
 

@@ -64,11 +64,20 @@ class VideoModelTests(unittest.TestCase):
         output = renderer.render_template(template).decode()
         self.assertNotIn('src="./studio.mjs"', output)
         self.assertNotIn('studio-video.mjs', output)
+        self.assertNotIn('studio-selection.css', output)
+        self.assertIn('href="./studio.css"', output)
         self.assertIn('src="./render-host.mjs"', output)
         self.assertIn('id="scene" class="orbit" inert', output)
         self.assertIn('id="app-review"', output)
         with self.assertRaises(ValueError):
             renderer.render_template(template.replace('./studio.mjs', './other.mjs'))
+
+    def test_render_only_style_boundary_rejects_missing_or_duplicate_marker(self):
+        template = (ROOT / 'site/studio.html').read_text()
+        marker = '<link rel="stylesheet" href="./studio-selection.css">'
+        for changed in [template.replace(marker, ''), template.replace(marker, marker + marker)]:
+            with self.subTest(template=changed[:40]), self.assertRaisesRegex(ValueError, 'authoring stylesheet'):
+                renderer.render_template(changed)
 
     def test_encoder_has_explicit_streams_frame_rate_and_bounded_duration(self):
         mp4 = renderer.encoder_command(Path('result.mp4'), 30, 31, Path('mix.wav'))
@@ -131,6 +140,8 @@ class VideoModelTests(unittest.TestCase):
     def test_site_integrity_and_exact_source_allowlist(self):
         files, _ = renderer.load_site(ROOT / 'site-dist', None)
         self.assertNotIn('studio.mjs', files)
+        self.assertNotIn('studio-selection.mjs', files)
+        self.assertNotIn('studio-selection.css', files)
         self.assertNotIn('project.director', files)
         self.assertNotIn('AGENTS.md', files)
         self.assertIn('render-host.mjs', files)
