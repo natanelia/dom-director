@@ -1,0 +1,83 @@
+--- a/site/studio.mjs
++++ b/site/studio.mjs
+@@ -66,6 +66,21 @@
+   button.style.left=Math.max(0,pixels-12)+'px';button.style.setProperty('--key-center',Math.min(12,pixels)+'px');
+   button.dataset.keyTime=String(absolute);
+ }
++// Keep exact x/time coordinates; crowded hit areas use separate rows instead of hiding keys.
++// Reflow only between gestures, so pointer capture never moves vertically under the author.
++function layoutTimelineKeys(body){
++  const ends=[];
++  const keys=[...body.querySelectorAll('[data-timeline-key]')].filter(key=>!key.hidden)
++    .sort((a,b)=>parseFloat(a.style.left)-parseFloat(b.style.left));
++  for(const key of keys){
++    const left=parseFloat(key.style.left);
++    let row=ends.findIndex(right=>right<=left);
++    if(row<0)row=ends.length;
++    ends[row]=left+26; // 24px target plus a 2px gap, including coincident split boundaries.
++    key.style.top=(35+row*26)+'px';
++  }
++  body.parentElement.style.height=(36+Math.max(1,ends.length)*26)+'px';
++}
+ function selectTimelineKey(clipId,keyId){
+   if(!ensure())return;
+   const {track,clip}=findClip(project(),clipId),key=clip.keys.find(k=>k.id===keyId);if(!key)return;
+@@ -110,6 +125,7 @@
+       }
+       for(const side of ['start','end']){const h=node('span',undefined,b);h.className='trim '+side;h.dataset.trim=side;h.setAttribute('aria-hidden','true');}
+     }
++    if(['camera','cursor'].includes(track.kind))layoutTimelineKeys(l.body);
+   }
+ }
+ function group(title,{collapsed=false}={}){
+@@ -756,4 +772,3 @@
+     title:'Delete linked caption?',description:'This caption supplies timing to camera or cursor keys.',label:'Detach links and delete caption',
+     confirm:'Delete caption',linkedConfirm:'Detach links and delete caption'});
+ }
+-
+--- a/studio-tests/timing_link_test.py
++++ b/studio-tests/timing_link_test.py
+@@ -267,6 +267,35 @@
+         self.assertNotIn('timing', new)
+         self.assertEqual(self.key(after), self.key(before))
+ 
++    def test_crowded_key_targets_remain_separate_at_their_exact_time_positions(self):
++        self.words()
++        self.link()
++        self.seek(.01)
++        self.page.locator('#add-key').click()
++        before = self.project()
++        ids = [k['id'] for k in self.clip(before, 'camera.overview')['keys']]
++        self.assertEqual(len(ids), 3)
++        for zoom in [20, 40, 180]:
++            self.page.locator('#timeline-zoom').evaluate(
++                '(el,value)=>{el.value=String(value);el.dispatchEvent(new Event("input",{bubbles:true}));}', zoom)
++            boxes = self.page.locator('.lane[data-kind="camera"] [data-timeline-key]:not([hidden])').evaluate_all("""keys=>keys.map(el=>{
++                const b=el.getBoundingClientRect(),parent=el.parentElement.getBoundingClientRect();
++                return {left:b.left,right:b.right,top:b.top,bottom:b.bottom,width:b.width,height:b.height,
++                    point:b.left-parent.left+parseFloat(el.style.getPropertyValue('--key-center')),time:Number(el.dataset.keyTime)};
++            })""")
++            for i, box in enumerate(boxes):
++                self.assertGreaterEqual(box['width'], 24)
++                self.assertGreaterEqual(box['height'], 24)
++                self.assertAlmostEqual(box['point'], box['time'] / 1000 * zoom, delta=.06)
++                for other in boxes[:i]:
++                    self.assertTrue(box['right'] <= other['left'] or box['left'] >= other['right'] or
++                                    box['bottom'] <= other['top'] or box['top'] >= other['bottom'])
++            for key_id in ids:
++                button = self.page.locator('[data-timeline-key="' + key_id + '"]')
++                button.click()
++                self.assertEqual(button.get_attribute('aria-pressed'), 'true')
++            self.assertEqual(self.project(), before, 'Reflowing or selecting keys must not change timing.')
++
+     def test_keyboard_mobile_and_dependency_navigation_are_usable(self):
+         self.words()
+         self.motion_key()
+--- a/docs/studio-word-link-controls.md
++++ b/docs/studio-word-link-controls.md
+@@ -62,3 +62,5 @@
+ verified-public review runner. The Studio axe audit adds the link review, inspector,
+ mobile, dependency, and destructive-edit review states. These are test definitions,
+ not blanket claims of browser, device or accessibility certification.
++
++Crowded timeline keys keep their exact horizontal time position and use separate hit-target rows. This also covers coincident keys at split boundaries; no key is hidden or moved in time to make the controls fit. Rows settle between gestures, not under an active pointer drag.
