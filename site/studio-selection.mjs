@@ -1,9 +1,11 @@
+import {createCaptionSearch} from './studio-captions.mjs';
 import {findClip} from './studio-sdk/index.js';
 import {selectionBounds,includeLinkedClips,moveClips,duplicateClips,deleteClips,createSelectionSnapper,matchClipAppearance,setVoiceMix} from './studio-sdk/selection.js';
 
 /** UI-only selection. All project edits still use the host's revision-checked commit. */
 export function createSelectionTools(host){
   const doc=host.document,$=id=>doc.getElementById(id),off=[];
+  const captionSearch=createCaptionSearch(host);
   let group=[],disposed=false,cancelDrag=null,suppressClick=false;
   $('clip-list').textContent='Select clips';$('clip-list').title='Choose one or more clips across tracks';
   $('loop').textContent='Loop selection';$('loop').setAttribute('aria-label','Loop selected range');
@@ -280,5 +282,5 @@ export function createSelectionTools(host){
   return {get size(){return group.length>1?group.length:ids().length;},ids,normalize,clear,set,contains:id=>ids().includes(id),
     renderInspector,openList,remove,duplicate:duplicateWithOffset,
     bounds:()=>selectionBounds(project(),ids()),
-    destroy(){if(disposed)return;cancelDrag?.();disposed=true;off.splice(0).forEach(fn=>fn());group=[];suppressClick=false;}};
+    destroy(){if(disposed)return;captionSearch.destroy();cancelDrag?.();disposed=true;off.splice(0).forEach(fn=>fn());group=[];suppressClick=false;}};
 }

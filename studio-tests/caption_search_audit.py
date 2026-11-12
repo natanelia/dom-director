@@ -1,0 +1,26 @@
+"""Additional states for the pinned Studio audit; no rules are excluded."""
+def audit_caption_search(case, audit):
+    page = case.page
+    page.set_viewport_size({'width': 1440, 'height': 1000})
+    page.locator('#find-captions').focus()
+    page.keyboard.press('Enter')
+    assert page.locator('#caption-query').evaluate('el=>el===document.activeElement')
+    page.locator('#caption-search-submit').click()
+    assert '1–256' in page.locator('#caption-search-error').inner_text()
+    audit('caption-search-invalid')
+    page.locator('#caption-query').fill('product')
+    page.locator('#caption-replacement').fill('walkthrough')
+    page.locator('#caption-query').press('Enter')
+    assert page.locator('#caption-search-results mark').inner_text() == 'product'
+    audit('caption-search-results')
+    page.locator('#caption-replace-review').focus()
+    page.keyboard.press('Enter')
+    assert page.locator('#caption-clear-timing').is_visible()
+    assert page.locator('#caption-replace-review').is_disabled()
+    audit('caption-search-timing-review')
+    page.set_viewport_size({'width': 390, 'height': 844})
+    assert not page.evaluate('document.documentElement.scrollWidth > innerWidth')
+    audit('caption-search-mobile')
+    page.keyboard.press('Escape')
+    page.wait_for_function("!document.querySelector('#dialog').open")
+    assert page.locator('#find-captions').evaluate('el=>el===document.activeElement')
