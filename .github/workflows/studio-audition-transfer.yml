@@ -1,0 +1,32 @@
+name: Assemble voice audition change
+on:
+  push:
+    branches: [work/studio-voice-audition-transfer-20261112]
+permissions:
+  contents: write
+jobs:
+  assemble:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          fetch-depth: 2
+          persist-credentials: false
+      - name: Verify preimages and assemble the prepared patch
+        run: |
+          test "$(git rev-parse HEAD^)" = 04adb04ecf0f53db8fc615a94bd311a6936523e8
+          python3 .transfer/apply.py
+          node --check packages/studio/src/media.js
+          node --check site/studio.mjs
+          git diff --check
+      - name: Commit on the temporary branch only
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          git config user.name 'Natan'
+          git config user.email '1708681+natanelia@users.noreply.github.com'
+          git add packages/studio/src/media.js packages/studio/src/media.d.ts site/studio.mjs tools/check_studio.py studio-tests/review_test.py studio-tests/accessibility.py docs/studio-workspace.md
+          git commit -m 'build: assemble exact-preimage voice audition changes'
+          git -c 'credential.helper=!f() { echo username=x-access-token; echo "password=$GH_TOKEN"; }; f' push origin HEAD:refs/heads/work/studio-voice-audition-transfer-20261112
+          git rev-parse HEAD

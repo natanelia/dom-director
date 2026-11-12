@@ -1,0 +1,17 @@
+
+export interface TakeAuditionState {
+ readonly state:'idle'|'loading'|'playing'|'ended'|'error'|'destroyed';
+ readonly assetId:string|null;
+ readonly error?:string;
+}
+export interface TakeAuditionOptions {
+ sourceInMs?:number;durationMs?:number;gain?:number;fadeInMs?:number;fadeOutMs?:number;signal?:AbortSignal;
+}
+export type TakeAuditionResult = {status:'playing'|'cancelled'}|{status:'error';error:string};
+export interface TakeAuditioner {
+ /** Explicit audible listening. Omitted duration uses the full remaining decoded source. */
+ play(asset:DeepReadonly<AudioAsset>,options?:TakeAuditionOptions):Promise<TakeAuditionResult>;
+ stop():void;inspect():TakeAuditionState;destroy():void;
+}
+/** Single-take listening only; the host owns the shared context and project. Never closes the bank. */
+export function createTakeAuditioner(options:{bank:Pick<MediaBank,'context'|'load'>;onState?:(state:TakeAuditionState)=>void;timeoutMs?:number}):TakeAuditioner;
