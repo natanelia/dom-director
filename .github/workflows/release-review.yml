@@ -1,0 +1,44 @@
+name: Accessibility and security review
+on:
+  push:
+    branches: [main]
+  pull_request:
+permissions:
+  contents: read
+concurrency:
+  group: release-review-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  review:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: '3.13'
+      - name: Build synthetic public fixture
+        run: |
+          bash tools/install_site_tools.sh
+          python3 tools/build_runtime.py
+          python3 tools/build_site.py
+      - name: Install pinned test-only accessibility engine and browser
+        env:
+          BROWSER_ENGINE: chromium
+        run: |
+          npm install --prefix "$RUNNER_TEMP/director-audit" --ignore-scripts --no-audit --no-fund --save-exact axe-core@4.10.3
+          bash tools/install_test_browser.sh
+      - name: Audit accessibility states, keyboard behavior and CSP compatibility
+        env:
+          AXE_PATH: ${{ runner.temp }}/director-audit/node_modules/axe-core/axe.min.js
+        run: python3 site-tests/accessibility_security.py
+      - name: Preserve synthetic review evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: accessibility-security-review
+          path: review-results/
+          if-no-files-found: ignore
+          retention-days: 7

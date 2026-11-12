@@ -1,0 +1,101 @@
+name: Studio checks
+on:
+  push:
+    branches: [main]
+  pull_request:
+permissions:
+  contents: read
+concurrency:
+  group: studio-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  model:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: '3.13'
+      - name: Build schemas and link the local core
+        run: |
+          python3 tools/build_runtime.py
+          mkdir -p node_modules/@dom-director
+          ln -s ../../packages/core node_modules/@dom-director/core
+      - name: Deterministic rich-project and timeline tests
+        run: |
+          node --test packages/studio/test/*.test.js
+          python3 studio-tests/publication_test.py
+      - name: Pack and install actual local candidates
+        run: python3 tools/check_studio.py
+  browser:
+    name: Studio editing in ${{ matrix.browser }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        browser: [chromium, firefox, webkit]
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: '3.13'
+      - name: Build exact public Studio fixture
+        run: |
+          python3 tools/build_runtime.py
+          bash tools/install_site_tools.sh
+          python3 tools/build_site.py
+          node --check site/studio.mjs
+          node --check site/studio-view.mjs
+      - name: Preserve reproducible synthetic fixture
+        if: matrix.browser == 'chromium'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: studio-reproduction
+          # Explicit source/fixture paths only: never credentials, environment or .git.
+          path: |
+            site-dist/
+            site/
+            studio-tests/
+            packages/core/src/
+            packages/core/package.json
+            packages/studio/
+            schemas/
+            docs/
+            tools/
+            package.json
+            AGENTS.md
+            README.md
+            LICENSE
+          if-no-files-found: error
+          retention-days: 7
+      - name: Install selected browser
+        env:
+          BROWSER_ENGINE: ${{ matrix.browser }}
+        run: bash tools/install_test_browser.sh
+      - name: Exercise editing, preview, media and project round trips
+        env:
+          BROWSER_ENGINE: ${{ matrix.browser }}
+        run: |
+          python3 studio-tests/browser_test.py
+          python3 studio-tests/review_test.py
+      - name: Audit actual Studio accessibility states
+        if: matrix.browser == 'chromium'
+        env:
+          BROWSER_ENGINE: chromium
+        run: |
+          npm install --prefix "$RUNNER_TEMP/studio-a11y" --ignore-scripts --no-audit --no-fund axe-core@4.10.3
+          AXE_PATH="$RUNNER_TEMP/studio-a11y/node_modules/axe-core/axe.min.js" python3 studio-tests/accessibility.py
+      - name: Preserve synthetic Studio screenshots and audit
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: studio-${{ matrix.browser }}
+          path: studio-results/
+          if-no-files-found: ignore
+          retention-days: 7

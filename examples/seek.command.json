@@ -1,0 +1,11 @@
+{
+  "protocolVersion": "0.1.0-draft.1",
+  "requestId": "req-018",
+  "sessionId": "session-demo",
+  "expectedRevision": 12,
+  "command": "seek",
+  "params": {
+    "sceneId": "overview",
+    "timeMs": 800
+  }
+}

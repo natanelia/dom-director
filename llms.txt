@@ -1,0 +1,29 @@
+# DOM Director
+
+> A framework-neutral, data-only cinematic walkthrough engine for intentional live-DOM surfaces, with optional React bindings. Implementation candidate 0.1.0-rc.0; packages are private and not published to npm.
+
+## Implemented entry points
+
+- [README and quick start](README.md)
+- [Core API and surface contract](packages/core/README.md)
+- [Core TypeScript declarations](packages/core/src/index.d.ts)
+- [React lifecycle integration](packages/react/README.md)
+- [Canonical tour schema](schemas/tour.schema.json)
+- [Agent command schema](schemas/agent-command.schema.json)
+- [Canonical Orbit walkthrough](site/orbit.tour.json)
+- [Agent consumer](site/agent.mjs)
+- [Release evidence and limitations](docs/release-candidate.md)
+- [Agent working agreement](AGENTS.md)
+
+## Trust boundaries
+
+Scripts cannot contain executable callbacks or grant host permissions. Target IDs resolve through host-owned registries. Missing targets fail explicitly. Simulated input is never consent. Visual seeking does not execute actions. Try requires an isolated fixture. Checkpoints are same-run visual resume only. The bridge is in-process, bounded JSON, not an authenticated remote/MCP transport. No telemetry, live model, recording or persistence is enabled by default.
+
+## Design context
+
+- [Design index](docs/README.md)
+- [Milestones and evidence](docs/16-roadmap.md)
+- [Security and privacy](SECURITY.md)
+- [Package preparation and migration](PUBLISHING.md)
+
+Use the implemented declarations and executable tests for available behavior. Earlier design chapters describe a broader roadmap; do not treat optional features as shipped.

@@ -1,0 +1,67 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:dom-director:schema:diagnostic:0.1.0-draft.1",
+  "title": "DOM Director diagnostic (draft)",
+  "type": "object",
+  "properties": {
+    "code": {
+      "type": "string",
+      "pattern": "^[A-Z][A-Z0-9_]{0,79}$"
+    },
+    "severity": {
+      "enum": [
+        "error",
+        "warning",
+        "info"
+      ]
+    },
+    "phase": {
+      "enum": [
+        "parse",
+        "compile",
+        "prepare",
+        "playback",
+        "policy",
+        "integration",
+        "validation"
+      ]
+    },
+    "path": {
+      "type": "string",
+      "pattern": "^(|/.*)$",
+      "maxLength": 2048
+    },
+    "message": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 4000
+    },
+    "recoveries": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^[a-z][a-z0-9-]{0,79}$"
+      },
+      "minItems": 0,
+      "maxItems": 20,
+      "uniqueItems": true
+    },
+    "targetId": {
+      "type": "string",
+      "pattern": "^[A-Za-z][A-Za-z0-9._-]{0,79}$"
+    },
+    "revision": {
+      "type": "integer",
+      "minimum": 0
+    }
+  },
+  "required": [
+    "code",
+    "severity",
+    "phase",
+    "path",
+    "message",
+    "recoveries"
+  ],
+  "additionalProperties": false
+}

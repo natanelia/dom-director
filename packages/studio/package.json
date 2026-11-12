@@ -1,0 +1,40 @@
+{
+  "name": "@dom-director/studio",
+  "version": "0.1.0-rc.0",
+  "private": true,
+  "type": "module",
+  "license": "MIT",
+  "description": "Video-style timeline and authoring primitives for live DOM walkthroughs",
+  "types": "./src/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./src/index.d.ts",
+      "import": "./src/index.js"
+    },
+    "./media": {
+      "types": "./src/media.d.ts",
+      "import": "./src/media.js"
+    },
+    "./editing": {
+      "types": "./src/editing.d.ts",
+      "import": "./src/editing.js"
+    },
+    "./audio-export": {
+      "types": "./src/audio-export.d.ts",
+      "import": "./src/audio-export.js"
+    },
+    "./timing-links": {
+      "types": "./src/timing-links.d.ts",
+      "import": "./src/timing-links.js"
+    }
+  },
+  "peerDependencies": {
+    "@dom-director/core": "0.1.0-rc.0"
+  },
+  "files": [
+    "src",
+    "README.md",
+    "LICENSE"
+  ],
+  "sideEffects": false
+}

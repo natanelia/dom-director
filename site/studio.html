@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>DOM Director Studio — edit the living story</title>
+  <meta name="description" content="A video-style editor for real DOM. Compose captions, voiceover, cursor motion and camera keyframes on one timeline.">
+  <link rel="stylesheet" href="./studio.css">
+</head>
+<body>
+<div class="studio" id="studio" data-ready="false">
+  <header class="topbar">
+    <a class="brand" href="./" aria-label="DOM Director live demo"><span class="brand-mark">D</span><strong>DOM Director</strong><span>Studio</span></a>
+    <label class="project-title"><span class="sr-only">Project title</span><input id="project-title" maxlength="200" value="A living product story"></label>
+    <div class="top-actions"><button id="undo" aria-label="Undo edit" title="Undo (Ctrl/Cmd+Z)">↶</button><button id="redo" aria-label="Redo edit" title="Redo (Ctrl/Cmd+Shift+Z)">↷</button><button id="open-project">Open</button><button id="save-project">Save project</button><button id="preview-tour" class="primary">▶ Preview tour</button><button id="export-open">Export ↗</button></div>
+  </header>
+  <main class="workspace">
+    <h1 class="sr-only">DOM Director Studio</h1>
+    <aside class="scene-panel" aria-label="Project scenes">
+      <div class="panel-title"><strong>Your story</strong><span class="badge" id="scene-count">3 scenes</span></div>
+      <p class="muted small">Select a scene. Shape the moment.</p><ol id="scene-list" class="scene-list"></ol>
+      <button id="add-scene" class="full">＋ Add scene</button>
+      <div class="scene-buttons"><button id="scene-up" aria-label="Move scene earlier">↑ Earlier</button><button id="scene-down" aria-label="Move scene later">↓ Later</button><button id="scene-delete">Delete scene</button></div>
+      <div class="scene-note"><span class="eyebrow">A living canvas</span><p>Not a screen recording.<br>Every shot is real DOM.</p><p>Visual preview never clicks the application.</p><a href="./agent.html">Agent lab ↗</a></div>
+    </aside>
+    <section class="canvas-panel" aria-label="Live presentation preview">
+      <div class="canvas-toolbar"><span id="scene-name">01 / The living workspace</span><div><label>Canvas view <select id="canvas-zoom"><option value="1">Fit</option><option value="1.25">125%</option><option value="1.5">150%</option></select></label><button id="motion" aria-pressed="false">Motion on</button></div></div>
+      <div class="canvas-stage-wrap"><div id="stage" class="canvas-stage">
+        <div id="scene" class="orbit" inert>
+          <nav class="orbit-nav" aria-label="Synthetic Orbit workspace"><strong>◉ ORBIT</strong><span class="orbit-nav-active">Overview</span><span>Routes</span><span>Reviews</span><small>● All systems live</small><span class="avatar">NE</span></nav>
+          <div class="orbit-body"><div class="orbit-heading"><div><span class="eyebrow">Mission control / workspace 01</span><h1>A clearer way forward.</h1><p>Route intelligence, brought into focus.</p></div><span class="live-badge">Live workspace ●</span></div>
+            <div id="metrics" class="metrics"><div><span>Routes assessed</span><strong>128 <small>↗ 12.8%</small></strong><div class="mini-bars"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div></div><div><span>Checkpoints cleared</span><strong>24<small>/ 25</small></strong><div class="progress"><i></i></div></div><div><span>Needs your attention</span><strong>01<small>checkpoint</small></strong><p>A small detail. A better route.</p></div></div>
+            <div class="orbit-content"><div id="route-map" class="route-map"><div class="map-label"><b>Route 08 / West loop</b><br>4.8 km · 12 checkpoints</div><svg viewBox="0 0 570 245" aria-label="Illustrative route, not a geographic map"><defs><pattern id="map-grid" width="24" height="24" patternUnits="userSpaceOnUse"><path d="M24 0H0V24" fill="none" stroke="#dce3cc"/></pattern></defs><rect width="570" height="245" fill="url(#map-grid)"/><path d="M-10 176C85 194 96 34 228 88S405 206 590 90" fill="none" stroke="#bfd0b7" stroke-width="24"/><path d="M40 207L107 174L180 174L228 116L316 116L355 65L454 65L498 111" fill="none" stroke="#fffef5" stroke-width="13"/><path d="M40 207L107 174L180 174L228 116L316 116L355 65L454 65L498 111" fill="none" stroke="#446449" stroke-width="5"/><g fill="#fffef5" stroke="#446449" stroke-width="2"><circle cx="107" cy="174" r="6"/><circle cx="228" cy="116" r="6"/><circle cx="355" cy="65" r="6"/><circle cx="498" cy="111" r="6"/></g><circle cx="316" cy="116" r="17" fill="#d6ad65" opacity=".35"/><circle cx="316" cy="116" r="7" fill="#b7703a"/><text x="332" y="143" fill="#455b41" font-size="10">REVIEW POINT</text></svg><div class="map-key">● Assessed route　 ◉ Review checkpoint</div></div>
+            <div id="review" class="review-card"><span class="eyebrow">Your next step</span><h2>One detail.<br>A better decision.</h2><p>Review the checkpoint before clearing this route.</p><hr><small>Route quality <b>96%</b></small><button id="app-review" tabindex="-1">Review checkpoint ↗</button><p class="tiny">Visual preview · no app actions</p></div></div>
+          </div>
+        </div>
+        <div id="stage-overlays" aria-hidden="true"><svg id="cursor-layer"></svg><div id="caption-overlay"></div><svg id="edit-handles"></svg></div>
+        <button id="canvas-picker" hidden>Choose this focus</button><div class="stage-label">LIVE DOM · EDITABLE</div>
+      </div></div>
+      <div class="transport"><div><button id="restart" aria-label="Go to start">⏮</button><button id="play" class="play-button" aria-label="Play preview">▶</button><button id="stop" aria-label="Stop preview">■</button><output id="timecode" aria-live="off">00:00.00 / 00:22.60</output></div><div><button id="loop" aria-pressed="false">Loop clip</button><button id="sound" aria-pressed="false">Sound off</button><button id="captions" aria-pressed="true">CC</button></div></div>
+      <label class="seek-label"><span class="sr-only">Playhead position in seconds</span><input id="seek" type="range" min="0" max="23" step="0.001" value="0"></label>
+      <p class="canvas-help" id="canvas-help">Select a clip below to edit captions, voice, cursor, or camera.</p>
+    </section>
+    <aside class="inspector-panel" aria-label="Selected item settings"><div class="inspector-tabs" role="group" aria-label="Editing track"><button data-kind="captions" aria-pressed="true">CC</button><button data-kind="voice" aria-pressed="false">Voice</button><button data-kind="cursor" aria-pressed="false">Cursor</button><button data-kind="camera" aria-pressed="false">Camera</button></div><div id="inspector"></div></aside>
+  </main>
+  <section class="timeline-panel" aria-label="Multitrack timeline"><div class="timeline-toolbar"><strong>Timeline</strong><div><button id="split">Split</button><button id="duplicate">Duplicate</button><button id="delete-clip">Delete</button><label><input type="checkbox" id="snap" checked> Snap</label><label><input type="checkbox" id="ripple"> Ripple</label></div><div class="timeline-zoom"><label>Timeline zoom <input id="timeline-zoom" type="range" min="20" max="180" step="5" value="42"></label><button id="fit-timeline">Fit all</button><button id="clip-list">Clip list</button></div></div><div id="timeline-scroll"><div id="timeline-content"><div id="ruler"></div><div id="lanes"></div><div id="playhead" aria-hidden="true"></div></div></div></section>
+  <footer class="statusbar"><span id="status" role="status">Ready · edited in this tab. Save project to keep your work.</span><span id="revision">Revision 0 · in this tab</span><button id="shortcuts">Shortcuts ?</button></footer>
+</div>
+<input type="file" id="project-file" accept=".director" hidden><input type="file" id="audio-file" accept="audio/*" hidden><input type="file" id="subtitle-file" accept=".vtt,.srt,text/vtt" hidden>
+<dialog id="dialog" aria-labelledby="dialog-title"><h2 id="dialog-title"></h2><div id="dialog-body"></div><div id="dialog-actions" class="actions"></div></dialog>
+<noscript>This editor needs JavaScript. No microphone, external service or storage is enabled automatically.</noscript>
+<script type="module" src="./studio.mjs"></script>
+<script type="module" src="./studio-video.mjs"></script>
+</body></html>

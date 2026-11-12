@@ -1,0 +1,1574 @@
+{
+  "schemaVersion": "1",
+  "status": "proposed runtime requirements; not implementation evidence",
+  "requirements": [
+    {
+      "id": "FMT-001",
+      "area": "Script language",
+      "priority": "P0",
+      "summary": "Versioned closed grammar",
+      "acceptance": "Reject unknown schema versions, unknown operation kinds, and unknown closed-object fields.",
+      "designDoc": "docs/05-script-format.md",
+      "backlogId": "B01",
+      "plannedTests": [
+        "T-FMT-001"
+      ],
+      "status": "proposed",
+      "evidence": []
+    },
+    {
+      "id": "FMT-002",
+      "area": "Script language",
+      "priority": "P0",
+      "summary": "Bounded parsing",
+      "acceptance": "Reject duplicate keys, non-finite numbers, excessive nesting, and documents over the declared byte limit.",
+      "designDoc": "docs/05-script-format.md",
+      "backlogId": "B01",
+      "plannedTests": [
+        "T-FMT-002"
+      ],
+      "status": "proposed",
+      "evidence": []
+    },
+    {
+      "id": "FMT-003",
+      "area": "Script language",
+      "priority": "P0",
+      "summary": "Stable identifiers",
+      "acceptance": "Reject duplicate scene/cue IDs and unresolved entry/destination/target/narration references.",
+      "designDoc": "docs/05-script-format.md",
+      "backlogId": "B01",
+      "plannedTests": [
+        "T-FMT-003"
+      ],
+      "status": "proposed",
+      "evidence": []
+    },
+    {
+      "id": "FMT-004",
+      "area": "Script language",
+      "priority": "P0",
+      "summary": "Semantic timing",
+      "acceptance": "Resolve phrase anchors deterministically and reject negative or out-of-scene cue intervals.",
+      "designDoc": "docs/05-script-format.md",
+      "backlogId": "B01",
+      "plannedTests": [
+        "T-FMT-004"
+      ],
+      "status": "proposed",
+      "evidence": []
+    },
+    {
+      "id": "FMT-005",
+      "area": "Script language",
+      "priority": "P0",
+      "summary": "Acyclic branches",
+      "acceptance": "Reject cycles and unreachable scenes; accept shared terminal scenes and explicit choices.",
+      "designDoc": "docs/05-script-format.md",
+      "backlogId": "B01",
+      "plannedTests": [
+        "T-FMT-005"
+      ],
+      "status": "proposed",
+      "evidence": []
+    },
+    {
+      "id": "FMT-006",
+      "area": "Script language",
+      "priority": "P0",
+      "summary": "Data-only execution",
+      "acceptance": "Reject serialized callbacks or executable operation kinds; keep host callbacks outside scripts.",
+      "designDoc": "docs/05-script-format.md",
+      "backlogId": "B01",
+      "plannedTests": [
+        "T-FMT-006"
+      ],
+      "status": "proposed",
+      "evidence": []
+    },
+    {
+      "id": "FMT-007",
+      "area": "Script language",
+      "priority": "P0",
+      "summary": "Capability declarations",
+      "acceptance": "Require named action/condition requests to be declared; declaration alone never authorizes execution.",
+      "designDoc": "docs/05-script-format.md",
+      "backlogId": "B01",
+      "plannedTests": [
+        "T-FMT-007"
+      ],
+      "status": "proposed",
+      "evidence": []
+    },
+    {
+      "id": "FMT-008",
+      "area": "Script language",
+      "priority": "P0",
+      "summary": "Readable authoring",
+      "acceptance": "Provide a minimal three-scene example and an advanced example using the same canonical format.",
+      "designDoc": "docs/05-script-format.md",
+      "backlogId": "B01",
+      "plannedTests": [
+        "T-FMT-008"
+      ],
+      "status": "proposed",
+      "evidence": []
+    },
+    {
+      "id": "SUR-001",
+      "area": "Surface integration",
+      "priority": "P0",
+      "summary": "Explicit managed root",
+      "acceptance": "Mount against an intentional host wrapper without reparenting or remounting application nodes.",
+      "designDoc": "docs/06-camera-and-geometry.md",
+      "backlogId": "B02",
+      "plannedTests": [
+        "T-SUR-001"
+      ],
+      "status": "proposed",
+      "evidence": []
+    },
+    {
+      "id": "SUR-002",
+      "area": "Surface integration",
+      "priority": "P0",
+      "summary": "Overlay separation",
+      "acceptance": "Keep controls and captions outside the transformed scene at all camera scales.",
+      "designDoc": "docs/06-camera-and-geometry.md",
+      "backlogId": "B02",
+      "plannedTests": [
+        "T-SUR-002"
+      ],
+      "status": "proposed",
+      "evidence": []
+    },
+    {
+      "id": "SUR-003",
+      "area": "Surface integration",
+      "priority": "P0",
+      "summary": "No camera layout writes",
+      "acceptance": "A steady shot writes transforms rather than width, height, font size, or CSS zoom.",
+      "designDoc": "docs/06-camera-and-geometry.md",
+      "backlogId": "B02",
+      "plannedTests": [
+        "T-SUR-003"
+      ],
+      "status": "proposed",
+      "evidence": []
+    },
+    {
+      "id": "SUR-004",
+      "area": "Surface integration",
+      "priority": "P0",
+      "summary": "Fixed and sticky preflight",
+      "acceptance": "Document and test changed containing-block/scroll behavior; offer fallback when unsuitable.",
+      "designDoc": "docs/06-camera-and-geometry.md",
+      "backlogId": "B02",
+      "plannedTests": [
+        "T-SUR-004"
+      ],
+      "status": "proposed",
+      "evidence": []
+    },
+    {
+      "id": "SUR-005",
+      "area": "Surface integration",
+      "priority": "P0",
+      "summary": "Portals and top layer",
+      "acceptance": "Test external portals, dialogs, and popovers; never claim automatic scene membership.",
+      "designDoc": "docs/06-camera-and-geometry.md",
+      "backlogId": "B02",
+      "plannedTests": [
+        "T-SUR-005"
+      ],
+      "status": "proposed",
+      "evidence": []
+    },
+    {
+      "id": "SUR-006",
+      "area": "Surface integration",
+      "priority": "P0",
+      "summary": "Overlay-only fallback",
+      "acceptance": "Run semantic explanations and guides when managed transformation is unavailable or disabled.",
+      "designDoc": "docs/06-camera-and-geometry.md",
+      "backlogId": "B02",
+      "plannedTests": [
+        "T-SUR-006"
+      ],
+      "status": "proposed",
+      "evidence": []
+    },
+    {
+      "id": "SUR-007",
+      "area": "Surface integration",
+      "priority": "P0",
+      "summary": "Property ownership",
+      "acceptance": "Prevent a second controller from silently competing for an owned surface transform.",
+      "designDoc": "docs/06-camera-and-geometry.md",
+      "backlogId": "B02",
+      "plannedTests": [
+        "T-SUR-007"
+      ],
+      "status": "proposed",
+      "evidence": []
+    },
+    {
+      "id": "SUR-008",
+      "area": "Surface integration",
+      "priority": "P0",
+      "summary": "Restoration journal",
+      "acceptance": "Restore only engine-owned changes still carrying the engine value; preserve unrelated host edits.",
+      "designDoc": "docs/06-camera-and-geometry.md",
+      "backlogId": "B02",
+      "plannedTests": [
+        "T-SUR-008"
+      ],
+      "status": "proposed",
+      "evidence": []
+    },
+    {
+      "id": "TGT-001",
+      "area": "Target discovery and geometry",
+      "priority": "P0",
+      "summary": "Semantic registry",
+      "acceptance": "Resolve stable host IDs lazily; a replaced element can resolve without editing the script.",
+      "designDoc": "docs/06-camera-and-geometry.md",
+      "backlogId": "B04",
+      "plannedTests": [
+        "T-TGT-001"
+      ],
+      "status": "proposed",
+      "evidence": []
+    },
+    {
+      "id": "TGT-002",
+      "area": "Target discovery and geometry",
+      "priority": "P0",
+      "summary": "Ambiguity failure",
+      "acceptance": "Missing or ambiguous targets pause/fail explicitly; never select a destructive lookalike.",
+      "designDoc": "docs/06-camera-and-geometry.md",
+      "backlogId": "B04",
+      "plannedTests": [
+        "T-TGT-002"
+      ],
+      "status": "proposed",
+      "evidence": []
+    },
+    {
+      "id": "TGT-003",
+      "area": "Target discovery and geometry",
+      "priority": "P0",
+      "summary": "Coordinate identity",
+      "acceptance": "Tag geometry with coordinate space and revisions; test surface offsets and scene/client round-trips.",
+      "designDoc": "docs/06-camera-and-geometry.md",
+      "backlogId": "B04",
+      "plannedTests": [
+        "T-TGT-003"
+      ],
+      "status": "proposed",
+      "evidence": []
+    },
+    {
+      "id": "TGT-004",
+      "area": "Target discovery and geometry",
+      "priority": "P0",
+      "summary": "Bounded invalidation",
+      "acceptance": "Batch dirty geometry reads before writes and avoid full-document scans every frame.",
+      "designDoc": "docs/06-camera-and-geometry.md",
+      "backlogId": "B04",
+      "plannedTests": [
+        "T-TGT-004"
+      ],
+      "status": "proposed",
+      "evidence": []
+    },
+    {
+      "id": "TGT-005",
+      "area": "Target discovery and geometry",
+      "priority": "P0",
+      "summary": "Scroll reveal",
+      "acceptance": "Separate authorized scroll/reveal effects from camera framing and wait for readiness.",
+      "designDoc": "docs/06-camera-and-geometry.md",
+      "backlogId": "B04",
+      "plannedTests": [
+        "T-TGT-005"
+      ],
+      "status": "proposed",
+      "evidence": []
+    },
+    {
+      "id": "TGT-006",
+      "area": "Target discovery and geometry",
+      "priority": "P1",
+      "summary": "Virtualized targets",
+      "acceptance": "Support a host materialization/readiness adapter; do not report an offscreen unmounted row as a proven stale ID.",
+      "designDoc": "docs/06-camera-and-geometry.md",
+      "backlogId": "B04",
+      "plannedTests": [
+        "T-TGT-006"
+      ],
+      "status": "proposed",
+      "evidence": []
+    },
+    {
+      "id": "TGT-007",
+      "area": "Target discovery and geometry",
+      "priority": "P1",
+      "summary": "Virtual geometry",
+      "acceptance": "Accept host-projected non-DOM target bounds without pretending canvas objects are DOM nodes.",
+      "designDoc": "docs/06-camera-and-geometry.md",
+      "backlogId": "B04",
+      "plannedTests": [
+        "T-TGT-007"
+      ],
+      "status": "proposed",
+      "evidence": []
+    },
+    {
+      "id": "TGT-008",
+      "area": "Target discovery and geometry",
+      "priority": "P0",
+      "summary": "Unsupported transforms",
+      "acceptance": "Reject noninvertible or unproven perspective geometry with an explicit diagnostic.",
+      "designDoc": "docs/06-camera-and-geometry.md",
+      "backlogId": "B04",
+      "plannedTests": [
+        "T-TGT-008"
+      ],
+      "status": "proposed",
+      "evidence": []
+    },
+    {
+      "id": "CAM-001",
+      "area": "Camera and visual rendering",
+      "priority": "P0",
+      "summary": "Safe-area framing",
+      "acceptance": "Fit targets inside viewport regions reserved for controls, captions, and insets.",
+      "designDoc": "docs/06-camera-and-geometry.md",
+      "backlogId": "B05",
+      "plannedTests": [
+        "T-CAM-001"
+      ],
+      "status": "proposed",
+      "evidence": []
+    },
+    {
+      "id": "CAM-002",
+      "area": "Camera and visual rendering",
+      "priority": "P0",
+      "summary": "Scale bounds",
+      "acceptance": "Clamp to declared limits and report clipping when containment cannot be achieved.",
+      "designDoc": "docs/06-camera-and-geometry.md",
+      "backlogId": "B05",
+      "plannedTests": [
+        "T-CAM-002"
+      ],
+      "status": "proposed",
+      "evidence": []
+    },
+    {
+      "id": "CAM-003",
+      "area": "Camera and visual rendering",
+      "priority": "P0",
+      "summary": "Named easing",
+      "acceptance": "Provide deterministic finite-duration presets plus an immediate/non-moving path.",
+      "designDoc": "docs/06-camera-and-geometry.md",
+      "backlogId": "B05",
+      "plannedTests": [
+        "T-CAM-003"
+      ],
+      "status": "proposed",
+      "evidence": []
+    },
+    {
+      "id": "CAM-004",
+      "area": "Camera and visual rendering",
+      "priority": "P0",
+      "summary": "Smooth interruption",
+      "acceptance": "Retarget from the current sampled pose rather than snapping to an obsolete endpoint.",
+      "designDoc": "docs/06-camera-and-geometry.md",
+      "backlogId": "B05",
+      "plannedTests": [
+        "T-CAM-004"
+      ],
+      "status": "proposed",
+      "evidence": []
+    },
+    {
+      "id": "CAM-005",
+      "area": "Camera and visual rendering",
+      "priority": "P0",
+      "summary": "Conflict detection",
+      "acceptance": "Reject overlapping camera or cursor ownership intervals in the single-surface draft.",
+      "designDoc": "docs/06-camera-and-geometry.md",
+      "backlogId": "B05",
+      "plannedTests": [
+        "T-CAM-005"
+      ],
+      "status": "proposed",
+      "evidence": []
+    },
+    {
+      "id": "CAM-006",
+      "area": "Camera and visual rendering",
+      "priority": "P1",
+      "summary": "Moving target policy",
+      "acceptance": "Reframe on meaningful geometry changes with bounded follow/hysteresis behavior.",
+      "designDoc": "docs/06-camera-and-geometry.md",
+      "backlogId": "B05",
+      "plannedTests": [
+        "T-CAM-006"
+      ],
+      "status": "proposed",
+      "evidence": []
+    },
+    {
+      "id": "CAM-007",
+      "area": "Camera and visual rendering",
+      "priority": "P0",
+      "summary": "Native hit testing",
+      "acceptance": "Allow browser hit testing through transforms; do not double-transform ordinary DOM input.",
+      "designDoc": "docs/06-camera-and-geometry.md",
+      "backlogId": "B05",
+      "plannedTests": [
+        "T-CAM-007"
+      ],
+      "status": "proposed",
+      "evidence": []
+    },
+    {
+      "id": "CAM-008",
+      "area": "Camera and visual rendering",
+      "priority": "P1",
+      "summary": "Canvas quality honesty",
+      "acceptance": "Document raster magnification and optional host rerender costs rather than promising crisp unlimited zoom.",
+      "designDoc": "docs/06-camera-and-geometry.md",
+      "backlogId": "B05",
+      "plannedTests": [
+        "T-CAM-008"
+      ],
+      "status": "proposed",
+      "evidence": []
+    },
+    {
+      "id": "TIM-001",
+      "area": "Playback and time",
+      "priority": "P0",
+      "summary": "Single time authority",
+      "acceptance": "All visual tracks sample coordinated scene time; media segments can become the authority.",
+      "designDoc": "docs/07-timeline-and-playback.md",
+      "backlogId": "B03",
+      "plannedTests": [
+        "T-TIM-001"
+      ],
+      "status": "proposed",
+      "evidence": []
+    },
+    {
+      "id": "TIM-002",
+      "area": "Playback and time",
+      "priority": "P0",
+      "summary": "Pause and resume",
+      "acceptance": "Pause freezes presentation/audio and resumes without losing the user pause reason.",
+      "designDoc": "docs/07-timeline-and-playback.md",
+      "backlogId": "B03",
+      "plannedTests": [
+        "T-TIM-002"
+      ],
+      "status": "proposed",
+      "evidence": []
+    },
+    {
+      "id": "TIM-003",
+      "area": "Playback and time",
+      "priority": "P0",
+      "summary": "Presentation-only seeking",
+      "acceptance": "Seeking never executes skipped actions or claims to undo external side effects.",
+      "designDoc": "docs/07-timeline-and-playback.md",
+      "backlogId": "B03",
+      "plannedTests": [
+        "T-TIM-003"
+      ],
+      "status": "proposed",
+      "evidence": []
+    },
+    {
+      "id": "TIM-004",
+      "area": "Playback and time",
+      "priority": "P0",
+      "summary": "State barriers",
+      "acceptance": "Block unsupported seeks across host-state dependencies unless a compatible checkpoint is available.",
+      "designDoc": "docs/07-timeline-and-playback.md",
+      "backlogId": "B03",
+      "plannedTests": [
+        "T-TIM-004"
+      ],
+      "status": "proposed",
+      "evidence": []
+    },
+    {
+      "id": "TIM-005",
+      "area": "Playback and time",
+      "priority": "P0",
+      "summary": "Cancellation epochs",
+      "acceptance": "Ignore late async completions from earlier runs/seeks and release cancellable resources.",
+      "designDoc": "docs/07-timeline-and-playback.md",
+      "backlogId": "B03",
+      "plannedTests": [
+        "T-TIM-005"
+      ],
+      "status": "proposed",
+      "evidence": []
+    },
+    {
+      "id": "TIM-006",
+      "area": "Playback and time",
+      "priority": "P0",
+      "summary": "Visibility policy",
+      "acceptance": "Pause on hidden-tab suspension by default; do not catch up by executing queued actions.",
+      "designDoc": "docs/07-timeline-and-playback.md",
+      "backlogId": "B03",
+      "plannedTests": [
+        "T-TIM-006"
+      ],
+      "status": "proposed",
+      "evidence": []
+    },
+    {
+      "id": "TIM-007",
+      "area": "Playback and time",
+      "priority": "P0",
+      "summary": "Branch-aware progress",
+      "acceptance": "Display current path and unknown waits honestly instead of a false total duration.",
+      "designDoc": "docs/07-timeline-and-playback.md",
+      "backlogId": "B03",
+      "plannedTests": [
+        "T-TIM-007"
+      ],
+      "status": "proposed",
+      "evidence": []
+    },
+    {
+      "id": "TIM-008",
+      "area": "Playback and time",
+      "priority": "P0",
+      "summary": "Rate changes",
+      "acceptance": "Sample old clock state before updating rate; preserve continuity and media alignment.",
+      "designDoc": "docs/07-timeline-and-playback.md",
+      "backlogId": "B03",
+      "plannedTests": [
+        "T-TIM-008"
+      ],
+      "status": "proposed",
+      "evidence": []
+    },
+    {
+      "id": "TIM-009",
+      "area": "Playback and time",
+      "priority": "P0",
+      "summary": "Independent pause reasons",
+      "acceptance": "A gate completion does not resume a presentation the user separately paused.",
+      "designDoc": "docs/07-timeline-and-playback.md",
+      "backlogId": "B03",
+      "plannedTests": [
+        "T-TIM-009"
+      ],
+      "status": "proposed",
+      "evidence": []
+    },
+    {
+      "id": "TIM-010",
+      "area": "Playback and time",
+      "priority": "P0",
+      "summary": "Run identity",
+      "acceptance": "Distinguish run/scene/visit/request IDs and correlate completion with the correct run.",
+      "designDoc": "docs/07-timeline-and-playback.md",
+      "backlogId": "B03",
+      "plannedTests": [
+        "T-TIM-010"
+      ],
+      "status": "proposed",
+      "evidence": []
+    },
+    {
+      "id": "MED-001",
+      "area": "Narration captions and cursor",
+      "priority": "P1",
+      "summary": "Prepared narration",
+      "acceptance": "Resolve approved audio through a host asset policy and validate readiness/duration.",
+      "designDoc": "docs/08-media-captions-and-cursor.md",
+      "backlogId": "B06",
+      "plannedTests": [
+        "T-MED-001"
+      ],
+      "status": "proposed",
+      "evidence": []
+    },
+    {
+      "id": "MED-002",
+      "area": "Narration captions and cursor",
+      "priority": "P1",
+      "summary": "Phrase synchronization",
+      "acceptance": "Resolve visual anchors against language-specific authored cue times and test measured skew.",
+      "designDoc": "docs/08-media-captions-and-cursor.md",
+      "backlogId": "B06",
+      "plannedTests": [
+        "T-MED-002"
+      ],
+      "status": "proposed",
+      "evidence": []
+    },
+    {
+      "id": "MED-003",
+      "area": "Narration captions and cursor",
+      "priority": "P1",
+      "summary": "Autoplay recovery",
+      "acceptance": "Handle rejected media play with a real-user retry or explicit text-only mode.",
+      "designDoc": "docs/08-media-captions-and-cursor.md",
+      "backlogId": "B06",
+      "plannedTests": [
+        "T-MED-003"
+      ],
+      "status": "proposed",
+      "evidence": []
+    },
+    {
+      "id": "MED-004",
+      "area": "Narration captions and cursor",
+      "priority": "P1",
+      "summary": "Buffering behavior",
+      "acceptance": "Freeze dependent presentation tracks during required-media buffering; preserve user control.",
+      "designDoc": "docs/08-media-captions-and-cursor.md",
+      "backlogId": "B06",
+      "plannedTests": [
+        "T-MED-004"
+      ],
+      "status": "proposed",
+      "evidence": []
+    },
+    {
+      "id": "MED-005",
+      "area": "Narration captions and cursor",
+      "priority": "P1",
+      "summary": "Closed captions",
+      "acceptance": "Provide togglable captions with language selection and relevant non-speech information.",
+      "designDoc": "docs/08-media-captions-and-cursor.md",
+      "backlogId": "B06",
+      "plannedTests": [
+        "T-MED-005"
+      ],
+      "status": "proposed",
+      "evidence": []
+    },
+    {
+      "id": "MED-006",
+      "area": "Narration captions and cursor",
+      "priority": "P1",
+      "summary": "Transcript and WebVTT",
+      "acceptance": "Expose a complete transcript and produce a sidecar from the same canonical timing data.",
+      "designDoc": "docs/08-media-captions-and-cursor.md",
+      "backlogId": "B06",
+      "plannedTests": [
+        "T-MED-006"
+      ],
+      "status": "proposed",
+      "evidence": []
+    },
+    {
+      "id": "MED-007",
+      "area": "Narration captions and cursor",
+      "priority": "P1",
+      "summary": "Visual-only cursor",
+      "acceptance": "Click/drag/touch decorations do not dispatch input, execute actions, or grant consent.",
+      "designDoc": "docs/08-media-captions-and-cursor.md",
+      "backlogId": "B06",
+      "plannedTests": [
+        "T-MED-007"
+      ],
+      "status": "proposed",
+      "evidence": []
+    },
+    {
+      "id": "MED-008",
+      "area": "Narration captions and cursor",
+      "priority": "P1",
+      "summary": "Localization timing",
+      "acceptance": "Localized content carries its own timings rather than reusing source-language word offsets.",
+      "designDoc": "docs/08-media-captions-and-cursor.md",
+      "backlogId": "B06",
+      "plannedTests": [
+        "T-MED-008"
+      ],
+      "status": "proposed",
+      "evidence": []
+    },
+    {
+      "id": "GDE-001",
+      "area": "Guidance and practice",
+      "priority": "P1",
+      "summary": "Watch try guide modes",
+      "acceptance": "Separate presentation, fixture practice, and user-driven guidance policies.",
+      "designDoc": "docs/09-guidance-and-interactivity.md",
+      "backlogId": "B08",
+      "plannedTests": [
+        "T-GDE-001"
+      ],
+      "status": "proposed",
+      "evidence": []
+    },
+    {
+      "id": "GDE-002",
+      "area": "Guidance and practice",
+      "priority": "P1",
+      "summary": "Domain outcome gates",
+      "acceptance": "Wait for named meaningful outcomes rather than treating a click as successful completion.",
+      "designDoc": "docs/09-guidance-and-interactivity.md",
+      "backlogId": "B08",
+      "plannedTests": [
+        "T-GDE-002"
+      ],
+      "status": "proposed",
+      "evidence": []
+    },
+    {
+      "id": "GDE-003",
+      "area": "Guidance and practice",
+      "priority": "P1",
+      "summary": "Edge versus level conditions",
+      "acceptance": "Subscribe/check without races and distinguish current state from a new event after entry.",
+      "designDoc": "docs/09-guidance-and-interactivity.md",
+      "backlogId": "B08",
+      "plannedTests": [
+        "T-GDE-003"
+      ],
+      "status": "proposed",
+      "evidence": []
+    },
+    {
+      "id": "GDE-004",
+      "area": "Guidance and practice",
+      "priority": "P1",
+      "summary": "Timeout recovery",
+      "acceptance": "Offer more time/pause/declared fallback without fabricating success or blocking exit.",
+      "designDoc": "docs/09-guidance-and-interactivity.md",
+      "backlogId": "B08",
+      "plannedTests": [
+        "T-GDE-004"
+      ],
+      "status": "proposed",
+      "evidence": []
+    },
+    {
+      "id": "GDE-005",
+      "area": "Guidance and practice",
+      "priority": "P1",
+      "summary": "User takeover",
+      "acceptance": "Pause automated motion on user manipulation and revalidate before resuming.",
+      "designDoc": "docs/09-guidance-and-interactivity.md",
+      "backlogId": "B08",
+      "plannedTests": [
+        "T-GDE-005"
+      ],
+      "status": "proposed",
+      "evidence": []
+    },
+    {
+      "id": "GDE-006",
+      "area": "Guidance and practice",
+      "priority": "P1",
+      "summary": "Mode transition safety",
+      "acceptance": "Prepare/authorize a new mode before committing; do not silently broaden action rights.",
+      "designDoc": "docs/09-guidance-and-interactivity.md",
+      "backlogId": "B08",
+      "plannedTests": [
+        "T-GDE-006"
+      ],
+      "status": "proposed",
+      "evidence": []
+    },
+    {
+      "id": "GDE-007",
+      "area": "Guidance and practice",
+      "priority": "P1",
+      "summary": "Hints and choices",
+      "acceptance": "Provide accessible authored hints/branches without turning a final hint into an unapproved action.",
+      "designDoc": "docs/09-guidance-and-interactivity.md",
+      "backlogId": "B08",
+      "plannedTests": [
+        "T-GDE-007"
+      ],
+      "status": "proposed",
+      "evidence": []
+    },
+    {
+      "id": "GDE-008",
+      "area": "Guidance and practice",
+      "priority": "P1",
+      "summary": "Fixture requirement",
+      "acceptance": "Disable try/reset behavior unless the host supplies an explicitly isolated resettable fixture.",
+      "designDoc": "docs/09-guidance-and-interactivity.md",
+      "backlogId": "B08",
+      "plannedTests": [
+        "T-GDE-008"
+      ],
+      "status": "proposed",
+      "evidence": []
+    },
+    {
+      "id": "ACT-001",
+      "area": "Effects and checkpointing",
+      "priority": "P1",
+      "summary": "Host-owned actions",
+      "acceptance": "Invoke only registered operations with validated inputs and current authorization.",
+      "designDoc": "docs/07-timeline-and-playback.md",
+      "backlogId": "B09",
+      "plannedTests": [
+        "T-ACT-001"
+      ],
+      "status": "proposed",
+      "evidence": []
+    },
+    {
+      "id": "ACT-002",
+      "area": "Effects and checkpointing",
+      "priority": "P1",
+      "summary": "Impact classification",
+      "acceptance": "Use host read/ephemeral/persistent classification; script text cannot downgrade it.",
+      "designDoc": "docs/07-timeline-and-playback.md",
+      "backlogId": "B09",
+      "plannedTests": [
+        "T-ACT-002"
+      ],
+      "status": "proposed",
+      "evidence": []
+    },
+    {
+      "id": "ACT-003",
+      "area": "Effects and checkpointing",
+      "priority": "P1",
+      "summary": "Action ledger",
+      "acceptance": "Deduplicate an effect within its run/scene/visit/cue identity without claiming universal exactly-once.",
+      "designDoc": "docs/07-timeline-and-playback.md",
+      "backlogId": "B09",
+      "plannedTests": [
+        "T-ACT-003"
+      ],
+      "status": "proposed",
+      "evidence": []
+    },
+    {
+      "id": "ACT-004",
+      "area": "Effects and checkpointing",
+      "priority": "P1",
+      "summary": "Idempotency and reconciliation",
+      "acceptance": "Persistent retryable effects require host idempotency/status handling; unknown outcomes block blind retries.",
+      "designDoc": "docs/07-timeline-and-playback.md",
+      "backlogId": "B09",
+      "plannedTests": [
+        "T-ACT-004"
+      ],
+      "status": "proposed",
+      "evidence": []
+    },
+    {
+      "id": "ACT-005",
+      "area": "Effects and checkpointing",
+      "priority": "P1",
+      "summary": "Confirmation binding",
+      "acceptance": "Bind required human approval to exact action parameters and the reviewed script/session.",
+      "designDoc": "docs/07-timeline-and-playback.md",
+      "backlogId": "B09",
+      "plannedTests": [
+        "T-ACT-005"
+      ],
+      "status": "proposed",
+      "evidence": []
+    },
+    {
+      "id": "ACT-006",
+      "area": "Effects and checkpointing",
+      "priority": "P1",
+      "summary": "Effect cancellation limits",
+      "acceptance": "Explain externally committed/unknown outcomes after stop instead of assuming rollback.",
+      "designDoc": "docs/07-timeline-and-playback.md",
+      "backlogId": "B09",
+      "plannedTests": [
+        "T-ACT-006"
+      ],
+      "status": "proposed",
+      "evidence": []
+    },
+    {
+      "id": "ACT-007",
+      "area": "Effects and checkpointing",
+      "priority": "P1",
+      "summary": "Versioned checkpoints",
+      "acceptance": "Verify script, host-state, and fixture versions before restoring a checkpoint.",
+      "designDoc": "docs/07-timeline-and-playback.md",
+      "backlogId": "B09",
+      "plannedTests": [
+        "T-ACT-007"
+      ],
+      "status": "proposed",
+      "evidence": []
+    },
+    {
+      "id": "ACT-008",
+      "area": "Effects and checkpointing",
+      "priority": "P1",
+      "summary": "Resume privacy",
+      "acceptance": "Opt-in resume persists redacted state references, not credentials or arbitrary production snapshots.",
+      "designDoc": "docs/07-timeline-and-playback.md",
+      "backlogId": "B09",
+      "plannedTests": [
+        "T-ACT-008"
+      ],
+      "status": "proposed",
+      "evidence": []
+    },
+    {
+      "id": "AGT-001",
+      "area": "Agent usability",
+      "priority": "P1",
+      "summary": "Approved discovery",
+      "acceptance": "Expose only allowed target descriptors and capabilities; omit sensitive values by default.",
+      "designDoc": "docs/10-agent-contract.md",
+      "backlogId": "B10",
+      "plannedTests": [
+        "T-AGT-001"
+      ],
+      "status": "proposed",
+      "evidence": []
+    },
+    {
+      "id": "AGT-002",
+      "area": "Agent usability",
+      "priority": "P1",
+      "summary": "Offline validation",
+      "acceptance": "Agents can validate structure/semantics without executing effects or contacting the host.",
+      "designDoc": "docs/10-agent-contract.md",
+      "backlogId": "B10",
+      "plannedTests": [
+        "T-AGT-002"
+      ],
+      "status": "proposed",
+      "evidence": []
+    },
+    {
+      "id": "AGT-003",
+      "area": "Agent usability",
+      "priority": "P1",
+      "summary": "Pure preview",
+      "acceptance": "Static preview lists requested effects but executes none.",
+      "designDoc": "docs/10-agent-contract.md",
+      "backlogId": "B10",
+      "plannedTests": [
+        "T-AGT-003"
+      ],
+      "status": "proposed",
+      "evidence": []
+    },
+    {
+      "id": "AGT-004",
+      "area": "Agent usability",
+      "priority": "P1",
+      "summary": "Structured diagnostics",
+      "acceptance": "Errors carry stable codes, phases, JSON Pointer paths, and safe recovery choices.",
+      "designDoc": "docs/10-agent-contract.md",
+      "backlogId": "B10",
+      "plannedTests": [
+        "T-AGT-004"
+      ],
+      "status": "proposed",
+      "evidence": []
+    },
+    {
+      "id": "AGT-005",
+      "area": "Agent usability",
+      "priority": "P1",
+      "summary": "Revision checks",
+      "acceptance": "Reject stale state-changing commands; safety pause/stop remain available.",
+      "designDoc": "docs/10-agent-contract.md",
+      "backlogId": "B10",
+      "plannedTests": [
+        "T-AGT-005"
+      ],
+      "status": "proposed",
+      "evidence": []
+    },
+    {
+      "id": "AGT-006",
+      "area": "Agent usability",
+      "priority": "P1",
+      "summary": "Request deduplication",
+      "acceptance": "Deduplicate repeated request IDs and reject changed payloads under the same ID.",
+      "designDoc": "docs/10-agent-contract.md",
+      "backlogId": "B10",
+      "plannedTests": [
+        "T-AGT-006"
+      ],
+      "status": "proposed",
+      "evidence": []
+    },
+    {
+      "id": "AGT-007",
+      "area": "Agent usability",
+      "priority": "P1",
+      "summary": "Reviewed repair",
+      "acceptance": "Propose target/script patches for review instead of silently healing to uncertain controls.",
+      "designDoc": "docs/10-agent-contract.md",
+      "backlogId": "B10",
+      "plannedTests": [
+        "T-AGT-007"
+      ],
+      "status": "proposed",
+      "evidence": []
+    },
+    {
+      "id": "AGT-008",
+      "area": "Agent usability",
+      "priority": "P1",
+      "summary": "No agent approval bypass",
+      "acceptance": "Do not expose an agent operation that impersonates human consent or broadens host policy.",
+      "designDoc": "docs/10-agent-contract.md",
+      "backlogId": "B10",
+      "plannedTests": [
+        "T-AGT-008"
+      ],
+      "status": "proposed",
+      "evidence": []
+    },
+    {
+      "id": "A11-001",
+      "area": "Accessibility",
+      "priority": "P0",
+      "summary": "Motion preference",
+      "acceptance": "Respect reduced motion and live preference changes with an equivalent non-moving path.",
+      "designDoc": "docs/11-accessibility.md",
+      "backlogId": "B07",
+      "plannedTests": [
+        "T-A11-001"
+      ],
+      "status": "proposed",
+      "evidence": []
+    },
+    {
+      "id": "A11-002",
+      "area": "Accessibility",
+      "priority": "P0",
+      "summary": "Keyboard controls",
+      "acceptance": "All player functions and exits work without a pointing device.",
+      "designDoc": "docs/11-accessibility.md",
+      "backlogId": "B07",
+      "plannedTests": [
+        "T-A11-002"
+      ],
+      "status": "proposed",
+      "evidence": []
+    },
+    {
+      "id": "A11-003",
+      "area": "Accessibility",
+      "priority": "P0",
+      "summary": "Focus ownership",
+      "acceptance": "Camera pans do not steal focus; explicit target focus and restoration are tested.",
+      "designDoc": "docs/11-accessibility.md",
+      "backlogId": "B07",
+      "plannedTests": [
+        "T-A11-003"
+      ],
+      "status": "proposed",
+      "evidence": []
+    },
+    {
+      "id": "A11-004",
+      "area": "Accessibility",
+      "priority": "P0",
+      "summary": "Stable readable controls",
+      "acceptance": "Captions/controls remain outside the camera and usable with large text/browser zoom.",
+      "designDoc": "docs/11-accessibility.md",
+      "backlogId": "B07",
+      "plannedTests": [
+        "T-A11-004"
+      ],
+      "status": "proposed",
+      "evidence": []
+    },
+    {
+      "id": "A11-005",
+      "area": "Accessibility",
+      "priority": "P0",
+      "summary": "Semantic alternatives",
+      "acceptance": "Instructions name targets/outcomes and do not rely only on color, motion, sound, or pointer location.",
+      "designDoc": "docs/11-accessibility.md",
+      "backlogId": "B07",
+      "plannedTests": [
+        "T-A11-005"
+      ],
+      "status": "proposed",
+      "evidence": []
+    },
+    {
+      "id": "A11-006",
+      "area": "Accessibility",
+      "priority": "P0",
+      "summary": "Screen-reader review",
+      "acceptance": "Provide step summaries and transcript without per-frame or per-word live-region spam.",
+      "designDoc": "docs/11-accessibility.md",
+      "backlogId": "B07",
+      "plannedTests": [
+        "T-A11-006"
+      ],
+      "status": "proposed",
+      "evidence": []
+    },
+    {
+      "id": "A11-007",
+      "area": "Accessibility",
+      "priority": "P0",
+      "summary": "Adjustable pacing",
+      "acceptance": "Allow pause, reading time, and appropriate timeout extension; never trap users in onboarding.",
+      "designDoc": "docs/11-accessibility.md",
+      "backlogId": "B07",
+      "plannedTests": [
+        "T-A11-007"
+      ],
+      "status": "proposed",
+      "evidence": []
+    },
+    {
+      "id": "A11-008",
+      "area": "Accessibility",
+      "priority": "P0",
+      "summary": "Manual conformance evidence",
+      "acceptance": "Do not claim accessibility conformance from automated checks alone.",
+      "designDoc": "docs/11-accessibility.md",
+      "backlogId": "B07",
+      "plannedTests": [
+        "T-A11-008"
+      ],
+      "status": "proposed",
+      "evidence": []
+    },
+    {
+      "id": "SEC-001",
+      "area": "Security and privacy",
+      "priority": "P0",
+      "summary": "Network-silent default",
+      "acceptance": "No telemetry, capture, remote AI, persistence, or remote asset access without explicit host setup.",
+      "designDoc": "docs/12-security-and-privacy.md",
+      "backlogId": "B12",
+      "plannedTests": [
+        "T-SEC-001"
+      ],
+      "status": "proposed",
+      "evidence": []
+    },
+    {
+      "id": "SEC-002",
+      "area": "Security and privacy",
+      "priority": "P0",
+      "summary": "Untrusted content",
+      "acceptance": "Render script text safely and treat page/agent text as data rather than privileged instructions.",
+      "designDoc": "docs/12-security-and-privacy.md",
+      "backlogId": "B12",
+      "plannedTests": [
+        "T-SEC-002"
+      ],
+      "status": "proposed",
+      "evidence": []
+    },
+    {
+      "id": "SEC-003",
+      "area": "Security and privacy",
+      "priority": "P0",
+      "summary": "Least authority",
+      "acceptance": "Intersect host/session/script/user grants and recheck before each effect.",
+      "designDoc": "docs/12-security-and-privacy.md",
+      "backlogId": "B12",
+      "plannedTests": [
+        "T-SEC-003"
+      ],
+      "status": "proposed",
+      "evidence": []
+    },
+    {
+      "id": "SEC-004",
+      "area": "Security and privacy",
+      "priority": "P0",
+      "summary": "Redaction before storage",
+      "acceptance": "Exclude secrets and minimize data before logging, serializing, or recording.",
+      "designDoc": "docs/12-security-and-privacy.md",
+      "backlogId": "B12",
+      "plannedTests": [
+        "T-SEC-004"
+      ],
+      "status": "proposed",
+      "evidence": []
+    },
+    {
+      "id": "SEC-005",
+      "area": "Security and privacy",
+      "priority": "P0",
+      "summary": "Bridge authentication",
+      "acceptance": "Verify frame origin/source/session and scope remote tool access; no wildcard privileged messaging.",
+      "designDoc": "docs/12-security-and-privacy.md",
+      "backlogId": "B12",
+      "plannedTests": [
+        "T-SEC-005"
+      ],
+      "status": "proposed",
+      "evidence": []
+    },
+    {
+      "id": "SEC-006",
+      "area": "Security and privacy",
+      "priority": "P0",
+      "summary": "Resource limits",
+      "acceptance": "Enforce input size/depth/array/time limits and reject unsafe URI schemes/traversal.",
+      "designDoc": "docs/12-security-and-privacy.md",
+      "backlogId": "B12",
+      "plannedTests": [
+        "T-SEC-006"
+      ],
+      "status": "proposed",
+      "evidence": []
+    },
+    {
+      "id": "SEC-007",
+      "area": "Security and privacy",
+      "priority": "P0",
+      "summary": "Revocation and exit",
+      "acceptance": "Revoke new effects while retaining user pause/stop and reporting already-started work.",
+      "designDoc": "docs/12-security-and-privacy.md",
+      "backlogId": "B12",
+      "plannedTests": [
+        "T-SEC-007"
+      ],
+      "status": "proposed",
+      "evidence": []
+    },
+    {
+      "id": "SEC-008",
+      "area": "Security and privacy",
+      "priority": "P2",
+      "summary": "Capture isolation",
+      "acceptance": "Require separate capture authorization and verify redaction or use a data-safe fixture.",
+      "designDoc": "docs/12-security-and-privacy.md",
+      "backlogId": "B12",
+      "plannedTests": [
+        "T-SEC-008"
+      ],
+      "status": "proposed",
+      "evidence": []
+    },
+    {
+      "id": "AUT-001",
+      "area": "Authoring and distribution",
+      "priority": "P1",
+      "summary": "Canonical authoring",
+      "acceptance": "Human builders and agents emit the same inspectable versioned JSON.",
+      "designDoc": "docs/14-authoring-and-distribution.md",
+      "backlogId": "B14",
+      "plannedTests": [
+        "T-AUT-001"
+      ],
+      "status": "proposed",
+      "evidence": []
+    },
+    {
+      "id": "AUT-002",
+      "area": "Authoring and distribution",
+      "priority": "P2",
+      "summary": "Semantic diffs",
+      "acceptance": "Review changes to targets, actions, permissions, branches, and timing; invalidate relevant grants.",
+      "designDoc": "docs/14-authoring-and-distribution.md",
+      "backlogId": "B14",
+      "plannedTests": [
+        "T-AUT-002"
+      ],
+      "status": "proposed",
+      "evidence": []
+    },
+    {
+      "id": "AUT-003",
+      "area": "Authoring and distribution",
+      "priority": "P2",
+      "summary": "Visual studio boundary",
+      "acceptance": "Keep visual authoring tools optional and outside the core runtime.",
+      "designDoc": "docs/14-authoring-and-distribution.md",
+      "backlogId": "B14",
+      "plannedTests": [
+        "T-AUT-003"
+      ],
+      "status": "proposed",
+      "evidence": []
+    },
+    {
+      "id": "AUT-004",
+      "area": "Authoring and distribution",
+      "priority": "P2",
+      "summary": "Recorder minimization",
+      "acceptance": "An optional recorder stores approved semantic events with local redaction, not all inputs/network bodies.",
+      "designDoc": "docs/14-authoring-and-distribution.md",
+      "backlogId": "B14",
+      "plannedTests": [
+        "T-AUT-004"
+      ],
+      "status": "proposed",
+      "evidence": []
+    },
+    {
+      "id": "AUT-005",
+      "area": "Authoring and distribution",
+      "priority": "P2",
+      "summary": "Offline bundles",
+      "acceptance": "Package approved assets/licenses/hashes without credentials and enforce safe archive extraction.",
+      "designDoc": "docs/14-authoring-and-distribution.md",
+      "backlogId": "B14",
+      "plannedTests": [
+        "T-AUT-005"
+      ],
+      "status": "proposed",
+      "evidence": []
+    },
+    {
+      "id": "AUT-006",
+      "area": "Authoring and distribution",
+      "priority": "P1",
+      "summary": "Deep links",
+      "acceptance": "Share content/version/scene IDs without serializing sensitive app state into URLs.",
+      "designDoc": "docs/14-authoring-and-distribution.md",
+      "backlogId": "B14",
+      "plannedTests": [
+        "T-AUT-006"
+      ],
+      "status": "proposed",
+      "evidence": []
+    },
+    {
+      "id": "AUT-007",
+      "area": "Authoring and distribution",
+      "priority": "P2",
+      "summary": "Honest output types",
+      "acceptance": "Distinguish live, transcript, fixture, and video outputs and their different capabilities.",
+      "designDoc": "docs/14-authoring-and-distribution.md",
+      "backlogId": "B14",
+      "plannedTests": [
+        "T-AUT-007"
+      ],
+      "status": "proposed",
+      "evidence": []
+    },
+    {
+      "id": "AUT-008",
+      "area": "Authoring and distribution",
+      "priority": "P2",
+      "summary": "Export prerequisites",
+      "acceptance": "Video export uses a separately authorized controlled runner and documented codecs/assets/timing limits.",
+      "designDoc": "docs/14-authoring-and-distribution.md",
+      "backlogId": "B14",
+      "plannedTests": [
+        "T-AUT-008"
+      ],
+      "status": "proposed",
+      "evidence": []
+    },
+    {
+      "id": "QUA-001",
+      "area": "Quality and evidence",
+      "priority": "P0",
+      "summary": "Pure model tests",
+      "acceptance": "Test geometry, cue resolution, state transitions, and permission decisions independently of DOM rendering.",
+      "designDoc": "docs/15-testing-and-performance.md",
+      "backlogId": "B13",
+      "plannedTests": [
+        "T-QUA-001"
+      ],
+      "status": "proposed",
+      "evidence": []
+    },
+    {
+      "id": "QUA-002",
+      "area": "Quality and evidence",
+      "priority": "P0",
+      "summary": "Adversarial browser tests",
+      "acceptance": "Exercise target removal, portals, modal layers, scroll/resize, cancellation, and denied actions.",
+      "designDoc": "docs/15-testing-and-performance.md",
+      "backlogId": "B13",
+      "plannedTests": [
+        "T-QUA-002"
+      ],
+      "status": "proposed",
+      "evidence": []
+    },
+    {
+      "id": "QUA-003",
+      "area": "Quality and evidence",
+      "priority": "P0",
+      "summary": "Before after performance",
+      "acceptance": "Compare baseline/candidate under identical fixtures and retain environment metadata/raw traces.",
+      "designDoc": "docs/15-testing-and-performance.md",
+      "backlogId": "B13",
+      "plannedTests": [
+        "T-QUA-003"
+      ],
+      "status": "proposed",
+      "evidence": []
+    },
+    {
+      "id": "QUA-004",
+      "area": "Quality and evidence",
+      "priority": "P0",
+      "summary": "Memory and cleanup",
+      "acceptance": "Repeated lifecycle tests show no unbounded retained nodes/listeners/audio/animation resources.",
+      "designDoc": "docs/15-testing-and-performance.md",
+      "backlogId": "B13",
+      "plannedTests": [
+        "T-QUA-004"
+      ],
+      "status": "proposed",
+      "evidence": []
+    },
+    {
+      "id": "QUA-005",
+      "area": "Quality and evidence",
+      "priority": "P0",
+      "summary": "Measured browser support",
+      "acceptance": "Publish actual tested browser/device versions rather than infer support from API presence.",
+      "designDoc": "docs/15-testing-and-performance.md",
+      "backlogId": "B13",
+      "plannedTests": [
+        "T-QUA-005"
+      ],
+      "status": "proposed",
+      "evidence": []
+    },
+    {
+      "id": "QUA-006",
+      "area": "Quality and evidence",
+      "priority": "P1",
+      "summary": "Media skew evidence",
+      "acceptance": "Measure audiovisual cue error rather than claim synchronization because timers start together.",
+      "designDoc": "docs/15-testing-and-performance.md",
+      "backlogId": "B13",
+      "plannedTests": [
+        "T-QUA-006"
+      ],
+      "status": "proposed",
+      "evidence": []
+    },
+    {
+      "id": "QUA-007",
+      "area": "Quality and evidence",
+      "priority": "P0",
+      "summary": "Private test artifacts",
+      "acceptance": "Use synthetic fixtures and sanitize traces/screenshots before public CI storage.",
+      "designDoc": "docs/15-testing-and-performance.md",
+      "backlogId": "B13",
+      "plannedTests": [
+        "T-QUA-007"
+      ],
+      "status": "proposed",
+      "evidence": []
+    },
+    {
+      "id": "QUA-008",
+      "area": "Quality and evidence",
+      "priority": "P0",
+      "summary": "Truthful status",
+      "acceptance": "Separate proposed, implemented, and verified features; design checks are not runtime evidence.",
+      "designDoc": "docs/15-testing-and-performance.md",
+      "backlogId": "B13",
+      "plannedTests": [
+        "T-QUA-008"
+      ],
+      "status": "proposed",
+      "evidence": []
+    },
+    {
+      "id": "INT-001",
+      "area": "Framework and domain integration",
+      "priority": "P1",
+      "summary": "Framework neutral core",
+      "acceptance": "Use the same clock/renderer/contracts from plain DOM and framework adapters.",
+      "designDoc": "docs/13-integrations.md",
+      "backlogId": "B11",
+      "plannedTests": [
+        "T-INT-001"
+      ],
+      "status": "proposed",
+      "evidence": []
+    },
+    {
+      "id": "INT-002",
+      "area": "Framework and domain integration",
+      "priority": "P1",
+      "summary": "React lifecycle",
+      "acceptance": "Handle development lifecycle re-entry, unmount, target replacement, and portals without duplicated effects.",
+      "designDoc": "docs/13-integrations.md",
+      "backlogId": "B11",
+      "plannedTests": [
+        "T-INT-002"
+      ],
+      "status": "proposed",
+      "evidence": []
+    },
+    {
+      "id": "INT-003",
+      "area": "Framework and domain integration",
+      "priority": "P1",
+      "summary": "SSR safe imports",
+      "acceptance": "Do not access browser globals during a server import; initialize explicitly after host readiness.",
+      "designDoc": "docs/13-integrations.md",
+      "backlogId": "B11",
+      "plannedTests": [
+        "T-INT-003"
+      ],
+      "status": "proposed",
+      "evidence": []
+    },
+    {
+      "id": "INT-004",
+      "area": "Framework and domain integration",
+      "priority": "P1",
+      "summary": "Cooperative frames",
+      "acceptance": "Treat inaccessible frames as opaque unless an authorized bridge provides targets.",
+      "designDoc": "docs/13-integrations.md",
+      "backlogId": "B11",
+      "plannedTests": [
+        "T-INT-004"
+      ],
+      "status": "proposed",
+      "evidence": []
+    },
+    {
+      "id": "INT-005",
+      "area": "Framework and domain integration",
+      "priority": "P2",
+      "summary": "Native camera lease",
+      "acceptance": "Define explicit page/native-camera handoff and projected target invalidation.",
+      "designDoc": "docs/13-integrations.md",
+      "backlogId": "B11",
+      "plannedTests": [
+        "T-INT-005"
+      ],
+      "status": "proposed",
+      "evidence": []
+    },
+    {
+      "id": "INT-006",
+      "area": "Framework and domain integration",
+      "priority": "P1",
+      "summary": "Route and shadow adapters",
+      "acceptance": "Declare route/reveal effects and require component cooperation for closed shadow roots.",
+      "designDoc": "docs/13-integrations.md",
+      "backlogId": "B11",
+      "plannedTests": [
+        "T-INT-006"
+      ],
+      "status": "proposed",
+      "evidence": []
+    }
+  ]
+}
