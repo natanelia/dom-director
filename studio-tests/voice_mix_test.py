@@ -24,6 +24,7 @@ class StudioVoiceMixTests(StudioSelectionTests):
         before = self.project()
         self.open_mix()
         self.assertTrue(self.page.locator('#selection-mix-apply').is_disabled())
+        self.assertTrue(self.page.locator('#selection-voice-mix').evaluate('el => !!(el.compareDocumentPosition(document.querySelector("#selection-offset")) & Node.DOCUMENT_POSITION_FOLLOWING)'))
         self.page.locator('#selection-mix-volume').fill('65')
         self.assertEqual(self.project(), before)
         self.assertNotEqual(self.page.locator('#studio').get_attribute('data-playback'), 'playing')

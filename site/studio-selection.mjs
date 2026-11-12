@@ -67,7 +67,7 @@ export function createSelectionTools(host){
       return low===high?format(low):format(low)+'–'+format(high);};
     summary.textContent='Current volume: '+range('gain',n=>String(Math.round(n*100000)/1000)+'%')+
       ' · fade in: '+range('fadeInMs',textTime)+' · fade out: '+range('fadeOutMs',textTime)+'.';
-    const hint=el('p','Enter only the settings to replace. Empty fields keep each clip’s own value. Apply mix changes all selected voice clips together; it does not change their takes, trims, timing, narration text or track mute state. Values are absolute, not loudness normalization.',section);
+    const hint=el('p','Blank keeps each clip’s value. Apply mix updates all selected voices; takes and timing stay unchanged. Volume is absolute, not loudness normalization.',section);
     hint.className='note';hint.id='selection-mix-hint';
     const form=el('form',undefined,section);form.noValidate=true;form.id='selection-mix-form';
     const controls=[];
@@ -118,7 +118,10 @@ export function createSelectionTools(host){
     for(const b of doc.querySelectorAll('.inspector-tabs [data-kind]'))b.setAttribute('aria-pressed','false');
     el('span','MULTI-CLIP EDIT',root).className='eyebrow';
     const heading=el('h2',group.length+' clips selected',root);heading.id='selection-heading';
-    el('p','From '+textTime(range.startMs)+' to '+textTime(range.endMs)+' · '+new Set(rows.map(r=>r.track.id)).size+' tracks.',root).className='context';
+    const trackCount=new Set(rows.map(r=>r.track.id)).size;
+    el('p','From '+textTime(range.startMs)+' to '+textTime(range.endMs)+' · '+trackCount+' '+(trackCount===1?'track':'tracks')+'.',root).className='context';
+    const kind=rows[0].track.kind;
+    if(kind==='voice'&&rows.every(row=>row.track.kind===kind))renderVoiceMix(root,rows);
     const instructions=el('p','Shift/Ctrl/Cmd-click clips to change the group, or use Select clips. Drag a selected clip to move the group. Moves stay in the original scenes; no ripple or group trim.',root);instructions.className='note';
     if(rows.some(r=>r.track.locked))el('p','This selection includes a locked track. Unlock it or remove its clips before editing.',root).className='warning';
     if($('ripple').checked)el('p','Turn Ripple off to move this group without changing unselected clips.',root).className='warning';
@@ -130,8 +133,6 @@ export function createSelectionTools(host){
     button('selection-at-playhead','Start at playhead',actions,()=>safe(()=>move(Math.round(host.time())-selectionBounds(project(),ids()).startMs)));
     button('selection-duplicate','Duplicate by offset',actions,()=>duplicateWithOffset());
     button('selection-delete','Delete selected clips',actions,remove);
-    const kind=rows[0].track.kind;
-    if(kind==='voice'&&rows.every(row=>row.track.kind===kind))renderVoiceMix(root,rows);
     if((kind==='captions'||kind==='cursor')&&rows.every(row=>row.track.kind===kind)){
       const section=el('details',undefined,root);section.id='selection-appearance';
       el('summary','Match appearance',section);
