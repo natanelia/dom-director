@@ -1,0 +1,53 @@
+name: Prepare exact caption-focus repair
+on:
+  push:
+    branches: [automation/word-link-ui-preparation]
+permissions:
+  contents: read
+jobs:
+  prepare:
+    if: github.repository == 'natanelia/dom-director' && github.ref == 'refs/heads/automation/word-link-ui-preparation'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+          fetch-depth: 2
+      - name: Store verified focus-repair blobs only
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python3 - <<'PY'
+          import base64, hashlib, json, os, subprocess
+          from pathlib import Path
+          from urllib.request import Request, urlopen
+          repo='natanelia/dom-director'
+          assert os.environ['GITHUB_REPOSITORY']==repo
+          expected={'site/studio.mjs':'bcf695f1c2b820e77eb3c3fedc15ae1e13db667a','studio-tests/timing_link_test.py':'5032b3ce47942c17db29141dd58f433e84de8e39'}
+          def sha(data):return hashlib.sha1(('blob '+str(len(data))+'\0').encode()+data).hexdigest()
+          patch=Path('.word-link-transfer/focus-repair.patch').read_bytes()
+          assert len(patch)==3106 and sha(patch)=='c4db1e8aba48fcced13a21fe2bef2a1c3cbec4f0'
+          work=Path(os.environ['RUNNER_TEMP'])/'caption-focus-repair'
+          subprocess.run(['git','worktree','add','--detach',str(work),'0e0dc88dc411e18096b08850a8515fa258dc8b93'],check=True)
+          def git(*args,**kwargs):return subprocess.run(['git','-C',str(work),*args],check=True,**kwargs)
+          stats=git('apply','--numstat',input=patch,capture_output=True).stdout.decode()
+          assert {line.split('\t',2)[2] for line in stats.splitlines()}==set(expected)
+          git('apply','--check',input=patch);git('apply',input=patch);git('diff','--check')
+          contents={}
+          for path,digest in expected.items():
+              f=work/path
+              assert f.is_file() and not f.is_symlink() and f.resolve().is_relative_to(work)
+              data=f.read_bytes();assert sha(data)==digest,path;contents[path]=data
+          subprocess.run(['node','--check',str(work/'site/studio.mjs')],check=True)
+          for path,data in contents.items():
+              request=Request('https://api.github.com/repos/'+repo+'/git/blobs',method='POST',
+                data=json.dumps({'content':base64.b64encode(data).decode(),'encoding':'base64'}).encode(),
+                headers={'Authorization':'Bearer '+os.environ['GH_TOKEN'],'Accept':'application/vnd.github+json',
+                         'Content-Type':'application/json','X-GitHub-Api-Version':'2022-11-28'})
+              with urlopen(request,timeout=30) as response:result=json.load(response)
+              assert result['sha']==expected[path],path
+          print('VERIFIED_FILE_BLOBS='+json.dumps(expected,sort_keys=True))
+          PY

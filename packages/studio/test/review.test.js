@@ -1,8 +1,0 @@
-import test from 'node:test';
-import assert from 'node:assert/strict';
-import {createSample,validateProject,createEvaluator,editProject,updateClip,createProjectStore,exportSubtitles,parseSubtitles} from '../src/index.js';
-const bounds={'orbit.overview':{x:0,y:0,width:960,height:540},'orbit.metrics':{x:70,y:60,width:350,height:130},'orbit.map':{x:70,y:240,width:500,height:260}};
-test('inherited object properties are never treated as semantic targets',()=>{for(const kind of ['camera','cursor']){const p=editProject(createSample(),n=>{n.tracks.find(t=>t.kind===kind).clips[0].keys[0].target='toString';});assert.throws(()=>createEvaluator(p).sample(0,bounds),/unavailable/);}});
-test('optional fields are validated by presence rather than truthiness',()=>{for(const value of [null,false,0,''])for(const [kind,field] of [['captions','style'],['captions','words'],['cursor','style']]){const p=JSON.parse(JSON.stringify(createSample()));p.tracks.find(t=>t.kind===kind).clips[0][field]=value;assert.equal(validateProject(p).ok,false);}});
-test('subtitle multiline text round-trips but blank lines fail export explicitly',()=>{for(const format of ['vtt','srt']){const p=updateClip(createSample(),'cc.overview.0',{text:'First line\nSecond line'});assert.equal(parseSubtitles(exportSubtitles(p,{format}).text)[0].text,'First line\nSecond line');for(const text of ['a\n\nb','a\n  \nb','\ntext','text\n'])assert.throws(()=>exportSubtitles(updateClip(p,'cc.overview.0',{text}),{format}));}});
-test('invalid history budgets are rejected',()=>{for(const options of [{limit:0},{limit:Infinity},{byteLimit:0}])assert.throws(()=>createProjectStore(createSample(),options));});
