@@ -81,7 +81,7 @@ export function createCaptionSearch(host){
         if(!proposal.changes.length){status.textContent='The replacement makes no text changes. Word timings and links are unchanged.';return;}
         reviewing=true;form.hidden=true;reviewPanel.hidden=false;reviewPanel.replaceChildren();back.hidden=false;
         el('h3','Review '+proposal.replacements+' replacement'+(proposal.replacements===1?'':'s'),reviewPanel);
-        el('p',proposal.changes.length+' captions change. Clip positions, duration, styling and voice audio stay unchanged. Apply creates one undo step.',reviewPanel);
+        el('p',proposal.changes.length+(proposal.changes.length===1?' caption changes.':' captions change.')+' Clip positions, duration, styling and voice audio stay unchanged. Apply creates one undo step.',reviewPanel);
         const timed=proposal.changes.filter(change=>change.clearedWordTimings>0);
         if(timed.length){
           const warning=el('p',timed.length+' changed caption'+(timed.length===1?' loses its':'s lose their')+' word timing. '+proposal.detachedLinks.length+' camera/cursor timing link'+(proposal.detachedLinks.length===1?' is':'s are')+' detached; the keys stay at their current times.',reviewPanel);warning.className='warning';warning.id='caption-replace-warning';

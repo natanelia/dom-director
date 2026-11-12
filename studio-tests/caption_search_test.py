@@ -74,6 +74,7 @@ class StudioCaptionSearchTests(StudioTests):
         self.page.locator('#caption-replace-review').click()
         self.assertIn('1 camera/cursor timing link',self.page.locator('#caption-replace-warning').inner_text())
         self.assertTrue(self.page.locator('#caption-replace-review').is_disabled())
+        self.assertLessEqual(self.page.locator('#caption-replace-review').evaluate('el=>Number(getComputedStyle(el).opacity)'), .5)
         self.assertEqual(self.page.locator('#caption-detached-links li').count(),1)
         self.close_search();self.assertEqual(self.project(),before)
         self.find();self.page.locator('#caption-replace-review').click();self.page.locator('#caption-clear-timing').check()
@@ -145,7 +146,6 @@ class StudioCaptionSearchTests(StudioTests):
 
     def test_host_edit_invalidates_a_prepared_replacement(self):
         self.edit('#caption-size','42');self.find();self.page.locator('#caption-replace-review').click()
-        # Simulates a host change while review is open, not a background user click.
         self.page.locator('#undo').evaluate('el=>el.click()')
         self.page.locator('#caption-replace-review').click()
         self.assertIn('project changed',self.page.locator('#caption-search-error').inner_text())

@@ -24,3 +24,5 @@ dialog:has(.selection-track) #dialog-body{min-height:0;overflow:auto;overscroll-
 dialog[open]:has(.caption-search){display:flex;flex-direction:column;overflow:hidden}
 dialog:has(.caption-search) h2,dialog:has(.caption-search) #dialog-actions{flex:0 0 auto}
 dialog:has(.caption-search) #dialog-body{min-height:0;overflow:auto;overscroll-behavior:contain;max-height:calc(85dvh - 150px)}
+
+#caption-replace-review:disabled{opacity:.45;cursor:not-allowed}
