@@ -1,4 +1,5 @@
 import {requireValue} from './errors.js';
+const setText=(element,value)=>{if(element.textContent!==value)element.textContent=value;};
 const time=ms=>{const seconds=Math.floor((ms||0)/1000);return `${Math.floor(seconds/60)}:${String(seconds%60).padStart(2,'0')}`;};
 /** Optional native controls and a stable transcript, outside the transformed scene. */
 export function mountControls(director,container){
@@ -68,12 +69,12 @@ export function mountControls(director,container){
     buttons.retry.hidden=!state.waitingFor?.error;buttons.retry.disabled=!!state.pendingOperation;
     buttons.reset.hidden=state.mode!=='try';buttons.reset.disabled=!available||!!state.pendingOperation;
     buttons.hint.hidden=!state.waitingFor?.hints?.length;if(!state.waitingFor)hintText.hidden=true;
-    buttons.play.textContent=['playing','buffering','waiting'].includes(state.status)?'Pause':'Play';
+    setText(buttons.play,['playing','buffering','waiting'].includes(state.status)?'Pause':'Play');
     buttons.play.setAttribute('aria-label',['playing','buffering','waiting'].includes(state.status)?'Pause walkthrough':'Play walkthrough');
-    buttons.sound.hidden=!state.narration;buttons.sound.disabled=!available||!state.narration?.available;buttons.sound.textContent=state.narration?.enabled?'Continue without sound':'Enable narration';buttons.sound.setAttribute('aria-pressed',String(!!state.narration?.enabled));
-    buttons.captions.setAttribute('aria-pressed',String(state.captionsEnabled!==false));buttons.captions.textContent=state.captionsEnabled===false?'Captions off':'Captions on';caption.hidden=state.captionsEnabled===false;
+    buttons.sound.hidden=!state.narration;buttons.sound.disabled=!available||!state.narration?.available;setText(buttons.sound,state.narration?.enabled?'Continue without sound':'Enable narration');buttons.sound.setAttribute('aria-pressed',String(!!state.narration?.enabled));
+    buttons.captions.setAttribute('aria-pressed',String(state.captionsEnabled!==false));setText(buttons.captions,state.captionsEnabled===false?'Captions off':'Captions on');caption.hidden=state.captionsEnabled===false;
     buttons.next.hidden=!state.reasons?.includes('step');buttons.next.disabled=!available;
-    buttons.motion.textContent=state.reducedMotion?'Motion reduced':'Reduce motion';buttons.motion.setAttribute('aria-pressed',String(!!state.reducedMotion));
+    setText(buttons.motion,state.reducedMotion?'Motion reduced':'Reduce motion');buttons.motion.setAttribute('aria-pressed',String(!!state.reducedMotion));
     progress.max=String(state.durationMs||0);progress.value=String(state.timeMs||0);progress.setAttribute('aria-valuetext',`${time(state.timeMs)} of ${time(state.durationMs)} in this scene`);
     position.value=`${time(state.timeMs)} / ${time(state.durationMs)} · current scene`;
     rate.value=String(state.rate||1);

@@ -43,6 +43,22 @@ class ReactTests(unittest.TestCase):
         self.assertEqual(after['renders'],before['renders'])
         self.page.locator('[data-command="play"]').click()
         self.assertEqual(self.page.evaluate('director.inspect().status'),'paused')
+    def test_pause_held_across_frames_keeps_its_label_and_still_activates(self):
+        play=self.page.locator('[data-command="play"]')
+        for _ in range(3):
+            play.click()
+            self.page.wait_for_function("director.inspect().status==='playing'")
+            play.scroll_into_view_if_needed()
+            box=play.bounding_box()
+            self.page.mouse.move(box['x']+box['width']/2,box['y']+box['height']/2)
+            self.page.mouse.down()
+            before=self.page.evaluate("()=>{window.heldPlayLabel=document.querySelector('[data-command=play]').firstChild;return metrics.frames;}")
+            self.page.wait_for_function('before=>metrics.frames>=before+5',arg=before,timeout=5000)
+            self.assertTrue(self.page.evaluate("heldPlayLabel===document.querySelector('[data-command=play]').firstChild"))
+            self.assertEqual(self.page.evaluate('director.inspect().status'),'playing')
+            self.page.mouse.up()
+            self.page.wait_for_function("director.inspect().status==='paused'",timeout=2000)
+            self.assertEqual(play.get_attribute('aria-label'),'Play walkthrough')
     def test_script_replacement_does_not_recreate_or_autoplay(self):
         before=self.page.evaluate('({session:director.sessionId,run:director.inspect().runId})')
         self.page.locator('#replace-script').click()
