@@ -16,6 +16,9 @@ export function moveClips(project:Project,clipIds:ReadonlyArray<string>,deltaMs:
 export function duplicateClips(project:Project,clipIds:ReadonlyArray<string>,deltaMs:number):{readonly value:Project;readonly clipIds:ReadonlyArray<string>};
 /** Removes all selected clips or none; unselected dependent keys are never silently detached. */
 export function deleteClips(project:Project,clipIds:ReadonlyArray<string>):Project;
+/** Copies effective caption/cursor styling into explicit clip overrides; other content, timing and links are preserved.
+ * All destinations must match the source kind; any locked destination rejects the whole edit. The source is read-only. */
+export function matchClipAppearance(project:Project,sourceId:string,clipIds:ReadonlyArray<string>):Project;
 export interface SelectionSnapOptions {pixelsPerSecond:number;tolerancePx?:number;gridMs?:number;playheadMs?:number;}
 /** Snap any selected edge to unselected clips/keys/words, scene boundaries or the playhead. Validate movement separately. */
 export function createSelectionSnapper(project:Project,clipIds:ReadonlyArray<string>,options:SelectionSnapOptions):{

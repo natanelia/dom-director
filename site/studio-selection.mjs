@@ -1,5 +1,5 @@
 import {findClip} from './studio-sdk/index.js';
-import {selectionBounds,includeLinkedClips,moveClips,duplicateClips,deleteClips,createSelectionSnapper} from './studio-sdk/selection.js';
+import {selectionBounds,includeLinkedClips,moveClips,duplicateClips,deleteClips,createSelectionSnapper,matchClipAppearance} from './studio-sdk/selection.js';
 
 /** UI-only selection. All project edits still use the host's revision-checked commit. */
 export function createSelectionTools(host){
@@ -77,6 +77,26 @@ export function createSelectionTools(host){
     button('selection-at-playhead','Start at playhead',actions,()=>safe(()=>move(Math.round(host.time())-selectionBounds(project(),ids()).startMs)));
     button('selection-duplicate','Duplicate by offset',actions,()=>duplicateWithOffset());
     button('selection-delete','Delete selected clips',actions,remove);
+    const kind=rows[0].track.kind;
+    if((kind==='captions'||kind==='cursor')&&rows.every(row=>row.track.kind===kind)){
+      const section=el('details',undefined,root);section.id='selection-appearance';
+      el('summary','Match appearance',section);
+      const label=el('label','Copy look from',section);label.className='field';
+      const source=el('select',undefined,label);source.id='selection-style-source';
+      for(const row of rows){
+        const title=project().scenes.find(scene=>scene.id===row.clip.sceneId).title;
+        const option=el('option',title+' · '+row.track.name+' · '+textTime(row.clip.startMs),source);option.value=row.clip.id;
+      }
+      source.value=host.active().clipId;
+      const note=el('p','Copy the chosen clip’s full visible '+(kind==='captions'?'caption':'cursor')+' style to the other selected clips as explicit overrides. Existing per-clip styling is replaced; text, timing, narration, paths and word links stay unchanged. Undo restores the previous looks.',section);
+      note.id='selection-style-hint';note.className='note';source.setAttribute('aria-describedby',note.id);
+      button('selection-match-style','Apply appearance',section,()=>safe(()=>{
+        const before=snapshot(),sourceId=source.value;
+        host.commit(matchClipAppearance(before.project,sourceId,ids()),'Match selected '+(kind==='captions'?'caption':'cursor')+' appearance',before.revision);
+        $('selection-style-source').value=sourceId;
+        $('selection-appearance').open=true;$('selection-match-style').focus({preventScroll:true});
+      }));
+    }
     const dependents=includeLinkedClips(project(),group);
     if(dependents.length!==group.length)button('selection-linked','Include linked clips ('+dependents.length+')',root,includeLinks);
     button('selection-single','Edit only the primary clip',root,()=>{const id=host.active().clipId;clear();host.selectSingle(id);});
