@@ -2,6 +2,7 @@
 import json
 import os
 import tempfile
+import time
 from pathlib import Path
 import unittest
 from browser_test import StudioTests
@@ -64,6 +65,7 @@ class StudioStartupTests(StudioTests):
                          body='<!doctype html><html lang="en"><title>Missing fixture</title><body>No Studio root</body></html>'))
         report = self.broken('TimeoutError')
         self.assertIsNone(report['state']['ready'])
+        self.assertTrue(report['state']['unavailable'])
 
     def test_explicit_startup_error_is_immediate_failure_not_a_timeout(self):
         self.page.route('**/studio.mjs', lambda route: route.fulfill(status=200, content_type='text/javascript',
@@ -71,6 +73,17 @@ class StudioStartupTests(StudioTests):
         report = self.broken('AssertionError')
         self.assertEqual(report['state']['ready'], 'error')
         self.assertEqual(report['state']['status'], 'Synthetic initialization failure')
+
+    def test_frozen_renderer_still_preserves_evidence_and_rethrows_within_bound(self):
+        # Only this intentionally frozen fixture has a short navigation deadline.
+        self.page.set_default_navigation_timeout(500)
+        self.page.route('**/studio.mjs', lambda route: route.fulfill(status=200, content_type='text/javascript',
+                         body='while (true) {}'))
+        started = time.monotonic()
+        report = self.broken('TimeoutError')
+        self.assertLess(time.monotonic() - started, 6)
+        self.assertTrue(report['state']['unavailable'])
+        self.assertTrue(any(row['path'].endswith('/studio.mjs') for row in report['requests']))
 
 
 def load_tests(loader, tests, pattern):

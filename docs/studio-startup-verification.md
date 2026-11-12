@@ -17,12 +17,17 @@ no automatic reload, test retry, increased timeout, or waived playback assertion
 Before rethrowing a startup failure, the helper writes a bounded JSON report and
 tries to capture the synthetic viewport. Reports identify document/module/style
 paths, response statuses, failed/pending requests, page-error classes and the
-fixture's ready/status state. URLs omit query strings and external addresses;
-headers, request/response bodies, cookies, arbitrary DOM dumps and environment
-variables are not collected. The report is also printed in CI logs. Failed
-captures never replace the original failure. Page cleanup is registered before
-navigation, so unittest closes pages even when `setUp` fails. Probe listeners are
-always removed.
+fixture's ready/status state. Resource failures are detected independently of the
+100-row metadata cap: an omitted request can still fail startup. URLs omit query
+strings and external addresses; headers, request/response bodies, cookies,
+arbitrary DOM dumps and environment variables are not collected.
+
+The request-only report is written and printed before renderer inspection. Each
+of the two state reads has its own 500 ms deadline; the optional screenshot is
+bounded to 1000 ms. Failed captures never replace the original failure, including
+when initialization JavaScript freezes the renderer. Page cleanup is registered
+before navigation, so unittest closes pages even when `setUp` fails. Probe
+listeners are always removed.
 
 The public verification workflow retains only `studio-results/` diagnostics for
 seven days, including failed startup evidence. This changes test artifacts, not
@@ -30,9 +35,9 @@ the GitHub Pages publication allowlist or runtime permissions. Reports and
 screenshots are for the synthetic Orbit fixture, not arbitrary customer apps.
 
 `startup_test.py` checks the helper without a browser. `startup_browser_test.py`
-injects failed dependency requests, evaluation errors, a missing root and an
-explicit startup error into the staged fixture, plus a real cold-start case.
-These controlled negative tests run in all three CI engines; their shorter
-injected-failure deadline does not change the ordinary eight-second deadline.
-The existing public editing suite continues to use actual, unmodified live
-responses. Do not describe a successful retry as a proven root-cause fix.
+injects failed dependency requests, evaluation errors, a missing root, an explicit
+startup error and a frozen JavaScript renderer into the staged fixture, plus a
+real cold-start case. These controlled negative tests run in all three CI engines;
+their shorter injected-failure deadline does not change the ordinary eight-second
+deadline. The existing public editing suite continues to use actual, unmodified
+live responses. Do not describe a successful retry as a proven root-cause fix.

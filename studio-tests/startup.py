@@ -8,11 +8,6 @@ READY = """() => {
   const root = document.querySelector('#studio');
   return !!root && ['true', 'error'].includes(root.dataset.ready);
 }"""
-STATE = """() => ({
-  documentState: document.readyState,
-  ready: document.querySelector('#studio')?.dataset.ready ?? null,
-  status: (document.querySelector('#status')?.textContent ?? '').slice(0, 500)
-})"""
 
 
 def navigate_studio(page, url, report_path, *, timeout_ms=8000):
@@ -24,6 +19,7 @@ def navigate_studio(page, url, report_path, *, timeout_ms=8000):
     """
     origin = urlsplit(url)
     requests, errors, listeners = {}, [], []
+    resource_failure = False
     started = time.monotonic()
 
     def path(value):
@@ -35,11 +31,17 @@ def navigate_studio(page, url, report_path, *, timeout_ms=8000):
         except ValueError:
             return '<invalid-url>'
 
+    def relevant(request):
+        return request.resource_type in ('document', 'script', 'stylesheet')
+
     def requested(request):
-        if len(requests) < 100 and request.resource_type in ('document', 'script', 'stylesheet'):
+        if len(requests) < 100 and relevant(request):
             requests[request] = {'path': path(request.url), 'type': request.resource_type, 'state': 'pending'}
 
     def responded(response):
+        nonlocal resource_failure
+        if relevant(response.request) and response.status >= 400:
+            resource_failure = True
         if response.request in requests:
             requests[response.request].update(status=response.status)
 
@@ -48,6 +50,9 @@ def navigate_studio(page, url, report_path, *, timeout_ms=8000):
             requests[request]['state'] = 'finished'
 
     def failed(request):
+        nonlocal resource_failure
+        if relevant(request):
+            resource_failure = True
         if request in requests:
             requests[request]['state'] = 'failed'
 
@@ -74,23 +79,38 @@ def navigate_studio(page, url, report_path, *, timeout_ms=8000):
             raise AssertionError('Studio reported an initialization error.')
         if errors:
             raise AssertionError('Studio raised a JavaScript error during startup.')
-        if any(row['state'] == 'failed' or row.get('status', 200) >= 400 for row in requests.values()):
+        if resource_failure:
             raise AssertionError('A Studio startup resource failed to load.')
     except Exception as error:
         report = {'errorType': type(error).__name__, 'elapsedMs': round((time.monotonic() - started) * 1000),
-                  'document': path(url), 'requests': list(requests.values()), 'pageErrors': errors}
-        try:
-            report['state'] = page.evaluate(STATE)
-        except Exception:
-            report['state'] = {'unavailable': True}
+                  'document': path(url), 'requests': list(requests.values()), 'pageErrors': errors,
+                  'resourceFailure': resource_failure, 'state': {'unavailable': True}}
         output = Path(report_path)
-        try:
-            output.parent.mkdir(parents=True, exist_ok=True)
-            output.write_text(json.dumps(report, indent=2) + '\n')
-        except OSError:
-            report['reportWriteFailed'] = True
-        # CI logs retain the bounded report even when artifact upload is unavailable.
-        print('STUDIO_STARTUP_FAILURE ' + json.dumps(report), flush=True)
+
+        def persist():
+            try:
+                output.parent.mkdir(parents=True, exist_ok=True)
+                output.write_text(json.dumps(report, indent=2) + '\n')
+            except OSError:
+                report['reportWriteFailed'] = True
+            print('STUDIO_STARTUP_FAILURE ' + json.dumps(report), flush=True)
+
+        # Retain transport evidence before making any call to a possibly frozen
+        # renderer. Locator reads have explicit deadlines; page.evaluate does not.
+        persist()
+        state = {}
+        for name, read in [
+            ('ready', lambda: page.locator('#studio').get_attribute('data-ready', timeout=500)),
+            ('status', lambda: page.locator('#status').text_content(timeout=500)),
+        ]:
+            try:
+                value = read()
+                state[name] = value[:500] if isinstance(value, str) else value
+            except Exception:
+                state[name] = None
+                state['unavailable'] = True
+        report['state'] = state
+        persist()
         try:
             page.screenshot(path=str(output.with_suffix('.png')), timeout=1000)
         except Exception:

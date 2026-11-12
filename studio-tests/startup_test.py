@@ -12,6 +12,7 @@ class FakePage:
         self.state, self.failure, self.status = state, failure, status
         self.listeners, self.calls, self.events = {}, [], []
         self.capture_failure = False
+        self.before_capture = None
 
     def on(self, event, callback):
         self.listeners.setdefault(event, []).append(callback)
@@ -34,7 +35,15 @@ class FakePage:
             raise self.failure[1]
 
     def locator(self, selector):
-        return SimpleNamespace(get_attribute=lambda *args, **kwargs: self.state)
+        def read(*args, timeout):
+            self.calls.append(('read', selector, timeout))
+            if timeout == 500:
+                if self.before_capture:
+                    self.before_capture()
+                if self.capture_failure:
+                    raise TimeoutError('Synthetic frozen renderer')
+            return self.state if selector == '#studio' else 'Synthetic fixture'
+        return SimpleNamespace(get_attribute=read, text_content=read)
 
     def evaluate(self, script):
         if self.capture_failure:
@@ -96,7 +105,7 @@ class StartupContractTests(unittest.TestCase):
         with self.assertRaises(TimeoutError) as caught:
             self.run_page(page)
         self.assertIs(caught.exception, error)
-        self.assertEqual(json.loads(self.path.read_text())['state'], {'unavailable': True})
+        self.assertEqual(json.loads(self.path.read_text())['state'], {'ready': None, 'status': None, 'unavailable': True})
 
     def test_request_metadata_is_bounded_and_queries_headers_bodies_are_not_retained(self):
         page = FakePage('false', ('wait', TimeoutError()))
@@ -128,6 +137,47 @@ class StartupContractTests(unittest.TestCase):
             self.run_page(page)
         report = json.loads(self.path.read_text())
         self.assertEqual(report['requests'], [{'path': '<external>', 'type': 'script', 'state': 'finished'}])
+
+    def test_report_exists_before_renderer_inspection_and_reads_have_independent_deadlines(self):
+        page = FakePage('false', ('wait', TimeoutError('initial failure')))
+        page.capture_failure = True
+        observed = []
+        def before_capture():
+            report = json.loads(self.path.read_text())
+            observed.append(report['errorType'])
+            self.assertTrue(report['state']['unavailable'])
+        page.before_capture = before_capture
+        with self.assertRaises(TimeoutError):
+            self.run_page(page)
+        self.assertEqual(observed, ['TimeoutError', 'TimeoutError'])
+        self.assertEqual([c for c in page.calls if c[0] == 'read'],
+                         [('read', '#studio', 500), ('read', '#status', 500)])
+
+    def test_failures_after_metadata_limit_still_block_startup(self):
+        for failure in ['http', 'network']:
+            with self.subTest(failure=failure):
+                page = FakePage()
+                for i in range(101):
+                    request = type('Request', (), {'url': 'https://example.test/' + str(i) + '.js', 'resource_type': 'script'})()
+                    page.events.append(('request', request))
+                    if i == 100 and failure == 'network':
+                        page.events.append(('requestfailed', request))
+                    else:
+                        status = 503 if i == 100 else 200
+                        page.events.extend([('response', SimpleNamespace(request=request, status=status)), ('requestfinished', request)])
+                with self.assertRaisesRegex(AssertionError, 'resource failed'):
+                    self.run_page(page)
+                report = json.loads(self.path.read_text())
+                self.assertEqual(len(report['requests']), 100)
+                self.assertTrue(report['resourceFailure'])
+                self.assertTrue(all(row['status'] == 200 for row in report['requests']))
+
+    def test_non_startup_media_failure_does_not_fail_an_otherwise_ready_page(self):
+        page = FakePage()
+        request = type('Request', (), {'url': 'https://example.test/later.mp3', 'resource_type': 'media'})()
+        page.events = [('request', request), ('response', SimpleNamespace(request=request, status=503)), ('requestfailed', request)]
+        self.run_page(page)
+        self.assertFalse(self.path.exists())
 
 
 if __name__ == '__main__':
