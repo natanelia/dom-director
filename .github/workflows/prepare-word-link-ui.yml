@@ -1,0 +1,72 @@
+name: Prepare exact word-link UI blobs
+on:
+  push:
+    branches: [automation/word-link-ui-preparation]
+permissions:
+  contents: read
+jobs:
+  prepare:
+    if: github.repository == 'natanelia/dom-director' && github.ref == 'refs/heads/automation/word-link-ui-preparation'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+          fetch-depth: 2
+      - name: Apply reviewed local patch and store verified file blobs only
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python3 - <<'PY'
+          import base64, gzip, hashlib, json, os, subprocess
+          from pathlib import Path
+          from urllib.request import Request, urlopen
+          repo = 'natanelia/dom-director'
+          assert os.environ['GITHUB_REPOSITORY'] == repo
+          expected = {
+            'site/studio.mjs': '114d0780110c90abd96a6e2e8823945f60cfc502',
+            'site/studio.css': '707f957a2e8a18cc7e0f39b0fa198f645fa46715',
+            'studio-tests/timing_link_test.py': 'd4c3272908211c94b06f03e376c865a50a493f1e',
+            'studio-tests/review_test.py': '322c575e818ce7f1b640c3539d89cdadbcf134bc',
+            'studio-tests/accessibility.py': '064af4bfe576a22ecbb8eabd072da8bb3ba7c325',
+            'docs/studio-word-link-controls.md': '2e6d8d1d4891969bdbdbc13bff58132c90cedf78',
+          }
+          def git_blob(data):
+              return hashlib.sha1(('blob '+str(len(data))+'\0').encode()+data).hexdigest()
+          compressed = b''.join(Path(f'.word-link-transfer/part{i}.gz').read_bytes() for i in range(4))
+          assert len(compressed) == 13981
+          assert git_blob(compressed) == 'dd22bc3ba44afc01a049bd46aa467c576c947d8a'
+          patch = gzip.decompress(compressed)
+          assert len(patch) == 52512
+          work = Path(os.environ['RUNNER_TEMP']) / 'word-link-source'
+          subprocess.run(['git','worktree','add','--detach',str(work),'be977152cfd79ed66992746c92ba7bfaafb21df9'], check=True)
+          def git(*args, **kwargs):
+              return subprocess.run(['git','-C',str(work),*args], check=True, **kwargs)
+          stats = git('apply','--numstat',input=patch,capture_output=True).stdout.decode()
+          assert {line.split('\t',2)[2] for line in stats.splitlines()} == set(expected)
+          git('apply','--check',input=patch)
+          git('apply',input=patch)
+          contents = {}
+          for path, sha in expected.items():
+              file = work / path
+              assert file.is_file() and not file.is_symlink() and file.resolve().is_relative_to(work)
+              data = file.read_bytes()
+              assert git_blob(data) == sha, path
+              contents[path] = data
+          # This step creates immutable blobs only. It never updates any ref, main,
+          # PR, permission, environment, or deployment. The product commit is separate.
+          actual = {}
+          for path, data in contents.items():
+              payload = json.dumps({'content':base64.b64encode(data).decode(),'encoding':'base64'}).encode()
+              request = Request('https://api.github.com/repos/'+repo+'/git/blobs',data=payload,
+                headers={'Authorization':'Bearer '+os.environ['GH_TOKEN'],'Accept':'application/vnd.github+json',
+                         'Content-Type':'application/json','X-GitHub-Api-Version':'2022-11-28'},method='POST')
+              with urlopen(request,timeout=30) as response:
+                  result = json.load(response)
+              assert result['sha'] == expected[path], path
+              actual[path] = result['sha']
+          print('VERIFIED_FILE_BLOBS='+json.dumps(actual,sort_keys=True))
+          PY
