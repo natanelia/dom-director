@@ -57,6 +57,28 @@ explains the conflict. **Include linked clips** explicitly shows the expanded gr
 before retrying. A locked dependency remains locked. Group edits never detach
 links, alter voice audio, extend scene lengths or dispatch application actions.
 
+## Match a look without changing the story
+
+Select two or more **caption clips**, or two or more **cursor clips**, then open
+**Match appearance** in the group inspector. Choose **Copy look from** and apply.
+The chosen source stays untouched. Every other selected clip receives the source's
+full effective appearance: built-in defaults, project theme, track theme and clip
+overrides, in that order. Text, word timing and links, motion paths, gestures,
+clip timing and voice takes remain unchanged. This is one undoable operation.
+
+Matching replaces the destination clips' style overrides rather than changing
+track/project defaults. The result is an explicit snapshot: later theme or source
+changes do not update it. Select a single caption to reset its style scope when
+inheritance is preferred again. Mixed-kind groups, camera and voice groups do not
+offer this control. A locked destination rejects the whole edit. A locked source
+can be read when the other destinations are on unlocked caption tracks.
+
+Integrators use `matchClipAppearance(project, sourceId, destinationIds)` from the
+same `@dom-director/studio/selection` entry. Destinations may include the source;
+it is never rewritten. IDs must be current and unique. No media or DOM is read,
+no provider is contacted and the project format is unchanged. The returned
+immutable project still requires the host's revision-checked commit.
+
 ## Move, duplicate and delete
 
 `selectionBounds` returns the earliest start and latest end in **project time**,
@@ -120,3 +142,10 @@ This entry does not implement automatic layout, gap removal, box selection,
 multiclip trimming, cross-scene dragging or a general track-group format. The
 host owns selection UI and preview. The native project file is unchanged and
 contains no editor selection or implicit approval.
+
+Appearance coverage is in `packages/studio/test/selection-appearance.test.js` and
+`studio-tests/appearance_test.py`: precedence, locked/mixed groups, word-link and
+source-window preservation, one-step undo, mobile keyboard use and file round-trip.
+The packed consumer checks the same exported operation. Automated accessibility
+audits include the desktop and mobile matching inspector; manual acceptance is
+still required. Test definitions are not claims of passing checks.

@@ -1,5 +1,5 @@
 import {createSample, type Project} from '@dom-director/studio';
-import {selectionBounds,includeLinkedClips,moveClips,duplicateClips,deleteClips,type SelectionBounds} from '@dom-director/studio/selection';
+import {selectionBounds,includeLinkedClips,moveClips,duplicateClips,deleteClips,matchClipAppearance,type SelectionBounds} from '@dom-director/studio/selection';
 const project=createSample(),ids=['camera.overview','cursor.overview'] as const;
 const bounds:SelectionBounds=selectionBounds(project,ids);
 const expanded:ReadonlyArray<string>=includeLinkedClips(project,ids);
@@ -15,3 +15,9 @@ selectionBounds(project,'camera.overview');
 copied.clipIds.push('other');
 // @ts-expect-error no hidden ripple or authorization options
 moveClips(project,ids,10,{ripple:true});
+
+const styled:Project=matchClipAppearance(project,'cc.overview.0',['cc.signal.0'] as const);void styled;
+// @ts-expect-error source is a single stable identity
+matchClipAppearance(project,['cc.overview.0'],['cc.signal.0']);
+// @ts-expect-error destination selection is a readonly list
+matchClipAppearance(project,'cc.overview.0','cc.signal.0');

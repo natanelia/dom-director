@@ -1,4 +1,4 @@
-import {editProject,requireProject,sceneTimeline} from './project.js';
+import {editProject,requireProject,sceneTimeline,CAPTION_THEME,CURSOR_THEME} from './project.js';
 import {cloneData} from '@dom-director/core/data';
 const copy=value=>cloneData(value);
 const demand=(ok,message)=>{if(!ok)throw new Error(message);};
@@ -82,6 +82,22 @@ export function deleteClips(input,clipIds){
   const {project,ids}=selectedRows(input,clipIds);checkSelectionLinks(project,ids,'delete');
   return editProject(project,next=>{
     for(const track of next.tracks)track.clips=track.clips.filter(clip=>!ids.has(clip.id));
+  });
+}
+
+/** Copy resolved caption/cursor appearance only; timing, text and motion remain untouched. */
+export function matchClipAppearance(input,sourceId,clipIds){
+  const {project,rows}=selectedRows(input,clipIds);
+  const source=selectedRows(project,[sourceId]).rows[0],kind=source.track.kind;
+  demand(kind==='captions'||kind==='cursor','Choose a caption or cursor as the appearance source.');
+  demand(rows.every(row=>row.track.kind===kind),'Select only captions or only cursor clips to match appearance.');
+  const targets=rows.filter(row=>row.clip.id!==sourceId);
+  demand(targets.every(row=>!row.track.locked),'A destination track is locked. Unlock it or remove its clips from the selection.');
+  const theme=kind==='captions'?CAPTION_THEME:CURSOR_THEME;
+  const appearance={...theme,...project[kind==='captions'?'captionTheme':'cursorTheme'],...source.track.style,...source.clip.style};
+  const destinations=new Set(targets.map(row=>row.clip.id));
+  return editProject(project,next=>{
+    for(const track of next.tracks)for(const clip of track.clips)if(destinations.has(clip.id))clip.style=copy(appearance);
   });
 }
 

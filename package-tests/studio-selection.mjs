@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import {createSample,editProject,findClip} from '@dom-director/studio';
-import {selectionBounds,includeLinkedClips,moveClips,duplicateClips,deleteClips} from '@dom-director/studio/selection';
+import {selectionBounds,includeLinkedClips,moveClips,duplicateClips,deleteClips,matchClipAppearance} from '@dom-director/studio/selection';
 assert.equal(typeof document,'undefined');
 const ids=['camera.overview','cursor.overview'];
 const p=editProject(createSample(),q=>{for(const t of q.tracks)for(const c of t.clips)if(ids.includes(c.id))c.durationMs=1000;});
@@ -11,3 +11,11 @@ const duplicate=duplicateClips(p,ids,2000);
 assert.equal(duplicate.clipIds.length,2);
 assert.deepEqual(deleteClips(duplicate.value,duplicate.clipIds),p);
 console.log('Installed multi-clip selection contract passed');
+
+const styled=editProject(p,q=>{findClip(q,'cc.overview.0').clip.style={size:44,color:'#123456'};});
+const matched=matchClipAppearance(styled,'cc.overview.0',['cc.signal.0']);
+assert.equal(findClip(matched,'cc.signal.0').clip.style.size,44);
+assert.equal(findClip(matched,'cc.signal.0').clip.style.color,'#123456');
+assert.equal(findClip(matched,'cc.signal.0').clip.text,findClip(styled,'cc.signal.0').clip.text);
+assert.deepEqual(matched.assets,styled.assets);
+console.log('Installed selection appearance contract passed');

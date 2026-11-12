@@ -105,6 +105,17 @@ def main():
         page.set_viewport_size({'width': 390, 'height': 844})
         assert not page.evaluate('document.documentElement.scrollWidth > innerWidth')
         audit('selection-mobile')
+        page.set_viewport_size({'width': 1440, 'height': 1000})
+        page.locator('#clip-list').click()
+        page.locator('#selection-none').click()
+        for identifier in ['cc.overview.0', 'cc.signal.0']:
+            page.locator('[data-selection-clip="' + identifier + '"]').check()
+        page.locator('#selection-apply').click()
+        page.locator('#selection-appearance summary').click()
+        audit('selection-appearance')
+        page.set_viewport_size({'width': 390, 'height': 844})
+        assert not page.evaluate('document.documentElement.scrollWidth > innerWidth')
+        audit('selection-appearance-mobile')
         assert page.locator('#timecode').get_attribute('aria-live') == 'off'
         report['passed'] = not any(a['violations'] for a in report['audits'])
         report['manualReviewStillRequired'] = True
