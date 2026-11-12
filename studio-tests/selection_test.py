@@ -164,7 +164,11 @@ class StudioSelectionTests(StudioTests):
         links = [k['timing'] for c in copies for k in c.get('keys', []) if 'timing' in k]
         self.assertEqual(len(links), 2)
         self.assertTrue(all(link['captionId'] == caption['id'] for link in links))
-        self.assertTrue(all(link['wordId'] in {w['id'] for w in caption['words']} for link in links))
+        copied_word_ids = {w['id'] for w in caption['words'] if 'id' in w}
+        original_word_ids = {w['id'] for w in self.clip(before, 'cc.overview.0')['words'] if 'id' in w}
+        self.assertTrue(all(link['wordId'] in copied_word_ids for link in links))
+        self.assertTrue(copied_word_ids.isdisjoint(original_word_ids))
+        self.assertNotIn('id', caption['words'][0])
         self.page.locator('#delete-clip').click()
         self.assertEqual(self.project(), before)
         self.page.locator('#undo').click()
