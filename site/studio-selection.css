@@ -1,0 +1,9 @@
+/* Selection remains UI state; selected tracks keep their original colors. */
+.selection-actions{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0}
+.selection-actions button{white-space:normal;min-height:36px}
+.selection-track{min-width:0;margin:14px 0;border:1px solid var(--line);border-radius:8px;padding:10px}
+.selection-track legend{padding:0 6px;font-size:13px;font-weight:600}
+.selection-choice{display:flex;align-items:flex-start;gap:10px;min-height:44px;padding:10px 4px;font-size:12px;cursor:pointer}
+.selection-choice input{flex:0 0 auto;margin:3px 0 0;width:18px;height:18px}
+.selection-choice span{min-width:0;overflow-wrap:anywhere}
+.clip[data-selection-drag=invalid]{outline:2px solid #92361e;outline-offset:-2px}

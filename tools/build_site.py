@@ -45,8 +45,8 @@ def render_html(template,css,revision):
     if any(marker in html for marker in ['/*__CSS__*/','/*__DATA__*/','/*__APP__*/','/*__MODEL__*/']):raise ValueError('Unresolved template marker')
     return html
 
-STUDIO_SITE_FILES = ('studio.html', 'studio.css', 'studio.mjs', 'studio-view.mjs', 'studio-video.mjs')
-STUDIO_MODULES = ('index.js', 'project.js', 'sample.js', 'evaluator.js', 'editing.js', 'media.js', 'subtitles.js', 'audio-export.js', 'timing.js', 'timing-links.js')
+STUDIO_SITE_FILES = ('studio.html', 'studio.css', 'studio.mjs', 'studio-view.mjs', 'studio-video.mjs', 'studio-selection.mjs', 'studio-selection.css')
+STUDIO_MODULES = ('index.js', 'project.js', 'sample.js', 'evaluator.js', 'editing.js', 'media.js', 'subtitles.js', 'audio-export.js', 'timing.js', 'timing-links.js', 'selection.js')
 
 def studio_files(revision):
     """Exact public Studio inputs; no package metadata, test or arbitrary file upload."""

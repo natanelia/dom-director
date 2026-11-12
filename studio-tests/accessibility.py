@@ -95,6 +95,16 @@ def main():
         assert not page.evaluate('document.documentElement.scrollWidth > innerWidth')
         audit('voice-audition-mobile')
         page.keyboard.press('Escape')
+        page.set_viewport_size({'width': 1440, 'height': 1000})
+        page.locator('#clip-list').click()
+        page.locator('#selection-scene').click()
+        audit('selection-choices')
+        page.locator('#selection-apply').focus()
+        page.keyboard.press('Enter')
+        audit('selection-inspector')
+        page.set_viewport_size({'width': 390, 'height': 844})
+        assert not page.evaluate('document.documentElement.scrollWidth > innerWidth')
+        audit('selection-mobile')
         assert page.locator('#timecode').get_attribute('aria-live') == 'off'
         report['passed'] = not any(a['violations'] for a in report['audits'])
         report['manualReviewStillRequired'] = True

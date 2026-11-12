@@ -3,8 +3,8 @@
 The optional `@dom-director/studio/selection` entry provides atomic operations for
 video-style selection across camera, cursor, voice and caption tracks. It uses the
 existing Studio project format; it does not add a new schema, playback engine,
-permission, provider or persistence layer. This first slice is the reusable model;
-visual selection controls are a separate change. Packages remain unpublished.
+permission, provider or persistence layer. Studio uses the same helpers for
+multitrack selection and grouped edits. Packages remain unpublished.
 
 ```ts
 import {selectionBounds, includeLinkedClips, moveClips,
@@ -21,6 +21,41 @@ Selection uses stable clip IDs, not timeline pixel positions. Empty, duplicated,
 unknown and oversized selections are refused. Returned snapshots and identity
 lists are immutable. Reads and edits are data-only and do not resolve DOM targets,
 read media, start playback, or execute application effects.
+
+## In Studio
+
+Shift-, Ctrl- or Cmd-click timeline clips to toggle them in the selection. A normal
+click returns to one clip. **Select clips** opens a labeled checkbox list for touch
+and keyboard users, with **Select this scene**, **Clear choices**, and **Include
+linked clips**. Applying a selection never edits the project. Selection is temporary
+editor state, not a persisted track group or part of the saved project.
+
+With several clips selected, the inspector shows the selected time range and track
+count. Enter an offset in seconds for **Move by offset** or **Duplicate by offset**;
+**Start at playhead** aligns the earliest selected start. **Delete selected clips**
+removes the group. Drag any selected clip to move them together, or focus one and
+use Left/Right to nudge 10 milliseconds (Shift: 100 milliseconds). Each successful
+operation is one revision-checked undo step. Copies become the new selection.
+
+The drag preview commits only on release. Escape, pointer cancellation, lost focus,
+resize, a changed project or changed timeline scale cancels it. Releasing at an
+invalid position changes nothing, not the last valid preview. Snapping uses any
+selected edge against unselected clips, keys, words, scene boundaries or the
+playhead. Alt-drag bypasses magnets and the grid. Selected items never snap to
+one another as though they were stationary.
+
+**Loop selection** loops the group's project-time bounding range, including gaps
+and any unselected content within that range. It does not solo the selected media.
+Use **Edit only the primary clip** or a normal timeline click to return to one
+inspector. Selecting a keyframe remains a single-key operation. Split and trim
+require one clip; group movement requires Ripple off, so unselected clips cannot
+move unexpectedly. Full-scene clips have no spare movement space until trimmed;
+the editor refuses out-of-scene placement rather than silently resizing a scene.
+
+When timing-linked captions and motion are only partly selected, the operation
+explains the conflict. **Include linked clips** explicitly shows the expanded group
+before retrying. A locked dependency remains locked. Group edits never detach
+links, alter voice audio, extend scene lengths or dispatch application actions.
 
 ## Move, duplicate and delete
 
@@ -73,6 +108,13 @@ scene-local movement, collisions, locked tracks, word-link closure, fresh identi
 mapping, duplicate/delete, and revision-checked undo. `tools/check_studio.py`
 consumes this export from actual packed tarballs in Node and TypeScript. Test
 source is not proof of a passing run; inspect the associated PR checks.
+
+`studio-tests/selection_test.py` adds twelve browser journeys for selection, exact
+offsets, dragging, cancellation, locks, links, duplicate/delete, keyboard, looping,
+mobile layout and magnetic snapping. The existing review runner exercises them
+in the three supported test engines before and after publication. The Studio
+audit additionally covers the checkbox dialog and desktop/mobile group inspector.
+These tests do not replace physical-device or screen-reader acceptance.
 
 This entry does not implement automatic layout, gap removal, box selection,
 multiclip trimming, cross-scene dragging or a general track-group format. The
