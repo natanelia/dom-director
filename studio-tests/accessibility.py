@@ -86,6 +86,15 @@ def main():
         audit('video-local-invalid-range')
         page.keyboard.press('Escape')
         assert page.locator('#export-open').evaluate('el=>el===document.activeElement')
+        page.set_viewport_size({'width': 1440, 'height': 1000})
+        case.choose('voice')
+        page.get_by_text('Available takes', exact=True).click()
+        page.locator('#inspector details').filter(has=page.get_by_text('Available takes', exact=True)).locator('.clip-list-item').nth(1).click()
+        audit('voice-audition-ready')
+        page.set_viewport_size({'width': 390, 'height': 844})
+        assert not page.evaluate('document.documentElement.scrollWidth > innerWidth')
+        audit('voice-audition-mobile')
+        page.keyboard.press('Escape')
         assert page.locator('#timecode').get_attribute('aria-live') == 'off'
         report['passed'] = not any(a['violations'] for a in report['audits'])
         report['manualReviewStillRequired'] = True

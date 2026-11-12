@@ -1,5 +1,5 @@
 import {createSample,createProjectStore,createEvaluator,editProject,findClip,freshId,duration,sceneTimeline,locate,updateClip,moveClip,trimClip,splitClip,deleteClip,duplicateClip,reorderScene,proposeRetime,exportSubtitles,CAPTION_THEME,CURSOR_THEME} from './studio-sdk/index.js';
-import {createMediaBank,createTransport,saveProjectBundle,readProjectBundle,generateVoiceTake} from './studio-sdk/media.js';
+import {createMediaBank,createTransport,saveProjectBundle,readProjectBundle,generateVoiceTake,createTakeAuditioner} from './studio-sdk/media.js';
 import {setAppearance,applyCaptionPreset,distributeCaptionWords,addKeyframe,updateKeyframe,deleteKeyframe,addGesture,addScene,deleteScene,addCaption,proposeCaptionImport,proposeVoiceReplacement,createTimelineSnapper,moveTimelineKeyframe,captionWordAnchors} from './studio-sdk/editing.js';
 import {createCanvas,TARGETS,drawWaveform} from './studio-view.mjs';
 import {planVoiceMix,renderVoiceMix} from './studio-sdk/audio-export.js';
@@ -14,7 +14,7 @@ let store=createProjectStore(createSample()),selected={sceneId:'overview',kind:'
 let time=0,scope='clip',viewZoom=1,reduced=matchMedia('(prefers-reduced-motion: reduce)').matches,cc=true,sound=false,loop=false;
 let disposed=false,busy=false,drag=null,recording=null,operation=null,transport,view,ready=false,paintRequest=null,lastExport=-1,dialogCleanup=null,fieldCommit=false;
 // Optional host adapter. No service is contacted or configured by this public fixture.
-let voiceProvider=null;
+let voiceProvider=null,activeAudition=null;
 const project=()=>store.snapshot().project;
 const revision=()=>store.snapshot().revision;
 const scene=()=>project().scenes.find(s=>s.id===selected.sceneId)||project().scenes[0];
@@ -38,7 +38,7 @@ function makeTransport(){return createTransport({bank,onFrame:at=>{time=at;draw(
   else if(s.state==='playing')message(s.audible?'Playing with voiceover.':'Playing silently.');
   else if(s.state==='paused'&&(previous==='playing'||previous==='preparing'))message('Preview paused.');
 }});}
-function stop(){if(transport)time=transport.pause();if(ready)draw();}
+function stop(){activeAudition?.stop();if(transport)time=transport.pause();if(ready)draw();}
 function flush(){
   const active=document.activeElement;if(dirtyFields.has(active))active.dispatchEvent(new Event('change',{bubbles:true}));
   if(dirtyFields.size){message('Finish or correct the highlighted field before continuing.',true);[...dirtyFields][0]?.focus();return false;}
@@ -265,13 +265,45 @@ function voiceInspector(p,track,clip){
 function closeDialog(){if(dialogCleanup){const fn=dialogCleanup;dialogCleanup=null;fn();}if($('dialog').open)$('dialog').close();}
 function modal(title,render,actions){closeDialog();$('dialog-title').textContent=title;$('dialog-body').replaceChildren();$('dialog-actions').replaceChildren();render($('dialog-body'));for(const [label,action,primary] of actions){const b=button(label,$('dialog-actions'),action);if(primary)b.className='primary';}$('dialog').showModal();}
 function offerTake(clipId,asset,origin){
-  const release=()=>{if(!project().assets.some(a=>a.id===asset.id))bank.remove(asset.id);};
-  if(revision()!==origin){message('The project changed. This take has not replaced anything.',true);return;}
-  modal('Use this voice take?',body=>{node('p',asset.name+' · '+seconds(asset.durationMs)+' seconds',body);node('p','Keep scene timing uses the entire take only if it fits. Fit scene to voice proposes new visual timing without changing caption text or stretching the audio.',body);},[
-    ['Cancel',closeDialog],['Keep scene timing',()=>replace(false)],['Fit scene to voice',()=>replace(true),true]
-  ]);dialogCleanup=release;
-  function replace(fit){try{const proposal=proposeVoiceReplacement(project(),clipId,asset,{fitScene:fit});if(revision()!==origin)throw Error('This proposal is stale. Select the take again.');
-    if(fit){dialogCleanup=null;modal('Review timing changes',body=>{node('p','Scene length changes by '+seconds(proposal.deltaMs)+' seconds. Later scenes move with it. Voice audio is not stretched; authored caption text stays intact.',body);node('p',proposal.changes.length+' visual clips are retimed. Locked tracks cannot be changed.',body);},[['Cancel',closeDialog],['Use take and retime',()=>{try{commit(proposal.value,'Replace voice and retime scene',origin);closeDialog();}catch(e){message(e.message,true);}},true]]);dialogCleanup=release;}
+  let audition=null;
+  const endAudition=()=>{if(activeAudition===audition)activeAudition=null;audition?.destroy();audition=null;};
+  const release=()=>{endAudition();if(!project().assets.some(a=>a.id===asset.id))bank.remove(asset.id);};
+  if(revision()!==origin){release();message('The project changed. This take has not replaced anything.',true);return;}
+  stop();
+  const currentClip=copy(findClip(project(),clipId).clip),currentAsset=project().assets.find(a=>a.id===currentClip.assetId);
+  modal('Use this voice take?',body=>{
+    node('p',asset.name+' · '+seconds(asset.durationMs)+' seconds',body);
+    const panel=node('section',undefined,body);panel.id='take-comparison';panel.setAttribute('aria-label','Compare voice takes');
+    node('h3','Listen before replacing',panel);
+    node('p','Listen plays sound even when tour preview is muted. Current uses its source trim, volume and fades; new plays the full source at original volume without fades. Nothing is replaced by listening.',panel).className='note';
+    const controls=node('div',undefined,panel);controls.className='actions';
+    const status=node('p','Choose a take to listen. The tour stays paused.',panel);status.id='audition-status';status.setAttribute('role','status');status.setAttribute('aria-live','polite');
+    let choice=null;
+    const currentButton=button('Listen to current clip',controls,()=>listen('current'),'audition-current');currentButton.disabled=!currentAsset;
+    const nextButton=button('Listen to new take',controls,()=>listen('new'),'audition-new');
+    const stopButton=button('Stop listening',controls,()=>audition?.stop(),'audition-stop');stopButton.disabled=true;
+    if(!currentAsset)node('p','There is no current take to compare.',panel).className='note';
+    function update(state){
+      if(disposed||!panel.isConnected)return;
+      panel.dataset.state=state.state;panel.dataset.choice=choice||'';
+      const running=['loading','playing'].includes(state.state);stopButton.disabled=!running;
+      for(const [kind,b] of [['current',currentButton],['new',nextButton]])b.setAttribute('aria-pressed',String(running&&kind===choice));
+      status.classList.toggle('error',state.state==='error');
+      status.textContent=state.state==='loading'?'Preparing '+(choice==='current'?'current clip':'new take')+'…':state.state==='playing'?'Listening to '+(choice==='current'?'current clip':'new take')+'. The project is unchanged.':state.state==='ended'?'Finished listening. Choose either take to compare again.':state.error||'Listening stopped. The project is unchanged.';
+    }
+    audition=createTakeAuditioner({bank,onState:update});activeAudition=audition;
+    panel.dataset.state='idle';for(const b of [currentButton,nextButton])b.setAttribute('aria-pressed','false');
+    function listen(kind){
+      if(disposed||revision()!==origin){endAudition();status.textContent='The project changed. Close and reopen the take comparison.';return;}
+      stop();choice=kind;
+      const options=kind==='current'?{sourceInMs:currentClip.sourceInMs,durationMs:currentClip.durationMs,gain:currentClip.gain,fadeInMs:currentClip.fadeInMs,fadeOutMs:currentClip.fadeOutMs}:{};
+      void audition.play(kind==='current'?currentAsset:asset,options);
+    }
+    node('p','Keep scene timing uses the entire take only if it fits. Fit scene to voice proposes new visual timing without changing caption text or stretching the audio.',body);
+  },[['Cancel',closeDialog],['Keep scene timing',()=>replace(false)],['Fit scene to voice',()=>replace(true),true]]);dialogCleanup=release;
+  function replace(fit){try{
+    audition?.stop();const proposal=proposeVoiceReplacement(project(),clipId,asset,{fitScene:fit});if(revision()!==origin)throw Error('This proposal is stale. Select the take again.');
+    if(fit){endAudition();dialogCleanup=null;modal('Review timing changes',body=>{node('p','Scene length changes by '+seconds(proposal.deltaMs)+' seconds. Later scenes move with it. Voice audio is not stretched; authored caption text stays intact.',body);node('p',proposal.changes.length+' visual clips are retimed. Locked tracks cannot be changed.',body);},[['Cancel',closeDialog],['Use take and retime',()=>{try{commit(proposal.value,'Replace voice and retime scene',origin);closeDialog();}catch(e){message(e.message,true);}},true]]);dialogCleanup=release;}
     else {commit(proposal.value,'Replace voice take',origin);closeDialog();}
   }catch(e){node('p',e.message,$('dialog-body')).className='error';}}
 }
@@ -356,7 +388,7 @@ async function exportVoiceMix(snapshot,config){
 }
 function exportCC(format){try{const result=exportSubtitles(project(),{format});download(result.text,'walkthrough.'+format,'text/plain');message('Subtitle download started. Caption appearance is not included.');closeDialog();}catch(e){message(e.message,true);}}
 async function save(){await runAsync(async()=>{const snapshot=store.snapshot(),text=await saveProjectBundle(snapshot.project,bank);download(text,'walkthrough.director','application/x-dom-director');lastExport=snapshot.revision;$('revision').textContent='Revision '+revision()+(revision()===lastExport?' · exported':' · changes since export');message('Project download started. Check your downloads; this tab does not autosave.');});}
-function play(fromStart=false){if(!ensure())return;if(fromStart)seek(0);if(transport.inspect().state==='playing')stop();else void transport.play();}
+function play(fromStart=false){if(!ensure())return;activeAudition?.stop();if(fromStart)seek(0);if(transport.inspect().state==='playing')stop();else void transport.play();}
 function selectKind(kind){if(!ensure())return;stop();selected.kind=kind;selected.clipId=null;selected.keyId=null;normalizeSelection();const c=selectedClip();if(c)seek(sceneTimeline(project()).find(s=>s.id===c.clip.sceneId).startMs+c.clip.startMs);refresh();}
 function changeSelection(work){act(()=>{work();refresh();});}
 function setup(){
@@ -382,6 +414,7 @@ function setup(){
   on($('audio-file'),'change',()=>{const f=$('audio-file').files[0];$('audio-file').value='';if(f)void importAudio(f);});
   on($('subtitle-file'),'change',()=>{const file=$('subtitle-file').files[0];$('subtitle-file').value='';if(!file)return;void runAsync(async()=>{if(file.size>1024*1024)throw Error('Subtitle files must be smaller than 1 MiB.');const origin=revision(),proposal=proposeCaptionImport(project(),await file.text(),{language:'und',name:file.name.slice(0,150)});modal('Import caption track?',body=>node('p',proposal.cueCount+' captions will be added as a new language track. '+proposal.warnings.join(' '),body),[['Cancel',closeDialog],['Import track',()=>{try{selected.clipId=null;commit(proposal.value,'Import captions',origin);closeDialog();}catch(e){message(e.message,true);}},true]]);});});
   on($('dialog'),'cancel',()=>{dialogCleanup?.();dialogCleanup=null;});
+  on($('dialog'),'close',()=>{if(!$('dialog').open){dialogCleanup?.();dialogCleanup=null;}});
   on($('shortcuts'),'click',()=>modal('Editing shortcuts',body=>node('p','Space: play or pause. S: split selected clip. Delete: remove selected clip. Ctrl/Cmd+Z: undo. Ctrl/Cmd+Shift+Z: redo. Escape: cancel a drag, stop playback or close a dialog. On a timeline keyframe, Left/Right nudges 10 ms (Shift: 100 ms) and Delete removes only that key. Alt-drag bypasses magnetic and grid snapping. Shortcuts do not override text editing. Every operation also has a labeled button.',body),[['Close',closeDialog]]));
   on(document,'keydown',e=>{
     if(e.defaultPrevented||e.isComposing)return;
@@ -396,7 +429,7 @@ function setup(){
   installDrags();
   const preference=matchMedia('(prefers-reduced-motion: reduce)');on(preference,'change',event=>{reduced=event.matches;draw();});
   on(document,'visibilitychange',()=>{if(document.hidden){stop();if(recording)closeDialog();}});
-  on(window,'pagehide',e=>{stop();operation?.abort();if(recording)closeDialog();if(e.persisted)return;disposed=true;cleanups.splice(0).forEach(off=>off());if(paintRequest!==null)cancelAnimationFrame(paintRequest);for(const [url,timer] of urls){clearTimeout(timer);URL.revokeObjectURL(url);}urls.clear();transport.destroy();view.destroy();void bank.destroy();});
+  on(window,'pagehide',e=>{stop();operation?.abort();if(recording)closeDialog();if(e.persisted)return;closeDialog();disposed=true;cleanups.splice(0).forEach(off=>off());if(paintRequest!==null)cancelAnimationFrame(paintRequest);for(const [url,timer] of urls){clearTimeout(timer);URL.revokeObjectURL(url);}urls.clear();transport.destroy();view.destroy();void bank.destroy();});
 }
 function installDrags(){
   let cancelGesture=null,clickTimer=null;
