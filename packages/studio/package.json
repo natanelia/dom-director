@@ -26,6 +26,10 @@
     "./timing-links": {
       "types": "./src/timing-links.d.ts",
       "import": "./src/timing-links.js"
+    },
+    "./selection": {
+      "types": "./src/selection.d.ts",
+      "import": "./src/selection.js"
     }
   },
   "peerDependencies": {
