@@ -165,6 +165,36 @@ class StudioTimingLinkTests(StudioTests):
         self.page.locator('#undo').click()
         self.assertEqual(self.project(), before)
 
+    def test_cancel_and_escape_restore_caption_focus_without_stealing_new_dialog_focus(self):
+        self.words()
+        self.link()
+        self.page.locator('#go-to-linked-caption').click()
+        before = self.project()
+        for plain in [False, True]:
+            for escape in [False, True]:
+                if plain:
+                    self.page.locator('#use-plain-caption').click()
+                else:
+                    self.edit('#caption-text', 'An uncommitted text correction.')
+                self.assertTrue(self.page.locator('#dialog').is_visible())
+                if escape:
+                    self.page.keyboard.press('Escape')
+                else:
+                    self.page.get_by_role('button', name='Cancel', exact=True).click()
+                self.page.wait_for_function("document.querySelector('#caption-text')===document.activeElement")
+                self.assertEqual(self.project(), before)
+        self.page.locator('#use-plain-caption').click()
+        # A host opens another modal before the old queued close event is dispatched.
+        self.page.evaluate("""()=>{
+            [...document.querySelectorAll('#dialog-actions button')].find(b=>b.textContent==='Cancel').click();
+            document.querySelector('#export-open').click();
+        }""")
+        self.assertTrue(self.page.locator('#dialog').is_visible())
+        self.page.wait_for_timeout(50)
+        self.assertTrue(self.page.locator('#dialog').evaluate('el=>el.contains(document.activeElement)'))
+        self.page.keyboard.press('Escape')
+        self.assertEqual(self.project(), before)
+
     def test_plain_caption_requires_review_and_keeps_resolved_key_time(self):
         self.words()
         self.link()

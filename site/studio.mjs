@@ -750,7 +750,17 @@ function reviewCaptionChange(captionId,mutate,{title,description,label,confirm,l
     try{commit(next,label,snapshot.revision);closeDialog();$('caption-text')?.focus({preventScroll:true});}
     catch(e){error.textContent=e.message;}
   },true]]);
-  $('dialog-actions').lastElementChild.id='confirm-caption-edit';dialogCleanup=()=>renderInspector();
+  $('dialog-actions').lastElementChild.id='confirm-caption-edit';
+  dialogCleanup=()=>{
+    renderInspector();
+    const dialog=$('dialog'),contents=$('dialog-body').firstChild;
+    // Native Escape closes after `cancel`; restore only after its focus-restoration step.
+    // A newly opened dialog or a changed inspector must keep its own focus.
+    dialog.addEventListener('close',()=>{
+      if(!disposed&&!dialog.open&&$('dialog-body').firstChild===contents&&selected.kind==='captions')
+        $('caption-text')?.focus({preventScroll:true});
+    },{once:true});
+  };
 }
 function changeCaptionText(id,text) {
   const current=findClip(project(),id).clip;
