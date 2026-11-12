@@ -7,3 +7,8 @@
 .selection-choice input{flex:0 0 auto;margin:3px 0 0;width:18px;height:18px}
 .selection-choice span{min-width:0;overflow-wrap:anywhere}
 .clip[data-selection-drag=invalid]{outline:2px solid #92361e;outline-offset:-2px}
+
+/* Keep Apply/Cancel visible while long clip lists scroll, especially on phones. */
+dialog[open]:has(.selection-track){display:flex;flex-direction:column;overflow:hidden}
+dialog:has(.selection-track) h2,dialog:has(.selection-track) #dialog-actions{flex:0 0 auto}
+dialog:has(.selection-track) #dialog-body{min-height:0;overflow:auto;overscroll-behavior:contain;max-height:calc(85dvh - 150px)}
