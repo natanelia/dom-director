@@ -1,5 +1,6 @@
 import {createCaptionSearch} from './studio-captions.mjs';
 import {findClip} from './studio-sdk/index.js';
+import {duplicateScene} from './studio-sdk/editing.js';
 import {selectionBounds,includeLinkedClips,moveClips,duplicateClips,deleteClips,createSelectionSnapper,matchClipAppearance,setVoiceMix} from './studio-sdk/selection.js';
 
 /** UI-only selection. All project edits still use the host's revision-checked commit. */
@@ -43,6 +44,14 @@ export function createSelectionTools(host){
   }
   function includeLinks(){if(!host.ensure())return;set(includeLinkedClips(project(),ids()),host.active().clipId);}
   function safe(work){if(!host.ensure())return;try{return work();}catch(error){host.message(error.message,true);return false;}}
+  on($('scene-duplicate'),'click',()=>safe(()=>{
+    const before=snapshot(),result=duplicateScene(before.project,host.active().sceneId);
+    host.commit(result.value,'Duplicate scene',before.revision);clear();
+    // Reuse the host's scene-selection path for seeking, inspector state and group cleanup.
+    const card=()=>[...$('scene-list').querySelectorAll('[data-scene]')].find(b=>b.dataset.scene===result.sceneId);
+    card()?.click();card()?.focus();
+    host.message('Scene duplicated. All tracks copied; voice assets reused. Undo restores the previous story.');
+  }));
   function move(delta,focus=false){return safe(()=>{
     if($('ripple').checked)throw Error('Turn Ripple off before moving a selection. Group edits never move unselected clips.');
     const before=snapshot(),selected=ids();host.commit(moveClips(before.project,selected,delta),'Move '+selected.length+' clips',before.revision);

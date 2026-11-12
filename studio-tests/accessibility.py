@@ -37,6 +37,16 @@ def main():
         page.add_script_tag(path=str(axe))
         page.emulate_media(reduced_motion='reduce')
         audit('caption-ready')
+        page.locator('#scene-duplicate').focus()
+        page.keyboard.press('Enter')
+        assert page.locator('#scene-list [aria-current="step"]').evaluate('el=>el===document.activeElement')
+        audit('scene-duplicated')
+        page.set_viewport_size({'width': 390, 'height': 844})
+        assert not page.evaluate('document.documentElement.scrollWidth > innerWidth')
+        audit('scene-duplicated-mobile')
+        page.set_viewport_size({'width': 1440, 'height': 1000})
+        page.locator('#undo').click()
+        assert page.locator('#scene-list button').count() == 3
         for kind in ['voice', 'cursor', 'camera']:
             case.choose(kind)
             audit(kind + '-inspector')

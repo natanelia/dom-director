@@ -76,6 +76,41 @@ export function addScene(project,{afterId=project.scenes.at(-1).id,target,title=
     }
   });return {value,sceneId};
 }
+/** Copy a whole scene, retaining media references and rebinding only copied identities. */
+export function duplicateScene(input,sourceId){
+  const project=requireProject(input),source=project.scenes.find(scene=>scene.id===sourceId);
+  demand(source,'Choose an existing scene to duplicate.');
+  const used=new Set(),mapped=new Map();let serial=0,sceneId;
+  JSON.stringify(project,(key,value)=>{if(key==='id')used.add(value);return value;});
+  function allocate(original,kind){
+    let value;do{value=kind+'-copy-'+(++serial);}while(used.has(value));
+    used.add(value);mapped.set(original,value);return value;
+  }
+  // The existing title budget uses UTF-16 units; never cut an authored surrogate pair.
+  let title='';for(const char of source.title){if(title.length+char.length>153)break;title+=char;}
+  const value=editProject(project,next=>{
+    sceneId=allocate(source.id,'scene');
+    const index=next.scenes.findIndex(scene=>scene.id===source.id),copies=[];
+    next.scenes.splice(index+1,0,{...source,id:sceneId,title:title.trimEnd()+' (copy)'});
+    for(const track of next.tracks){
+      for(const clip of track.clips.filter(clip=>clip.sceneId===source.id)){
+        const duplicate=copy(clip);duplicate.id=allocate(clip.id,'clip');duplicate.sceneId=sceneId;
+        for(const key of duplicate.keys||[])key.id=allocate(key.id,'key');
+        for(const gesture of duplicate.gestures||[])gesture.id=allocate(gesture.id,'gesture');
+        for(const word of duplicate.words||[])if(word.id!==undefined)word.id=allocate(word.id,'word');
+        track.clips.push(duplicate);copies.push(duplicate);
+      }
+    }
+    // Allocate every caption/word first: track order and inactive languages are irrelevant.
+    for(const clip of copies)for(const key of clip.keys||[])if(key.timing){
+      const captionId=mapped.get(key.timing.captionId),wordId=mapped.get(key.timing.wordId);
+      demand(captionId&&wordId,'A copied timing link is missing its caption or word.');
+      key.timing={...key.timing,captionId,wordId};
+    }
+    // editProject validates all limits and locked content/absolute positions atomically.
+  });
+  return {value,sceneId};
+}
 export function deleteScene(project,sceneId){
   demand(project.scenes.length>1,'Keep at least one scene.');
   return editProject(project,next=>{demand(next.scenes.some(s=>s.id===sceneId),'Scene is missing.');next.scenes=next.scenes.filter(s=>s.id!==sceneId);for(const t of next.tracks)t.clips=t.clips.filter(c=>c.sceneId!==sceneId);});
