@@ -35,3 +35,13 @@
 .timeline-key[data-drag-state=invalid]::before{background:#92361e}
 #snap-guide{position:absolute;top:0;bottom:0;width:2px;background:#5d4b7e;z-index:2;pointer-events:none}
 #snap-guide span{position:absolute;left:6px;top:0;max-width:240px;white-space:nowrap;background:#f5efff;color:#39294f;border:1px solid #a795bb;border-radius:3px;padding:2px 5px;font:10px/1.4 system-ui}
+
+/* Word links stay explicit in both the selected-key inspector and the timeline. */
+.timing-link-panel{margin:14px 0;padding:12px;border:1px solid #bac8b0;border-radius:8px;background:#f0f4e9;overflow-wrap:anywhere}
+.timing-link-panel h3{margin:0 0 8px}.timing-link-panel .actions{margin-bottom:0}
+.timing-link-panel .actions button,.link-navigation{white-space:normal;font-size:11px;text-align:left;min-height:30px}
+.timing-summary{color:#354b35}.link-navigation{margin-bottom:8px}
+.timeline-key[data-word-linked=true]::before{border:2px solid #4e3a6b;box-shadow:0 0 0 2px #e8ddf4}
+.timeline-key[data-word-linked=true]::after{content:"↔";position:absolute;left:calc(var(--key-center,12px) - 6px);top:4px;font:bold 12px/16px system-ui;color:#233c2c;background:#f8faf0;border-radius:2px}
+#link-result,#caption-link-review{overflow-wrap:anywhere}
+@media(max-width:800px){.timing-link-panel button{min-height:40px}.timing-link-panel .actions{gap:8px}}

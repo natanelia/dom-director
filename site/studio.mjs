@@ -1,8 +1,9 @@
 import {createSample,createProjectStore,createEvaluator,editProject,findClip,freshId,duration,sceneTimeline,locate,updateClip,moveClip,trimClip,splitClip,deleteClip,duplicateClip,reorderScene,proposeRetime,exportSubtitles,CAPTION_THEME,CURSOR_THEME} from './studio-sdk/index.js';
 import {createMediaBank,createTransport,saveProjectBundle,readProjectBundle,generateVoiceTake} from './studio-sdk/media.js';
-import {setAppearance,applyCaptionPreset,distributeCaptionWords,addKeyframe,updateKeyframe,deleteKeyframe,addGesture,addScene,deleteScene,addCaption,proposeCaptionImport,proposeVoiceReplacement,createTimelineSnapper,moveTimelineKeyframe} from './studio-sdk/editing.js';
+import {setAppearance,applyCaptionPreset,distributeCaptionWords,addKeyframe,updateKeyframe,deleteKeyframe,addGesture,addScene,deleteScene,addCaption,proposeCaptionImport,proposeVoiceReplacement,createTimelineSnapper,moveTimelineKeyframe,captionWordAnchors} from './studio-sdk/editing.js';
 import {createCanvas,TARGETS,drawWaveform} from './studio-view.mjs';
 import {planVoiceMix,renderVoiceMix} from './studio-sdk/audio-export.js';
+import {linkKeyframeToCaptionWord,detachTimingLink,detachCaptionTimingLinks,describeTimingLinks} from './studio-sdk/timing-links.js';
 
 const $=id=>document.getElementById(id),copy=value=>JSON.parse(JSON.stringify(value)),seconds=ms=>(ms/1000).toFixed(2);
 const clock=ms=>{const n=Math.max(0,ms);return String(Math.floor(n/60000)).padStart(2,'0')+':'+(n/1000%60).toFixed(2).padStart(5,'0');};
@@ -51,7 +52,7 @@ function normalizeSelection(){
   if(!found||found.clip.sceneId!==selected.sceneId||found.track.kind!==selected.kind||(found.track.kind==='captions'&&found.track.id!==project().captionTrack)){const tracks=project().tracks.filter(t=>t.kind===selected.kind&&(t.kind!=='captions'||t.id===project().captionTrack));found=tracks.map(track=>({track,clip:track.clips.find(c=>c.sceneId===selected.sceneId)})).find(x=>x.clip);selected.clipId=found?.clip.id||null;}
   if(!found?.clip.keys?.some(k=>k.id===selected.keyId))selected.keyId=found?.clip.keys?.[0]?.id||null;
 }
-function refresh(){normalizeSelection();renderScenes();renderTimeline();if(!fieldCommit)renderInspector();$('project-title').value=project().title;const s=store.snapshot();$('undo').disabled=!s.canUndo;$('redo').disabled=!s.canRedo;$('revision').textContent='Revision '+s.revision+(lastExport===s.revision?' · exported':' · in this tab');$('seek').max=String(duration(project())/1000);draw();}
+function refresh(){normalizeSelection();renderScenes();renderTimeline();if(!fieldCommit)renderInspector();else refreshTimingHints();$('project-title').value=project().title;const s=store.snapshot();$('undo').disabled=!s.canUndo;$('redo').disabled=!s.canRedo;$('revision').textContent='Revision '+s.revision+(lastExport===s.revision?' · exported':' · in this tab');$('seek').max=String(duration(project())/1000);draw();}
 function commit(next,label='Edit project',expected=revision()){
   hostCheck(next);stop();const at=time;store.commit(next,label,expected);loop=false;$('loop').setAttribute('aria-pressed','false');transport.load(project());transport.setSound(sound);transport.seek(Math.min(at,duration(project())));dirtyFields.clear();refresh();message(label+' · undo available. Save project to keep your work.');
 }
@@ -101,10 +102,10 @@ function renderTimeline(){
       for(const [index,key] of (clip.keys||[]).entries()){
         // Siblings, not nested buttons: key timing has its own pointer/keyboard target.
         const d=button('',l.body,()=>{if(!drag?.moved)selectTimelineKey(clip.id,key.id);});d.className='timeline-key';
-        d.dataset.timelineKey=key.id;d.dataset.keyClip=clip.id;d.dataset.keyTrack=track.id;
-        d.setAttribute('aria-label',names[track.kind]+' keyframe '+(index+1)+' · '+project().scenes.find(s=>s.id===clip.sceneId).title+' · '+((key.atMs-clip.offsetMs)/1000).toFixed(3)+' seconds in clip');
+        d.dataset.timelineKey=key.id;d.dataset.keyClip=clip.id;d.dataset.keyTrack=track.id;d.dataset.wordLinked=String(!!key.timing);
+        d.setAttribute('aria-label',names[track.kind]+' keyframe '+(index+1)+' · '+project().scenes.find(s=>s.id===clip.sceneId).title+' · '+((key.atMs-clip.offsetMs)/1000).toFixed(3)+' seconds in clip'+(key.timing?' · linked to a caption word':''));
         d.setAttribute('aria-pressed',String(clip.id===selected.clipId&&key.id===selected.keyId));d.setAttribute('aria-disabled',String(track.locked));
-        d.title='Drag to retime; ← / → nudge 10 ms; Shift 100 ms. Alt-drag bypasses snapping.';
+        d.title=(key.timing?'Linked: moving changes its delay. ':'')+'Drag to retime; ← / → nudge 10 ms; Shift 100 ms. Alt-drag bypasses snapping.';
         placeTimelineKey(d,clip,key,scale,offsets.get(clip.sceneId));
       }
       for(const side of ['start','end']){const h=node('span',undefined,b);h.className='trim '+side;h.dataset.trim=side;h.setAttribute('aria-hidden','true');}
@@ -161,7 +162,8 @@ function renderInspector(){
   p.scrollTop=Math.min(scroll,p.scrollHeight);
 }
 function captionInspector(p,track,clip){
-  field(p,'caption-text','Caption text',clip.text,v=>{const next=editProject(project(),d=>{const c=findClip(d,clip.id).clip;c.text=v;if(c.words)delete c.words;});if(clip.words){const origin=revision();modal('Update caption text?',body=>node('p','Changing this text clears its existing word timings. The voice recording is unchanged. Undo restores both text and word timing.',body),[['Cancel',()=>{closeDialog();renderInspector();}],['Update caption',()=>{commit(next,'Edit caption and clear word timing',origin);closeDialog();},true]]);dialogCleanup=()=>renderInspector();}else commit(next,'Edit caption');},{type:'textarea',maxLength:4000,preview:v=>{if(v.trim()&&!clip.words)draw(updateClip(project(),clip.id,{text:v}));}});
+  captionDependencies(p,clip);
+  field(p,'caption-text','Caption text',clip.text,v=>changeCaptionText(clip.id,v),{type:'textarea',maxLength:4000,preview:v=>{if(v.trim()&&!clip.words)draw(updateClip(project(),clip.id,{text:v}));}});
   if(clip.words)node('p','This caption has word timing. Editing its text requires replacing or clearing the word timings.',p).className='note';
   const row=node('div',undefined,p);row.className='row';
   field(row,'caption-language','Caption track',project().captionTrack,v=>{selected.clipId=null;commit(editProject(project(),d=>{d.captionTrack=v;}),'Choose caption language');renderInspector();},{options:project().tracks.filter(t=>t.kind==='captions').map(t=>[t.id,t.name])});
@@ -176,7 +178,7 @@ function captionInspector(p,track,clip){
   const words=group('Word highlighting',{collapsed:true});
   node('p','Word timing is optional. Even spacing is an editing starting point, not automatic speech alignment.',words).className='note';
   if(!clip.words)button('Distribute words evenly',words,()=>act(()=>commit(distributeCaptionWords(project(),clip.id),'Add approximate word timing')),'add-word-timing');
-  else {button('Use plain caption',words,()=>act(()=>commit(editProject(project(),d=>{delete findClip(d,clip.id).clip.words;}),'Remove word highlighting')));for(const [i,w] of clip.words.entries()){const r=node('div',undefined,words);r.className='row';for(const [prop,label] of [['startMs','Start'],['endMs','End']])field(r,'word-'+i+'-'+prop,w.text+' · '+label+' (s)',seconds(w[prop]),v=>commit(editProject(project(),d=>{findClip(d,clip.id).clip.words[i][prop]=Math.round(v*1000);}),'Edit word timing'),{type:'number',min:0,step:.01});}}
+  else {button('Use plain caption',words,()=>act(()=>usePlainCaption(clip.id)),'use-plain-caption');for(const [i,w] of clip.words.entries()){const r=node('div',undefined,words);r.className='row';for(const [prop,label] of [['startMs','Start'],['endMs','End']])field(r,'word-'+i+'-'+prop,w.text+' · '+label+' (s)',(w[prop]/1000).toFixed(3),v=>commit(editProject(project(),d=>{findClip(d,clip.id).clip.words[i][prop]=Math.round(v*1000);}),'Edit word timing'),{type:'number',min:0,step:.001});}}
   const actions=node('div',undefined,p);actions.className='actions';button('Add caption',actions,()=>act(()=>{const r=addCaption(project(),selected.sceneId,locate(project(),time).timeMs);selected.clipId=r.clipId;commit(r.value,'Add caption');}),'add-caption');button('Import VTT / SRT',actions,()=>{if(ensure())$('subtitle-file').click();},'import-subtitles');
 }
 function motionInspector(p,track,clip){
@@ -187,10 +189,11 @@ function motionInspector(p,track,clip){
     const c=node('div',undefined,p);c.className='row';field(c,'cursor-color','Fill',s.color,v=>style('color',v),{type:'color'});field(c,'cursor-stroke','Outline',s.stroke,v=>style('stroke',v),{type:'color'});field(p,'cursor-trail','Motion trail',s.trail,v=>style('trail',v),{type:'checkbox'});
   }
   node('h3',camera?'Camera keyframes':'Cursor path',p);const list=node('div',undefined,p);list.className='key-list';
-  for(const [i,key] of clip.keys.entries()){const b=button('◆ '+seconds(key.atMs-clip.offsetMs)+'s',list,()=>act(()=>{selected.keyId=key.id;seek(sceneTimeline(project()).find(s=>s.id===clip.sceneId).startMs+clip.startMs+Math.max(0,Math.min(clip.durationMs,key.atMs-clip.offsetMs)));renderInspector();draw();}));b.dataset.key=key.id;b.setAttribute('aria-pressed',String(selected.keyId===key.id));b.setAttribute('aria-label','Keyframe '+(i+1)+' at '+seconds(key.atMs-clip.offsetMs)+' seconds');}
+  for(const [i,key] of clip.keys.entries()){const b=button((key.timing?'↔ ':'◆ ')+((key.atMs-clip.offsetMs)/1000).toFixed(3)+'s',list,()=>act(()=>{selected.keyId=key.id;seek(sceneTimeline(project()).find(s=>s.id===clip.sceneId).startMs+clip.startMs+Math.max(0,Math.min(clip.durationMs,key.atMs-clip.offsetMs)));renderInspector();draw();}));b.dataset.key=key.id;b.setAttribute('aria-pressed',String(selected.keyId===key.id));b.setAttribute('aria-label','Keyframe '+(i+1)+' at '+((key.atMs-clip.offsetMs)/1000).toFixed(3)+' seconds'+(key.timing?' · linked to caption word':''));}
   const key=clip.keys.find(k=>k.id===selected.keyId)||clip.keys[0];selected.keyId=key.id;
   const change=(patch)=>commit(updateKeyframe(project(),clip.id,key.id,patch),'Edit '+track.kind+' keyframe');
-  field(p,'key-time','Keyframe in clip (s)',seconds(key.atMs-clip.offsetMs),v=>change({atMs:Math.round(v*1000)+clip.offsetMs}),{type:'number',step:.01});
+  field(p,'key-time','Keyframe in clip (s)',((key.atMs-clip.offsetMs)/1000).toFixed(3),v=>change({atMs:Math.round(v*1000)+clip.offsetMs}),{type:'number',step:.001});
+  motionSync(p,track,clip,key);
   field(p,'key-target','Focus target',key.target,v=>change({target:v}),{options:TARGETS.map(t=>[t.id,t.label])});
   if(camera)field(p,'camera-zoom','Camera zoom',key.zoom,v=>change({zoom:v}),{type:'number',min:.1,max:8,step:.05});
   const xy=node('div',undefined,p);xy.className='row';for(const prop of ['x','y'])field(xy,'key-'+prop,prop.toUpperCase()+' offset (scene px)',key[prop],v=>change({[prop]:v}),{type:'number',min:prop==='x'?-3840:-2160,max:prop==='x'?3840:2160,step:1});
@@ -198,7 +201,7 @@ function motionInspector(p,track,clip){
   field(p,'key-easing','Ease into keyframe',key.easing,v=>change({easing:v}),{options:[['gentle','Smooth'],['direct','Direct'],['overview','Soft landing'],['instant','Cut']]});
   const actions=node('div',undefined,p);actions.className='actions';
   button('＋ Key at playhead',actions,()=>act(()=>{const key=findClip(project(),clip.id).clip.keys.find(k=>k.id===selected.keyId);if(!key)throw Error('Select a current keyframe.');const at=locate(project(),time);if(at.scene.id!==clip.sceneId)throw Error('Move the playhead into this clip.');const pos=Math.round(at.timeMs-clip.startMs),{bounds,box}=view.geometry(),f=createEvaluator(project()).sample(time,bounds,box),r=bounds[key.target];let patch={target:key.target};
-    if(camera){const center={x:(box.width/2-f.camera.x)/f.camera.scale,y:(box.height/2-f.camera.y)/f.camera.scale};const base=createEvaluator(editProject(project(),d=>{const c=findClip(d,clip.id).clip;c.keys=[{...key,atMs:0,x:0,y:0,zoom:1}];})).sample(time,bounds,box).camera.scale;patch={...patch,x:center.x-r.x-r.width/2,y:center.y-r.y-r.height/2,zoom:f.camera.scale/base};}
+    if(camera){const center={x:(box.width/2-f.camera.x)/f.camera.scale,y:(box.height/2-f.camera.y)/f.camera.scale};const base=createEvaluator(editProject(project(),d=>{const c=findClip(d,clip.id).clip;const {timing:link,...absolute}=key;c.keys=[{...absolute,atMs:0,x:0,y:0,zoom:1}];})).sample(time,bounds,box).camera.scale;patch={...patch,x:center.x-r.x-r.width/2,y:center.y-r.y-r.height/2,zoom:f.camera.scale/base};}
     else if(f.cursor)patch={...patch,x:f.cursor.x-r.x-r.width/2,y:f.cursor.y-r.y-r.height/2,curve:0};
     const next=addKeyframe(project(),clip.id,pos,patch);selected.keyId=findClip(next,clip.id).clip.keys.find(k=>k.atMs===pos+clip.offsetMs).id;commit(next,'Add keyframe');}),'add-key');
   button('Delete key',actions,()=>act(()=>commit(deleteKeyframe(project(),clip.id,key.id),'Delete keyframe')),'delete-key');
@@ -355,7 +358,7 @@ function setup(){
   for(const [id,delta] of [['scene-up',-1],['scene-down',1]])on($(id),'click',()=>act(()=>commit(reorderScene(project(),selected.sceneId,delta),'Reorder scene')));
   on($('scene-delete'),'click',()=>act(()=>commit(deleteScene(project(),selected.sceneId),'Delete scene')));
   on($('split'),'click',()=>act(()=>{const c=selectedClip()?.clip;if(!c)throw Error('Select a clip first.');const at=locate(project(),time);if(at.scene.id!==c.sceneId)throw Error('Place the playhead inside the clip.');commit(splitClip(project(),c.id,Math.round(at.timeMs)),'Split clip');}));
-  on($('duplicate'),'click',()=>act(()=>commit(duplicateClip(project(),selected.clipId),'Duplicate clip')));on($('delete-clip'),'click',()=>act(()=>commit(deleteClip(project(),selected.clipId),'Delete clip')));
+  on($('duplicate'),'click',()=>act(()=>commit(duplicateClip(project(),selected.clipId),'Duplicate clip')));on($('delete-clip'),'click',()=>act(removeSelectedClip));
   on($('timeline-zoom'),'input',()=>{renderTimeline();draw();});on($('fit-timeline'),'click',()=>{$('timeline-zoom').value=String(Math.max(20,Math.min(180,Math.floor(($('timeline-scroll').clientWidth-165)/(duration(project())/1000)))));renderTimeline();draw();});
   on($('ruler'),'pointerdown',e=>{if(ensure())seek((e.clientX-$('ruler').getBoundingClientRect().left)/Number($('timeline-zoom').value)*1000);});
   on($('clip-list'),'click',()=>act(()=>modal('All clips',body=>{for(const t of project().tracks){node('h3',t.name,body);for(const c of t.clips)button(sceneTimeline(project()).find(s=>s.id===c.sceneId).title+' · '+seconds(c.startMs)+'–'+seconds(c.startMs+c.durationMs)+'s',body,()=>{closeDialog();selectClip(c.id);}).className='clip-list-item';}},[['Close',closeDialog]])));
@@ -592,3 +595,165 @@ export function connectVoiceProvider(provider){
   if(recording)throw Error('Finish recording before changing the voice service.');
   operation?.abort();voiceProvider=provider;if(ready&&!disposed&&selected.kind==='voice')renderInspector();
 }
+
+function timingLinkText(link) {
+  const track=project().tracks.find(t=>t.id===link.captionTrackId);
+  const delay=link.offsetMs===0?'no delay':(link.offsetMs>0?'+':'')+link.offsetMs+' ms';
+  return names[link.kind]+' follows “'+link.text+'” '+link.boundary+' · '+delay+' · '+
+    (link.clipTimeMs/1000).toFixed(3)+'s in clip · '+track.name+
+    (link.visible?'':' · outside trimmed clip')+
+    (track.id!==project().captionTrack||!track.enabled?' · source language hidden':'');
+}
+function refreshTimingHints() {
+  const links=describeTimingLinks(project());
+  for(const hint of $('inspector').querySelectorAll('[data-link-summary]')) {
+    const link=links.find(row=>row.clipId===hint.dataset.linkClip&&row.keyId===hint.dataset.linkKey);
+    hint.textContent=link?timingLinkText(link):'No caption-word link.';
+  }
+  const current=selectedClip()?.clip;
+  for(const b of $('inspector').querySelectorAll('.key-list [data-key]')) {
+    const key=current?.keys?.find(k=>k.id===b.dataset.key);if(!key)continue;
+    b.textContent=(key.timing?'↔ ':'◆ ')+((key.atMs-current.offsetMs)/1000).toFixed(3)+'s';
+    b.setAttribute('aria-label','Keyframe '+(current.keys.indexOf(key)+1)+' at '+((key.atMs-current.offsetMs)/1000).toFixed(3)+' seconds'+(key.timing?' · linked to caption word':''));
+  }
+}
+function timingSummary(parent,link) {
+  const hint=node('p',timingLinkText(link),parent);hint.className='note timing-summary';
+  hint.dataset.linkSummary='';hint.dataset.linkClip=link.clipId;hint.dataset.linkKey=link.keyId;
+  return hint;
+}
+function inspectLinkedKey(link) {
+  if(!ensure())return;
+  const {track,clip}=findClip(project(),link.clipId),key=clip.keys.find(k=>k.id===link.keyId);
+  if(!key)return;
+  selected={sceneId:clip.sceneId,kind:track.kind,clipId:clip.id,keyId:key.id};scope='clip';
+  const at=sceneTimeline(project()).find(s=>s.id===clip.sceneId).startMs+clip.startMs+
+    Math.max(0,Math.min(clip.durationMs,key.atMs-clip.offsetMs));
+  seek(at);refresh();$('key-time')?.focus({preventScroll:true});
+}
+function captionDependencies(parent,clip) {
+  const links=describeTimingLinks(project()).filter(link=>link.captionId===clip.id);
+  if(!links.length)return;
+  const panel=node('section',undefined,parent);panel.className='timing-link-panel';panel.id='caption-links';
+  node('h3',links.length+' linked motion '+(links.length===1?'key':'keys'),panel);
+  node('p','Word-timing edits move these keys together. Removing timed text needs a separate review.',panel).className='note';
+  for(const link of links) {
+    const row=node('div',undefined,panel);timingSummary(row,link);
+    const b=button('Inspect '+names[link.kind].toLowerCase()+' key',row,()=>inspectLinkedKey(link));
+    b.dataset.inspectLink=link.keyId;b.className='link-navigation';
+    b.setAttribute('aria-label','Inspect '+names[link.kind].toLowerCase()+' key linked to “'+link.text+'” '+link.boundary);
+  }
+}
+function motionSync(parent,track,clip,key) {
+  const panel=node('section',undefined,parent);panel.id='motion-sync';panel.className='timing-link-panel';
+  node('h3','Caption sync',panel);
+  const link=describeTimingLinks(project()).find(row=>row.clipId===clip.id&&row.keyId===key.id);
+  const available=captionWordAnchors(project(),clip.sceneId).length>0;
+  if(link) {
+    timingSummary(panel,link).id='timing-link-info';
+    node('p','This is a persistent link, not a one-time alignment. Moving this key changes its delay; editing the word timing moves the key.',panel).className='note';
+  } else node('p',available?'Keep this key aligned with a caption-word start or end, plus an optional delay.':'No timed words in this scene’s visible caption language. Add word timing in CC first.',panel).className='note';
+  const actions=node('div',undefined,panel);actions.className='actions';
+  const edit=button(link?'Edit timing link…':'Link to caption word…',actions,()=>linkWordDialog(clip.id,key.id),'link-word-open');
+  edit.disabled=track.locked||(!link&&(!available||key.atMs<clip.offsetMs||key.atMs>clip.offsetMs+clip.durationMs));
+  if(link) {
+    const detach=button('Detach link',actions,()=>act(()=>{
+      commit(detachTimingLink(project(),clip.id,key.id),'Detach word link; keep key time');
+      ($('link-word-open')?.disabled?$('key-time'):$('link-word-open'))?.focus({preventScroll:true});
+    }),'detach-timing-link');detach.disabled=track.locked;
+    button('Go to source caption',actions,()=>{
+      selectClip(link.captionId);$('caption-text')?.focus({preventScroll:true});
+    },'go-to-linked-caption');
+  } else if(!available) button('Go to CC',actions,()=>act(()=>{
+    selected.kind='captions';selected.clipId=null;refresh();$('caption-text')?.focus({preventScroll:true});
+  }),'go-to-caption-timing');
+  if(track.locked)node('p','Unlock this motion track to link, edit or detach its keyframes.',panel).className='note';
+  else if(!link&&!edit.disabled)node('p','Caption word timings are authored; linking does not align or change recorded speech.',panel).className='note';
+  else if(!link&&available)node('p','Choose a key inside the visible clip before creating a link.',panel).className='note';
+}
+function linkWordDialog(clipId,keyId) {
+  if(!ensure())return;
+  const snapshot=store.snapshot(),{track,clip}=findClip(snapshot.project,clipId),key=clip.keys.find(k=>k.id===keyId);
+  if(!key||track.locked){message('Select an unlocked motion keyframe.',true);return;}
+  const anchors=captionWordAnchors(snapshot.project,clip.sceneId).filter(a=>a.boundary==='start');
+  const existing=describeTimingLinks(snapshot.project).find(row=>row.clipId===clipId&&row.keyId===keyId);
+  let word,boundary,offset,summary,apply,proposal=null;
+  function update() {
+    proposal=null;
+    try {
+      if(revision()!==snapshot.revision||dirtyFields.size)throw Error('The project changed. Close and reopen this link review.');
+      if(!offset.checkValidity()||!Number.isInteger(offset.valueAsNumber))throw Error('Enter a delay in whole milliseconds between −180000 and 180000.');
+      if(word.value==='current'&&existing) {
+        // Retain the exact source identity, even if its caption language is hidden.
+        proposal=updateKeyframe(snapshot.project,clipId,keyId,{timing:{...key.timing,boundary:boundary.value,offsetMs:offset.valueAsNumber}});
+      } else {
+        if(word.value==='')throw Error('Choose a timed caption word.');
+        const a=anchors[Number(word.value)];if(!a)throw Error('Choose a timed caption word.');
+        proposal=linkKeyframeToCaptionWord(snapshot.project,clipId,keyId,{captionId:a.captionId,wordIndex:a.wordIndex,boundary:boundary.value,offsetMs:offset.valueAsNumber});
+      }
+      const next=findClip(proposal,clipId).clip.keys.find(k=>k.id===keyId);
+      summary.textContent='Key time: '+((key.atMs-clip.offsetMs)/1000).toFixed(3)+'s → '+((next.atMs-clip.offsetMs)/1000).toFixed(3)+'s in clip. Future edits to this word will move this key. Other keys and voice audio are unchanged.';
+      summary.className='note';summary.dataset.state='ready';apply.disabled=false;
+    } catch(error) {
+      summary.textContent=error.message;summary.className='error';summary.dataset.state='invalid';apply.disabled=true;
+    }
+  }
+  modal(existing?'Edit caption timing link':'Link '+names[track.kind].toLowerCase()+' to a word',body=>{
+    node('p','Choose an authored caption word, its start or end, and a delay. This follows caption timing, not automatic speech recognition.',body);
+    const label=node('label','Caption word',body);label.className='field';word=node('select',undefined,label);word.id='link-word';
+    const empty=node('option','Choose a timed word…',word);empty.value='';
+    if(existing){const current=node('option','Current source: “'+existing.text+'” · '+snapshot.project.tracks.find(t=>t.id===existing.captionTrackId).name,word);current.value='current';}
+    anchors.forEach((a,i)=>{const option=node('option','“'+a.text+'” · word '+(a.wordIndex+1)+' · '+(a.sceneTimeMs/1000).toFixed(3)+'s in scene',word);option.value=String(i);});
+    word.value=existing?'current':'';
+    const row=node('div',undefined,body);row.className='row';
+    const bLabel=node('label','Follow word',row);bLabel.className='field';boundary=node('select',undefined,bLabel);boundary.id='link-boundary';
+    for(const [value,text] of [['start','Start'],['end','End']]){const o=node('option',text,boundary);o.value=value;}boundary.value=existing?.boundary||'start';
+    const oLabel=node('label','Delay (milliseconds)',row);oLabel.className='field';offset=node('input',undefined,oLabel);offset.id='link-offset';offset.type='number';offset.min='-180000';offset.max='180000';offset.step='1';offset.required=true;offset.value=String(existing?.offsetMs||0);
+    node('p','Negative delay leads the word. Positive delay follows it. A saved linked project uses Studio draft.2; older readers must not silently discard the link.',body).className='note';
+    summary=node('p','',body);summary.id='link-result';summary.setAttribute('role','status');
+    for(const input of [word,boundary,offset]){input.setAttribute('aria-describedby','link-result');input.addEventListener('input',update);input.addEventListener('change',update);}
+  },[['Cancel',closeDialog],[existing?'Update link':'Keep linked',()=>{
+    update();if(!proposal||disposed)return;
+    try {commit(proposal,existing?'Update caption-word link':'Link keyframe to caption word',snapshot.revision);closeDialog();$('link-word-open')?.focus({preventScroll:true});}
+    catch(error){summary.textContent=error.message;summary.className='error';apply.disabled=true;}
+  },true]]);
+  apply=$('dialog-actions').lastElementChild;apply.id='link-apply';update();word.focus();
+}
+/** Detach and the destructive caption edit are ONE revision-checked undo step. */
+function reviewCaptionChange(captionId,mutate,{title,description,label,confirm,linkedConfirm}) {
+  const snapshot=store.snapshot(),links=describeTimingLinks(snapshot.project).filter(row=>row.captionId===captionId);
+  const detached=links.length?detachCaptionTimingLinks(snapshot.project,captionId):snapshot.project;
+  const next=editProject(detached,mutate);let error;
+  modal(title,body=>{
+    node('p',description,body);
+    if(links.length){node('p',links.length+' motion '+(links.length===1?'key will':'keys will')+' be detached at their current resolved times before this change. This does not delete or move those keys.',body).className='warning';
+      const list=node('ul',undefined,body);list.id='caption-link-review';for(const link of links)node('li',timingLinkText(link),list);}
+    node('p','Voice audio is unchanged. Undo restores the caption and all links together.',body).className='note';
+    error=node('p','',body);error.className='error';error.setAttribute('role','alert');
+  },[['Cancel',closeDialog],[links.length?linkedConfirm:confirm,()=>{
+    try{commit(next,label,snapshot.revision);closeDialog();$('caption-text')?.focus({preventScroll:true});}
+    catch(e){error.textContent=e.message;}
+  },true]]);
+  $('dialog-actions').lastElementChild.id='confirm-caption-edit';dialogCleanup=()=>renderInspector();
+}
+function changeCaptionText(id,text) {
+  const current=findClip(project(),id).clip;
+  if(!current.words){commit(updateClip(project(),id,{text}),'Edit caption');return;}
+  reviewCaptionChange(id,next=>{const c=findClip(next,id).clip;c.text=text;delete c.words;},{
+    title:'Update caption text?',description:'Changing this text clears its existing word timings.',
+    label:'Edit caption and clear word timing',confirm:'Update caption',linkedConfirm:'Detach links and update caption'});
+}
+function usePlainCaption(id) {
+  const mutate=next=>{delete findClip(next,id).clip.words;};
+  if(!describeTimingLinks(project()).some(row=>row.captionId===id)){commit(editProject(project(),mutate),'Remove word highlighting');return;}
+  reviewCaptionChange(id,mutate,{title:'Remove linked word timing?',description:'A plain caption has no word boundaries for motion keys to follow.',
+    label:'Detach links and remove word timing',confirm:'Use plain caption',linkedConfirm:'Detach links and use plain caption'});
+}
+function removeSelectedClip() {
+  const {track,clip}=findClip(project(),selected.clipId);
+  if(track.kind!=='captions'||!describeTimingLinks(project()).some(row=>row.captionId===clip.id)){commit(deleteClip(project(),clip.id),'Delete clip');return;}
+  reviewCaptionChange(clip.id,next=>{const t=findClip(next,clip.id).track;t.clips=t.clips.filter(c=>c.id!==clip.id);},{
+    title:'Delete linked caption?',description:'This caption supplies timing to camera or cursor keys.',label:'Detach links and delete caption',
+    confirm:'Delete caption',linkedConfirm:'Detach links and delete caption'});
+}
+
