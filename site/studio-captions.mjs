@@ -105,6 +105,7 @@ export function createCaptionSearch(host){
           list.replaceChildren();
           for(const change of proposal.changes.slice(index*pageSize,(index+1)*pageSize)){
             const item=el('li',undefined,list);item.className='caption-search-result';el('strong',change.sceneTitle+' · '+change.trackName,item).tabIndex=-1;
+            if(change.clearedWordTimings>0)el('small',change.clearedWordTimings+' word timing'+(change.clearedWordTimings===1?'':'s')+' will be cleared.',item).dataset.clearedWordTimings=String(change.clearedWordTimings);
             el('small','Before',item);el('p',change.before,item);el('small','After',item);el('p',change.after,item);
           }
           pages(navigation,proposal.changes.length,index,next=>{show(next);list.querySelector('strong')?.focus();},'caption-review-page','replacement review');
