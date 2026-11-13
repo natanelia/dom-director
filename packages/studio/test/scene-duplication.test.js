@@ -96,3 +96,10 @@ test('copy is one revision-checked undoable transaction and does not bypass clip
   const p=linked(),store=createProjectStore(p),r=duplicateScene(p,'overview');store.commit(r.value,'Duplicate scene',0);assert.deepEqual(store.undo().project,p);assert.deepEqual(store.redo().project,r.value);assert.throws(()=>store.commit(r.value,'stale',0),/changed/);
   const many=editProject(createSample(),n=>{n.tracks[3].clips=Array.from({length:251},(_,i)=>({id:'cc.many'+i,sceneId:'overview',startMs:i*2,durationMs:1,text:'A'}));});assert.throws(()=>duplicateScene(many,'overview'),/Too many clips/);
 });
+
+test('bounded history reports when a duplicate cannot retain its predecessor',()=>{
+  const p=createSample(),store=createProjectStore(p,{byteLimit:1024}),r=duplicateScene(p,'overview');
+  const state=store.commit(r.value,'Duplicate scene',0);
+  assert.equal(state.canUndo,false);assert.equal(state.expired,1);
+  assert.deepEqual(store.undo().project,r.value);
+});

@@ -50,7 +50,7 @@ export function createSelectionTools(host){
     // Reuse the host's scene-selection path for seeking, inspector state and group cleanup.
     const card=()=>[...$('scene-list').querySelectorAll('[data-scene]')].find(b=>b.dataset.scene===result.sceneId);
     card()?.click();card()?.focus();
-    host.message('Scene duplicated. All tracks copied; voice assets reused. Undo restores the previous story.');
+    host.message('Scene duplicated. All tracks copied; voice assets reused.'+(snapshot().canUndo?' Undo restores the previous story.':' Previous history is unavailable; save this project to keep the copy.'));
   }));
   function move(delta,focus=false){return safe(()=>{
     if($('ripple').checked)throw Error('Turn Ripple off before moving a selection. Group edits never move unselected clips.');

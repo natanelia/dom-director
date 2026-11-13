@@ -118,6 +118,59 @@ class StudioSceneDuplicationTests(StudioTests):
         self.fixture('limit');before=self.project();self.page.locator('#scene-duplicate').click()
         self.assertIn('1–60',self.page.locator('#status').inner_text());self.assertEqual(self.project(),before)
 
+    def assert_scene_view(self, identifier, seconds):
+        self.assertEqual(self.page.locator('#scene-list [aria-current="step"]').get_attribute('data-scene'), identifier)
+        self.assertEqual(self.page.locator('#stage').get_attribute('data-scene'), identifier)
+        self.assertAlmostEqual(float(self.page.locator('#seek').input_value()), seconds, places=3)
+        self.assertEqual(self.page.locator('#studio').get_attribute('data-playback'), 'paused')
+
+    def test_undo_copy_restores_source_view_and_redo_keeps_consistent_selection(self):
+        for source in ['overview', 'signal']:
+            self.page.locator('#scene-list [data-scene="'+source+'"]').click()
+            start=float(self.page.locator('#seek').input_value())
+            before=self.project();identifier=self.copy_scene()
+            self.page.locator('#undo').click()
+            self.assert_scene_view(source,start)
+            self.assertEqual(self.page.locator('#caption-text').input_value(),self.clip(before,'cc.'+source+'.0')['text'])
+            self.page.locator('#redo').click()
+            self.assert_scene_view(source,start)
+            self.assertEqual(self.page.locator('#scene-list [data-scene="'+identifier+'"]').count(),1)
+            self.page.locator('#undo').click()
+
+    def test_undo_added_scene_returns_to_neighbor_not_first_scene(self):
+        self.page.locator('#scene-list [data-scene="signal"]').click()
+        start=float(self.page.locator('#seek').input_value())
+        self.page.locator('#add-scene').click()
+        self.page.locator('#dialog .clip-list-item').first.click()
+        self.assertEqual(self.page.locator('#scene-list button').count(),4)
+        self.page.locator('#undo').click()
+        self.assert_scene_view('signal',start)
+        self.page.locator('#redo').click()
+        self.assert_scene_view('signal',start)
+
+    def test_history_reorder_preserves_relative_time_and_clears_loop(self):
+        self.page.locator('#scene-list [data-scene="signal"]').click()
+        start=float(self.page.locator('#seek').input_value())
+        self.page.locator('#scene-up').click()
+        self.seek(1.234)
+        self.page.locator('#loop').click()
+        self.page.locator('#undo').click()
+        self.assert_scene_view('signal',start+1.234)
+        self.assertEqual(self.page.locator('#loop').get_attribute('aria-pressed'),'false')
+        self.page.locator('#redo').click()
+        self.assert_scene_view('signal',1.234)
+
+    def test_history_clamps_local_time_inside_shorter_restored_scene(self):
+        self.page.locator('#scene-list [data-scene="signal"]').click()
+        before=self.project();original=next(s for s in before['scenes'] if s['id']=='signal')
+        start=float(self.page.locator('#seek').input_value())
+        self.page.get_by_text('Scene and clip timing',exact=True).click()
+        self.edit('#scene-duration',12)
+        self.page.get_by_role('button',name='Apply timing',exact=True).click()
+        self.seek(start+10)
+        self.page.locator('#undo').click()
+        self.assert_scene_view('signal',start+(original['durationMs']-1)/1000)
+
     def test_multi_selection_does_not_turn_a_scene_copy_into_a_partial_clip_copy(self):
         before=self.project();self.page.locator('#clip-list').click();self.page.locator('#selection-scene').click()
         self.page.locator('#selection-apply').click();identifier=self.copy_scene();after=self.project()

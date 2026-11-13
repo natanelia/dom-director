@@ -1,6 +1,8 @@
 # Reuse a complete scene
 
-Select a scene in Studio's scene rail and choose **Duplicate scene**. The copy is inserted immediately after the source, selected, and held paused at its beginning. Its title ends in “(copy)”. The operation copies the whole scene, regardless of which clip or group is selected. Undo removes that copy as one project edit; redo restores the same copied identities.
+Select a scene in Studio's scene rail and choose **Duplicate scene**. The copy is inserted immediately after the source, selected, and held paused at its beginning. Its title ends in “(copy)”. The operation copies the whole scene, regardless of which clip or group is selected. When an undo entry is available, Undo removes that copy as one project edit; redo restores the same copied identities. History is bounded, not a durable backup.
+
+Undo/redo keep the selected scene and the preview together. A surviving selected scene retains its scene-relative playhead when possible. If history removes that scene, selection returns to the nearest earlier surviving scene (otherwise the next surviving scene), paused at its beginning. This also applies to undoing Add scene. Redo restores project data without automatically selecting a newly reintroduced copy.
 
 ## What is copied
 
