@@ -10,7 +10,7 @@ Open the sample, select a timeline clip or use CC / Voice / Cursor / Camera, and
 
 Preview tour starts from the beginning. The transport supports play/pause, stop, restart, seeking, a selected-clip loop, sound and captions. Camera zoom changes the authored composition; Canvas view only magnifies the editor; Timeline zoom changes time-axis scale. Motion off respects reduced-motion viewing. The app remains inert while editing and previewing, so a simulated click never becomes a real app action.
 
-The timeline supports selecting, moving, trimming, splitting, duplicating and deleting clips, snapping, explicit ripple movement, track visibility and locks. Exact timing inputs and the Clip list provide alternatives to dragging. Scenes can be added from approved focus choices, reordered and deleted. Illegal overlap, missing targets and locked-track changes fail explicitly.
+The timeline supports selecting, moving, trimming, splitting, duplicating and deleting clips, snapping, explicit ripple movement, track visibility and locks. Exact timing inputs and the Clip list provide alternatives to dragging. Scenes can be added from approved focus choices, reordered, [duplicated with all their tracks and independent timing links](scene-duplication.md), and deleted. Illegal overlap, missing targets and locked-track changes fail explicitly.
 
 ## Four editing tracks
 

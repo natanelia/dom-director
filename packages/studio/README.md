@@ -20,3 +20,5 @@ Clip edits use integer milliseconds. Camera and cursor splits retain source wind
 Subtitles support bounded plain-text VTT/SRT import and text/timing export, with explicit loss of Studio appearance. Unsupported markup/settings are refused, not silently stripped. Voice generation, external assets, actual application effects, branches, recording, persistent storage and browser execution are not implicitly enabled by this model.
 
 Run `node --test packages/studio/test/*.test.js` with the local core linked under `node_modules/@dom-director/core`. `tools/check_studio.py` tests packed consumers and TypeScript declarations. No npm publication is performed. The full editor and media/browser integration are separate reviewable changes.
+
+`duplicateScene(project, sceneId)` from `@dom-director/studio/editing` copies a whole scene after its source. It returns `{value, sceneId}`, retains shared media, and remaps copied word links to independent identities. Locked content and project limits remain enforced. See [scene duplication](../../docs/scene-duplication.md).

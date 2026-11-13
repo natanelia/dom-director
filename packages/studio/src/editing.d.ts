@@ -6,6 +6,8 @@ export function addKeyframe(project:Project,clipId:string,clipTimeMs:number,patc
 export function deleteKeyframe(project:Project,clipId:string,keyId:string):Project;
 export function addGesture(project:Project,clipId:string,clipTimeMs:number,kind?:'click'|'double-click'|'hold'):Project;
 export function addScene(project:Project,options?:{afterId?:string;target?:string;title?:string;durationMs?:number}):{value:Project;sceneId:string};
+/** Duplicate every track's clips after the source scene, with independent IDs/word links and shared audio assets. Locks and project limits still apply. */
+export function duplicateScene(project:Project,sceneId:string):{value:Project;sceneId:string};
 export function deleteScene(project:Project,sceneId:string):Project;
 export function addCaption(project:Project,sceneId:string,startMs?:number):{value:Project;clipId:string};
 export function proposeCaptionImport(project:Project,text:string,options?:{language?:string;name?:string}):{value:Project;trackId:string;cueCount:number;splitCount:number;warnings:string[]};

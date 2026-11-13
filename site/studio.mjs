@@ -56,7 +56,29 @@ function normalizeSelection(){
 }
 function refresh(){normalizeSelection();renderScenes();renderTimeline();if(!fieldCommit)renderInspector();else refreshTimingHints();$('project-title').value=project().title;const s=store.snapshot();$('undo').disabled=!s.canUndo;$('redo').disabled=!s.canRedo;$('revision').textContent='Revision '+s.revision+(lastExport===s.revision?' · exported':' · in this tab');$('seek').max=String(duration(project())/1000);draw();}
 function commit(next,label='Edit project',expected=revision()){
-  hostCheck(next);stop();const at=time;store.commit(next,label,expected);loop=false;$('loop').setAttribute('aria-pressed','false');transport.load(project());transport.setSound(sound);transport.seek(Math.min(at,duration(project())));dirtyFields.clear();refresh();message(label+' · undo available. Save project to keep your work.');
+  hostCheck(next);stop();const at=time;store.commit(next,label,expected);loop=false;$('loop').setAttribute('aria-pressed','false');transport.load(project());transport.setSound(sound);transport.seek(Math.min(at,duration(project())));dirtyFields.clear();refresh();message(label+(store.snapshot().canUndo?' · undo available.':' · previous history is unavailable.')+' Save project to keep your work.');
+}
+// History restores project data, not stale absolute positions from a different scene order.
+function restoreHistory(command){
+  stop();
+  const before=sceneTimeline(project()),priorId=selected.sceneId;
+  const prior=before.find(s=>s.id===priorId),at=time;
+  store[command]();
+  const restored=sceneTimeline(project());
+  if(!restored.some(s=>s.id===priorId)){
+    const index=before.findIndex(s=>s.id===priorId);
+    const neighbors=[...before.slice(0,Math.max(0,index)).reverse(),...before.slice(index+1)];
+    selected.sceneId=neighbors.find(s=>restored.some(r=>r.id===s.id))?.id||restored[0].id;
+    selected.clipId=null;selected.keyId=null;
+  }
+  normalizeSelection();
+  const target=restored.find(s=>s.id===selected.sceneId);
+  const local=target.id===priorId&&prior&&at>=prior.startMs&&at<prior.endMs?at-prior.startMs:0;
+  loop=false;$('loop').setAttribute('aria-pressed','false');
+  transport.load(project());transport.setSound(sound);
+  // A scene's end belongs to the next scene; keep the restored inspector and canvas together.
+  transport.seek(target.startMs+Math.min(Math.round(local),target.durationMs-1));
+  refresh();message(command==='undo'?'Edit undone.':'Edit restored.');
 }
 function act(work){if(!ensure())return;try{work();}catch(error){message(error.message,true);}}
 function selectClip(id,{jump=true}={}){if(!ensure())return;selectionTools?.clear();const found=findClip(project(),id);stop();if(found.track.kind==='captions'&&project().captionTrack!==found.track.id)commit(editProject(project(),p=>{p.captionTrack=found.track.id;}),'Choose caption language');selected={sceneId:found.clip.sceneId,kind:found.track.kind,clipId:id,keyId:found.clip.keys?.[0]?.id||null};scope='clip';if(jump)seek(sceneTimeline(project()).find(s=>s.id===selected.sceneId).startMs+found.clip.startMs);refresh();}
@@ -407,7 +429,7 @@ function setup(){
   on($('sound'),'click',()=>act(()=>{sound=!sound;transport.setSound(sound);$('sound').textContent=sound?'Sound on':'Sound off';$('sound').setAttribute('aria-pressed',String(sound));message(sound?'Sound enabled. Play prepares the selected takes.':'Silent preview.');}));
   on($('captions'),'click',()=>{cc=!cc;draw();});on($('motion'),'click',()=>{reduced=!reduced;draw();});on($('canvas-zoom'),'change',()=>{viewZoom=Number($('canvas-zoom').value);draw();});
   on($('loop'),'click',()=>act(()=>{const range=selectionTools.bounds();loop=!loop;transport.setLoop(loop?{startMs:range.startMs,endMs:range.endMs}:null);$('loop').setAttribute('aria-pressed',String(loop));}));
-  for(const command of ['undo','redo'])on($(command),'click',()=>act(()=>{stop();const at=time;store[command]();transport.load(project());transport.setSound(sound);loop=false;$('loop').setAttribute('aria-pressed','false');transport.seek(Math.min(at,duration(project())));refresh();message(command==='undo'?'Edit undone.':'Edit restored.');}));
+  for(const command of ['undo','redo'])on($(command),'click',()=>act(()=>restoreHistory(command)));
   on($('add-scene'),'click',()=>act(()=>modal('Choose the new scene’s focus',body=>{for(const target of TARGETS)button(target.label,body,()=>{try{const r=addScene(project(),{afterId:selected.sceneId,target:target.id,title:target.label});selectionTools?.clear();selected.sceneId=r.sceneId;selected.clipId=null;commit(r.value,'Add scene');seek(sceneTimeline(project()).find(s=>s.id===r.sceneId).startMs);closeDialog();}catch(e){message(e.message,true);}}).className='clip-list-item';},[['Cancel',closeDialog]])));
   for(const [id,delta] of [['scene-up',-1],['scene-down',1]])on($(id),'click',()=>act(()=>commit(reorderScene(project(),selected.sceneId,delta),'Reorder scene')));
   on($('scene-delete'),'click',()=>act(()=>commit(deleteScene(project(),selected.sceneId),'Delete scene')));
@@ -639,7 +661,7 @@ function installDrags(){
       if(patch&&moved&&(patch.x!==key.x||patch.y!==key.y))try{commit(updateKeyframe(original,found.clip.id,key.id,patch),'Move keyframe',origin);}catch(err){message(err.message,true);draw();}
       else{renderInspector();draw();}
     },{signal:controller.signal});
-    window.addEventListener('pointercancel',event=>{if(event.pointerId===pointer)cancel();},{signal:controller.signal});
+    window.addEventListener('pointercancel',event=>{if(event.pointerId!==pointer) return;cancel();},{signal:controller.signal});
   });
 }
 try{setup();}catch(error){message('Studio could not start: '+error.message,true);$('studio').dataset.ready='error';}
@@ -817,7 +839,7 @@ function usePlainCaption(id) {
 function removeSelectedClip() {
   if(selectionTools?.size>1){selectionTools.remove();return;}
   const {track,clip}=findClip(project(),selected.clipId);
-  if(track.kind!=='captions'||!describeTimingLinks(project()).some(row=>row.captionId===clip.id)){commit(deleteClip(project(),clip.id),'Delete clip');return;}
+  if(track.kind!=='captions'||!describeTimingLinks(project()).some(row=>row.captionId===clip.id)){commit(deleteClip(project(),selected.clipId),'Delete clip');return;}
   reviewCaptionChange(clip.id,next=>{const t=findClip(next,clip.id).track;t.clips=t.clips.filter(c=>c.id!==clip.id);},{
     title:'Delete linked caption?',description:'This caption supplies timing to camera or cursor keys.',label:'Detach links and delete caption',
     confirm:'Delete caption',linkedConfirm:'Detach links and delete caption'});
