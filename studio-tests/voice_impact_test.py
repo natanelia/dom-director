@@ -322,8 +322,23 @@ class StudioVoiceImpactTests(StudioTests):
         before = self.project()
         self.take(9)
         self.review()
+        self.assertTrue(self.page.locator('#voice-impact-summary').evaluate("""el=>{
+          const summary=el.getBoundingClientRect(),body=document.querySelector('#dialog-body').getBoundingClientRect();
+          return Math.max(summary.top,body.top)<Math.min(summary.bottom,body.bottom)&&
+            Math.max(summary.left,body.left)<Math.min(summary.right,body.right);
+        }"""), 'Opening the review must show its summary, even when Cancel receives focus.')
+        self.page.screenshot(path=str(self.output / 'voice-impact-mobile-summary.png'), full_page=True)
         self.group('captions')
         self.group('voice')
+        body = self.page.locator('#dialog-body')
+        self.assertTrue(body.evaluate('el=>el.scrollHeight>el.clientHeight'))
+        body.evaluate('el=>{el.scrollTop=el.scrollHeight;}')
+        for selector in ['#dialog-title', '#dialog-actions']:
+            self.assertTrue(self.page.locator(selector).evaluate("""el=>{
+              const box=el.getBoundingClientRect();
+              return box.width>0&&box.height>0&&box.top>=0&&box.left>=0&&
+                box.bottom<=innerHeight&&box.right<=innerWidth;
+            }"""), 'The title and review actions must stay visible while details scroll.')
         self.assertFalse(self.page.evaluate('document.documentElement.scrollWidth>innerWidth'))
         self.assertFalse(self.page.locator('#dialog').evaluate('el=>el.scrollWidth>el.clientWidth+1'))
         self.page.screenshot(path=str(self.output / 'voice-impact-mobile.png'), full_page=True)

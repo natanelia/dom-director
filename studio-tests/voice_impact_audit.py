@@ -7,8 +7,12 @@ def audit_voice_impact(case, audit):
     page.set_viewport_size({'width': 1440, 'height': 1000})
     load_voice_impact_fixture(case, 'pages')
     case.choose('voice')
-    page.get_by_text('Available takes', exact=True).click()
-    trigger = page.locator('details[data-section="Available takes"] .clip-list-item').nth(1)
+    # Inspector disclosure choices survive native project replacement. A previous
+    # audit may already have opened Available takes; do not toggle it closed.
+    takes = page.locator('details[data-section="Available takes"]')
+    if not takes.evaluate('el=>el.open'):
+        takes.locator('summary').click()
+    trigger = takes.locator('.clip-list-item').nth(1)
     trigger.focus()
     page.keyboard.press('Enter')
     page.locator('#dialog-actions').get_by_role('button', name='Fit scene to voice', exact=True).click()

@@ -46,6 +46,9 @@
 #link-result,#caption-link-review{overflow-wrap:anywhere}
 @media(max-width:800px){.timing-link-panel button{min-height:40px}.timing-link-panel .actions{gap:8px}}
 #voice-impact-summary{padding:14px 16px;border:1px solid var(--line);border-radius:8px;background:#eff3e7;overflow-wrap:anywhere}
+#dialog[open]:has(#voice-impact-summary){display:grid;grid-template-rows:auto minmax(0,1fr) auto;height:min(780px,85dvh);overflow:hidden}
+#dialog:has(#voice-impact-summary) #dialog-body{min-height:0;overflow:auto;padding:3px;scrollbar-gutter:stable}
+#dialog:has(#voice-impact-summary) #dialog-actions{margin:12px 0 0;padding-top:12px;border-top:1px solid var(--line)}
 #voice-impact-summary h3{font-size:14px;margin:0 0 6px}#voice-impact-summary p{margin:5px 0}.voice-impact-duration{font-weight:600;font-variant-numeric:tabular-nums}
 .voice-impact-group{margin:12px 0;border:1px solid var(--line);border-radius:8px;padding:10px 12px;overflow-wrap:anywhere}
 .voice-impact-group summary{cursor:pointer;font-weight:600;min-height:28px;padding:3px 0}
