@@ -64,7 +64,7 @@ async function prepare(config) {
     caption: $('caption-overlay'), cursor: $('cursor-layer'), handles: $('edit-handles'),targets:targetDescriptors});
   await document.fonts.ready;
   check($('scene').inert && $('stage').clientWidth === 960 && $('stage').clientHeight === 540, 'The render-only host did not initialize at its fixed composition size.');
-  const metadata = {projectSha256, startMs: config.startMs, endMs, projectDurationMs: duration(project),
+  const metadata = {host: isEarth ? 'earth' : 'orbit', projectSha256, startMs: config.startMs, endMs, projectDurationMs: duration(project),
     audio: mix ? {bytes: mix.wav.byteLength, sampleRate: mix.sampleRate, channels: mix.channels, peak: mix.peak,
       clippedSamples: mix.clippedSamples, clipCount: mix.clipCount} : null};
   await frame(config.startMs);

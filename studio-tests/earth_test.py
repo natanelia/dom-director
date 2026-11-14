@@ -42,7 +42,7 @@ class EarthAssertions:
         self.page.keyboard.press('End' if year == 2025 else 'Home')
 
     def all_controls(self):
-        self.assert_globe_changed(lambda: self.page.locator('[data-earth-metric="energy"]').click())
+        self.assert_globe_changed(lambda: self.page.locator('button[data-earth-metric="energy"]').click())
         self.assert_globe_changed(self.change_year)
         self.assert_globe_changed(lambda: self.page.locator('.earth-region').select_option('asia'))
         self.assert_globe_changed(lambda: self.page.locator('[data-earth-layer="connections"]').click())
@@ -95,7 +95,7 @@ class StudioEarthTests(EarthAssertions, StudioTests):
 
     def test_seeking_and_simulated_cursor_never_reset_or_change_live_earth(self):
         self.page.locator('#try-controls').click()
-        self.page.locator('[data-earth-metric="energy"]').click()
+        self.page.locator('button[data-earth-metric="energy"]').click()
         self.page.locator('[data-earth-layer="night"]').click()
         self.page.locator('#try-controls').click()
         state, pixels = self.earth_state(), self.pixels()
@@ -112,7 +112,7 @@ class StudioEarthTests(EarthAssertions, StudioTests):
         globe = self.page.locator('canvas.earth-globe')
         globe.focus()
         self.assert_globe_changed(lambda: self.page.keyboard.press('ArrowRight'))
-        self.page.locator('[data-earth-metric="energy"]').focus()
+        self.page.locator('button[data-earth-metric="energy"]').focus()
         self.assert_globe_changed(lambda: self.page.keyboard.press('Enter'))
         self.page.screenshot(path=str(self.output / 'earth-studio-mobile-controls.png'), full_page=True)
         self.page.keyboard.press('Escape')
@@ -176,9 +176,9 @@ class EarthDemoTests(EarthAssertions, StudioTests):
         self.page.wait_for_function("document.querySelector('#stage')?.dataset.runtime==='sdk' && !!document.querySelector('canvas.earth-globe')")
 
     def mode(self, mode):
-        self.page.locator('[data-mode="'+mode+'"]').click()
+        self.page.locator('button[data-mode="'+mode+'"]').click()
         self.page.wait_for_function("mode=>document.querySelector('#stage').dataset.mode===mode", arg=mode)
-        self.page.wait_for_function("!document.querySelector('[data-mode]').disabled")
+        self.page.wait_for_function("!document.querySelector('button[data-mode]').disabled")
 
     def gate(self, scene):
         self.page.locator('#chapter-strip [data-scene="'+scene+'"]').click()
@@ -187,6 +187,8 @@ class EarthDemoTests(EarthAssertions, StudioTests):
     def test_default_homepage_is_earth_and_same_origin_without_audio(self):
         self.assertEqual(self.page.locator('#chapter-strip [data-scene]').count(), 6)
         self.assertEqual(self.page.locator('#stage').get_attribute('data-scene'), 'earth.overview')
+        self.assertIsNone(self.page.locator('#stage').get_attribute('aria-pressed'),
+                          'Application state metadata must not make the stage a toggle button.')
         self.assertFalse([url for url in self.requests if not url.startswith(self.url)])
         self.assertFalse([url for url in self.requests if '.mp3' in url])
         self.assertIn('Illustrative', self.page.locator('.earth-app').inner_text())
@@ -196,7 +198,7 @@ class EarthDemoTests(EarthAssertions, StudioTests):
         self.mode('try')
         actions = [
             ('earth.overview', lambda: self.page.locator('canvas.earth-globe').press('ArrowRight')),
-            ('earth.metric', lambda: self.page.locator('[data-earth-metric="energy"]').click()),
+            ('earth.metric', lambda: self.page.locator('button[data-earth-metric="energy"]').click()),
             ('earth.year', self.change_year),
             ('earth.region', lambda: self.page.locator('.earth-region').select_option('asia')),
             ('earth.connections', lambda: self.page.locator('[data-earth-layer="connections"]').click()),
@@ -229,7 +231,7 @@ class EarthDemoTests(EarthAssertions, StudioTests):
         self.assertEqual(self.page.locator('#stage').get_attribute('data-scene'), 'earth.overview')
         self.page.locator('#next-step').click()
         self.page.wait_for_function("document.querySelector('#stage').dataset.scene==='earth.metric'")
-        self.page.locator('[data-earth-metric="energy"]').click()
+        self.page.locator('button[data-earth-metric="energy"]').click()
         self.mode('watch')
         self.assertEqual(self.earth_state()['earthMetric'], 'population')
         self.mode('guide')
@@ -308,7 +310,7 @@ class EarthDemoTests(EarthAssertions, StudioTests):
           const bounded=app.getState();
           app.setState({...EARTH_DEFAULT_STATE},{animate:false});
           const resets=JSON.stringify(app.getState())===JSON.stringify(initial);
-          root.querySelector('[data-earth-metric="energy"]').click();
+          root.querySelector('button[data-earth-metric="energy"]').click();
           const inert=app.getState().metric==='population';
           app.destroy();app.destroy();
           const destroyed=root.childElementCount===0&&root.inert&&!root.classList.contains('earth-app');root.remove();

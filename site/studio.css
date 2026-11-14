@@ -70,7 +70,7 @@ button.primary:hover:not(:disabled){color:#fff;background:#2b4433;border-color:#
 .studio.trying-controls .canvas-stage{aspect-ratio:auto;max-height:none;height:auto}
 .studio.trying-controls #scene{position:relative;left:auto;top:auto;width:100%;height:auto;min-height:540px}
 .studio.trying-controls .canvas-toolbar{position:sticky;top:0;z-index:6;background:var(--paper);padding:5px 0}
-.studio.trying-controls .stage-label{right:auto;left:12px}
+.studio.trying-controls .stage-label{display:none}
 #try-controls{border-color:#709da0;color:#285c5e;background:#e5f0ec}
 #try-controls[aria-pressed=true]{background:#285c5e;color:white}
 #try-controls:hover{background:#d3e6df}

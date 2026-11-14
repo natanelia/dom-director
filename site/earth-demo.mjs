@@ -111,7 +111,7 @@ function render(force=false){
   $('mode-hint').textContent={watch:'Watch the controls being introduced, then try any of them yourself.',try:'Each checkpoint waits for you. Every completed interaction changes the globe.',guide:'Learn at your own pace. Try the control, then continue to the next checkpoint.'}[state.mode];
   $('save-position').disabled=busy||!!waiting||!!state.pendingOperation;
   $('restore-position').disabled=busy||!saved||!!waiting||!!state.pendingOperation;
-  document.querySelectorAll('[data-mode]').forEach(button=>{const active=button.dataset.mode===state.mode;button.classList.toggle('selected',active);button.setAttribute('aria-pressed',String(active));button.disabled=busy;});
+  document.querySelectorAll('button[data-mode]').forEach(button=>{const active=button.dataset.mode===state.mode;button.classList.toggle('selected',active);button.setAttribute('aria-pressed',String(active));button.disabled=busy;});
   document.querySelectorAll('.chapter-button').forEach(button=>{const active=button.dataset.scene===step.id;button.classList.toggle('active',active);if(active)button.setAttribute('aria-current','step');else button.removeAttribute('aria-current');button.dataset.complete=String(model().completed.has(button.dataset.scene));});
   for(const [key,element] of Object.entries(earth.targets))element.classList.toggle('earth-tutorial-target',key===step.target&&started);
   $('live-code').textContent=JSON.stringify({sceneId:step.id,target:step.target,condition:step.id,mode:state.mode,completed:model().completed.has(step.id)},null,2);
@@ -140,7 +140,7 @@ on($('restart'),'click',()=>seek(0));
 on($('exit-tour'),'click',()=>{result(director.stop());started=false;render(true);});
 on($('takeover'),'click',()=>{pause();$('scene').querySelector('canvas').focus({preventScroll:true});toast('Explore freely. Play continues from this checkpoint.');});
 on($('seek'),'input',event=>seek(Number(event.target.value)*1000));
-document.querySelectorAll('[data-mode]').forEach(button=>on(button,'click',()=>chooseMode(button.dataset.mode)));
+document.querySelectorAll('button[data-mode]').forEach(button=>on(button,'click',()=>chooseMode(button.dataset.mode)));
 on($('try-action'),'click',async()=>{await chooseMode('try');begin();});
 on($('chapter-audio'),'click',()=>{begin();});
 on($('earth-reset'),'click',()=>transaction(async()=>{

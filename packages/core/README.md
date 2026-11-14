@@ -63,6 +63,8 @@ Provide `narration:{resolveAsset, ...}` to opt into prepared media. The resolver
 
 Use `setNarrationEnabled`, `setVolume`, `setCaptions`, `exportCaptions` and the optional native controls. Captions and transcript remain available without sound. Pointer gestures only draw an explanation; they never dispatch trusted input or consent.
 
+Sequential cursor cues ease from the preceding cursor destination, including across scene boundaries. Their positions follow presentation time during playback and seeking, and stay attached to scene coordinates as the camera moves. The first cursor enters from the viewport center; explicit drag sources and authored cursor visibility intervals remain respected. Completed scenes retain only numeric cursor coordinates, so previous-route elements can unmount.
+
 ## Guided tasks and checkpoints
 
 `createGuidance` owns registered conditions, actions, fixture reset and a default-deny authorization callback. Conditions can observe level state or new revisions with explicit evidence. Actions validate arguments, recheck authorization and retain bounded effect evidence. Persistent actions require Guide mode plus idempotency or reconciliation. Unknown outcomes cannot silently retry.

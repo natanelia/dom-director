@@ -12,7 +12,7 @@ def audit_earth(case, audit, axe_path):
     page.locator('#try-controls').focus()
     page.keyboard.press('Enter')
     assert not page.locator('#scene').evaluate('el=>el.inert')
-    page.locator('[data-earth-metric="energy"]').focus()
+    page.locator('button[data-earth-metric="energy"]').focus()
     page.keyboard.press('Enter')
     audit('earth-studio-controls')
     page.set_viewport_size({'width': 390, 'height': 844})

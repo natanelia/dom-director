@@ -199,6 +199,8 @@ class VideoBrowserTests(unittest.TestCase):
 
     def test_mp4_frame_parity_across_scene_boundary_with_prepared_voice(self):
         output, report, frames = self.render('sample.mp4', start=6750, end=7250, probes=[0, 11])
+        self.assertEqual((report['host'], report['fixture']), ('orbit', 'orbit-960x540'))
+        self.assertIn('Fixed linear Orbit fixture;', report['warnings'][0])
         self.assertEqual((report['frames'],report['videoCodec'],report['audioCodec']), (12,'h264','aac'))
         self.assertNotEqual(frames[0][1]['sceneId'], frames[11][1]['sceneId'])
         parity = []
@@ -295,6 +297,8 @@ class VideoBrowserTests(unittest.TestCase):
         before = path.read_bytes()
         output, report, frames = self.render('earth.mp4', start=6750, end=7250,
                                             extra=['--silent'], project=path, probes=[0, 11])
+        self.assertEqual((report['host'], report['fixture']), ('earth', 'earth-960x540'))
+        self.assertIn('Fixed linear Earth fixture;', report['warnings'][0])
         self.assertEqual(report['frames'], 12)
         self.assertIsNone(report['audioCodec'])
         self.assertIsNone(report['audio'])
