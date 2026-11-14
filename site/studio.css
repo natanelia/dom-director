@@ -49,6 +49,7 @@
 #dialog[open]:has(#voice-impact-summary){display:grid;grid-template-rows:auto minmax(0,1fr) auto;height:min(780px,85dvh);overflow:hidden}
 #dialog:has(#voice-impact-summary) #dialog-body{min-height:0;overflow:auto;padding:3px;scrollbar-gutter:stable}
 #dialog:has(#voice-impact-summary) #dialog-actions{margin:12px 0 0;padding-top:12px;border-top:1px solid var(--line)}
+button.primary:hover:not(:disabled){color:#fff;background:#2b4433;border-color:#2b4433}
 #voice-impact-summary h3{font-size:14px;margin:0 0 6px}#voice-impact-summary p{margin:5px 0}.voice-impact-duration{font-weight:600;font-variant-numeric:tabular-nums}
 .voice-impact-group{margin:12px 0;border:1px solid var(--line);border-radius:8px;padding:10px 12px;overflow-wrap:anywhere}
 .voice-impact-group summary{cursor:pointer;font-weight:600;min-height:28px;padding:3px 0}
