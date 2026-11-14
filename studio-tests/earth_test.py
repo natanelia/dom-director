@@ -20,26 +20,6 @@ PIXELS = """canvas => {
   return hash>>>0;
 }"""
 
-EARTH_PROBE = r"""() => {
-  const rect=Element.prototype.getBoundingClientRect;
-  const trace=window.earthGeometryProbe={reads:[],invalidReads:[]};
-  const append=(list,value)=>{list.push(value);if(list.length>50)list.shift();};
-  Element.prototype.getBoundingClientRect=function(...args){
-    const r=rect.apply(this,args);
-    if(this.id==='stage'||this.id==='scene'||[...this.classList].some(name=>name.startsWith('earth-'))){
-      const stage=document.getElementById('stage'),seek=document.getElementById('seek');
-      const entry={id:this.id,tag:this.tagName,classes:[...this.classList],
-        x:r.x,y:r.y,width:r.width,height:r.height,
-        stageWidth:stage?.clientWidth,stageHeight:stage?.clientHeight,
-        scene:stage?.dataset.scene,status:stage?.dataset.status,time:seek?.value};
-      append(trace.reads,entry);
-      if(![r.x,r.y,r.width,r.height].every(Number.isFinite)||r.width<=0||r.height<=0)
-        append(trace.invalidReads,{...entry,stack:new Error().stack});
-    }
-    return r;
-  };
-}"""
-
 
 class EarthAssertions:
     def pixels(self):
@@ -191,7 +171,6 @@ class EarthDemoTests(EarthAssertions, StudioTests):
         self.errors, self.requests = [], []
         self.page.on('pageerror', lambda error: self.errors.append(str(error)))
         self.page.on('request', lambda request: self.requests.append(request.url))
-        self.page.add_init_script('('+EARTH_PROBE+')()')
         self.page.emulate_media(reduced_motion='reduce')
         self.page.goto(self.url + '?verify=' + os.environ.get('DEPLOYED_SHA', 'local'))
         self.page.wait_for_function("document.querySelector('#stage')?.dataset.runtime==='sdk' && !!document.querySelector('canvas.earth-globe')")
@@ -219,8 +198,7 @@ class EarthDemoTests(EarthAssertions, StudioTests):
           }))""")
         self.fail('Unexpected walkthrough diagnostic: ' + json.dumps({
             'status': status, 'scene': self.page.locator('#stage').get_attribute('data-scene'),
-            'time': self.page.locator('#seek').input_value(), 'notice': toast.inner_text(), 'geometry': geometry,
-            'probe': self.page.evaluate('window.earthGeometryProbe')}))
+            'time': self.page.locator('#seek').input_value(), 'notice': toast.text_content(), 'geometry': geometry}))
 
     def test_default_homepage_is_earth_and_same_origin_without_audio(self):
         self.assertEqual(self.page.locator('#chapter-strip [data-scene]').count(), 6)
@@ -345,6 +323,23 @@ class EarthDemoTests(EarthAssertions, StudioTests):
         self.page.screenshot(path=str(self.output / 'earth-demo-mobile.png'), full_page=True)
         self.page.locator('#exit-tour').click()
         self.assertNotEqual(self.page.locator('#stage').get_attribute('data-state'), 'playing')
+
+    def test_empty_viewport_pauses_cleanly_and_resumes_after_layout_recovers(self):
+        state = self.earth_state()
+        self.page.locator('#chapter-strip [data-scene="earth.overview"]').click()
+        self.page.wait_for_function("Number(document.querySelector('#seek').value)>.2")
+        self.page.locator('#stage').evaluate("el=>el.style.width='0px'")
+        self.page.wait_for_function("document.querySelector('#stage').clientWidth===0 && document.querySelector('#stage').dataset.state!=='playing'")
+        self.assert_tutorial_healthy()
+        self.page.locator('#stage').evaluate("el=>el.style.removeProperty('width')")
+        self.page.wait_for_function("document.querySelector('#stage').clientWidth>0")
+        self.assert_tutorial_healthy()
+        self.assertNotEqual(self.page.locator('#stage').get_attribute('data-state'), 'playing')
+        before = float(self.page.locator('#seek').input_value())
+        self.page.locator('#play').click()
+        self.page.wait_for_function("before=>Number(document.querySelector('#seek').value)>before+.15 && document.querySelector('#stage').dataset.state==='playing'", arg=before)
+        self.assert_tutorial_healthy()
+        self.assertEqual(self.earth_state(), state)
 
     def test_renderer_api_is_bounded_silent_and_cleans_up_its_instance(self):
         result = self.page.evaluate("""async()=>{
