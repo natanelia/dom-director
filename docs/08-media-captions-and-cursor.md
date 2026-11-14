@@ -40,6 +40,8 @@ A `cursor` cue with `gesture: 'click'` animates a click ring only. An actual app
 
 Cursor paths are scene- or target-relative, then projected into overlay coordinates. Keeping a cursor in raw page pixels while the camera moves makes it drift away from the element. Use deterministic interpolation and configurable speed; stochastic “human-like” movement is unnecessary and can obscure instruction. Touch-centric scenes can use a touch indicator instead of a mouse arrow.
 
+The implemented runtime keeps one neutral pointer visible after its first cue, including gaps and scenes without cursor cues. Active scene targets follow the camera, while a scene transition carries the outgoing visible pointer position relative to the viewport until the next cursor cue starts. Ordinary pointer endpoints are bounded to the safe area before interpolation, so a long pan neither hides the pointer nor compresses its visible travel into the final frames. Explicit drag paths and client-space targets retain their authored geometry. Gesture intervals remain separate from this neutral pointer lifetime; reduced motion hides it, and stop, reload or a seek before its first cue clears it.
+
 ## Typing and drag demonstrations
 
 Visual text-entry simulation can display keystrokes in an overlay or update a synthetic fixture through a host action. It never logs a user's password, captures real secret fields, or silently replaces live input values. Drag demonstrations separate the path illustration from the host's domain operation. Browser drag-and-drop, pointer capture, IME, contenteditable, and custom editors need explicit adapters; synthetic pointer events are not a universal implementation.
