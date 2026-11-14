@@ -63,7 +63,9 @@ Provide `narration:{resolveAsset, ...}` to opt into prepared media. The resolver
 
 Use `setNarrationEnabled`, `setVolume`, `setCaptions`, `exportCaptions` and the optional native controls. Captions and transcript remain available without sound. Pointer gestures only draw an explanation; they never dispatch trusted input or consent.
 
-Sequential cursor cues ease from the preceding cursor destination, including across scene boundaries. Their positions follow presentation time during playback and seeking, and stay attached to scene coordinates as the camera moves. The first cursor enters from the viewport center; explicit drag sources and authored cursor visibility intervals remain respected. Completed scenes retain only numeric cursor coordinates, so previous-route elements can unmount.
+Sequential cursor cues ease from the preceding cursor destination, including across scene boundaries. Their positions follow presentation time during playback and seeking. The first cursor enters from the viewport center. After it appears, one neutral pointer remains visible between cues and through scenes without cursor cues; click, touch and drag gestures keep their authored intervals. Stopping, reloading or seeking before the first cue clears the pointer, and reduced motion hides it.
+
+Active scene targets follow the camera. At a scene boundary, the pointer carries its visible position relative to the viewport until the next cue moves it toward its new target. Ordinary pointer motion stays inside the surface's safe area, so a pan cannot carry it offscreen. Explicit drag paths and client-space targets keep their exact coordinates. Completed scenes retain only numeric cursor coordinates, so previous-route elements can unmount.
 
 ## Guided tasks and checkpoints
 
