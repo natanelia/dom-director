@@ -58,3 +58,25 @@ button.primary:hover:not(:disabled){color:#fff;background:#2b4433;border-color:#
 .voice-impact-paging{display:flex;align-items:center;flex-wrap:wrap;gap:8px;border-top:1px solid var(--line);padding-top:8px}.voice-impact-paging p{flex:1 1 180px;margin:0;font-size:12px}.voice-impact-paging button{min-height:36px}
 #voice-impact-error{overflow-wrap:anywhere}#voice-impact-error:empty{display:none}
 @media(max-width:800px){.voice-impact-group{padding:8px}.voice-impact-group summary,.voice-impact-paging button{min-height:40px}}
+
+/* The host owns the globe; Studio only frames it until the author takes control. */
+.studio[data-host=earth] .canvas-stage{background:#06131e}
+.studio[data-host=earth] .stage-label{color:#c2e5ed;background:#0a2437dd}
+.studio[data-host=earth] .scene-art{background:#071e2b}
+.studio[data-host=earth] .scene-art::before{width:34px;height:34px;inset:11px auto auto 15px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#3d98a4,#123a5d 64%,#051525);box-shadow:0 0 12px #65d4e933}
+.studio[data-host=earth] .scene-art::after{inset:18px 16px auto 61px;height:5px;background:#4c7c81;box-shadow:0 11px #2a4f5c}
+.studio.trying-controls #scene{pointer-events:auto}
+.studio.trying-controls .canvas-stage-wrap{flex:none;align-items:flex-start}
+.studio.trying-controls .canvas-stage{aspect-ratio:auto;max-height:none;height:auto}
+.studio.trying-controls #scene{position:relative;left:auto;top:auto;width:100%;height:auto;min-height:540px}
+.studio.trying-controls .canvas-toolbar{position:sticky;top:0;z-index:6;background:var(--paper);padding:5px 0}
+.studio.trying-controls .stage-label{right:auto;left:12px}
+#try-controls{border-color:#709da0;color:#285c5e;background:#e5f0ec}
+#try-controls[aria-pressed=true]{background:#285c5e;color:white}
+#try-controls:hover{background:#d3e6df}
+#try-controls[aria-pressed=true]:hover{background:#214e50;color:white}
+@media(max-width:800px){#try-controls{min-height:36px}.studio[data-host=earth] .scene-art::before{width:28px;height:28px;top:7px}.studio[data-host=earth] .scene-art::after{top:12px}}
+@media(max-width:700px){
+  .studio.trying-controls #scene{min-height:900px}
+  .studio.trying-controls #try-controls{position:fixed;bottom:48px;right:16px;z-index:30;min-height:44px;padding:10px 14px;box-shadow:0 4px 18px #0c1e2655}
+}

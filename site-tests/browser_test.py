@@ -21,7 +21,7 @@ class PublicSDKTests(unittest.TestCase):
         self.page=self.browser.new_page(viewport={'width':1440,'height':1100});self.errors=[];self.requests=[]
         self.page.on('pageerror',lambda e:self.errors.append(str(e)));self.page.on('request',lambda r:self.requests.append(r.url))
         self.page.add_init_script("""(()=>{const Original=window.Audio;window.testAudio=[];window.Audio=function(...args){const a=new Original(...args);testAudio.push(a);return a;};})();""")
-        self.page.goto(self.url);self.page.wait_for_function("document.querySelector('#stage').dataset.runtime==='sdk'")
+        self.page.goto(self.url+'?example=orbit');self.page.wait_for_function("document.querySelector('#stage').dataset.runtime==='sdk'")
     def tearDown(self):
         self.page.close();self.assertEqual(self.errors,[])
     def position(self):return float(self.page.locator('#seek').input_value())
@@ -52,7 +52,7 @@ class PublicSDKTests(unittest.TestCase):
         self.assertEqual(self.page.locator('#stage').get_attribute('data-status'),'ready')
     def test_every_play_entry_advances_without_jumping(self):
         for entry in ['#hero-play','#stage-play','#play','#footer-play']:
-            self.page.goto(self.url);self.page.wait_for_function("document.querySelector('#stage').dataset.runtime==='sdk'")
+            self.page.goto(self.url+'?example=orbit');self.page.wait_for_function("document.querySelector('#stage').dataset.runtime==='sdk'")
             self.progress(entry)
             self.page.locator('#play').click();before=self.position();self.page.wait_for_timeout(200);self.assertAlmostEqual(self.position(),before,delta=.03)
     def test_complete_watch_traverses_all_scenes_without_approving(self):

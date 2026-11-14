@@ -45,7 +45,7 @@ def main():
                     page.wait_for_timeout(50)
                 raise AssertionError(description)
             def ready(path=''):
-                page.goto(base + path)
+                page.goto(base + path + ('?example=orbit' if path in ('', 'policy/') else ''))
                 # Python-side locator polling does not inject eval into the CSP fixture.
                 until(lambda: (page.locator('#stage').count() and page.locator('#stage').get_attribute('data-runtime') == 'sdk') or
                     (page.locator('#catalog').count() and 'app.reports' in page.locator('#catalog').inner_text()), 'Page did not become ready.')

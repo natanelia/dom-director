@@ -5,7 +5,7 @@ spec=importlib.util.spec_from_file_location('build_site',ROOT/'tools/build_site.
 class SiteBuildTests(unittest.TestCase):
     def test_template_uses_sdk_and_keeps_controls_outside_camera(self):
         html=builder.render_html((ROOT/'demo/src/index.html').read_text(),'/* local test CSS */','a'*40)
-        self.assertIn('src="./app.mjs"',html);self.assertIn('id="sdk-overlay"',html)
+        self.assertIn('src="./app-entry.mjs"',html);self.assertIn('id="sdk-overlay"',html)
         self.assertNotIn('/*__',html);self.assertNotIn('id="demo-cursor"',html)
         self.assertLess(html.index('id="toast"'),html.index('id="caption"'))
         self.assertIn('canonical SDK schema',html);self.assertIn('Original prototype',html)

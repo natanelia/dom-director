@@ -1,3 +1,9 @@
+# Earth and Orbit public examples
+
+The default homepage and Studio now open the [Earth statistics story](../docs/earth-demo.md). Six checkpoints introduce globe controls with caption-first guidance. The Earth host, data and spherical geometry are bundled locally. The explicit publication additions are app-entry.mjs, earth-demo.mjs, earth.mjs and earth.css. The shared Studio sample exports six checkpoint descriptions and a rich project with no prepared voice assets.
+
+The original Orbit flows remain selected with example=orbit. The following implementation notes describe that preserved fixture.
+
 # SDK-powered public-site candidate
 
 This reuses Orbit's existing visual design and prepared synthetic narration, but replaces the fixture-local player with the reusable core. `orbit.tour.json` is the canonical data-only script. `app.mjs` binds host UI and isolated state; it does not implement a second clock, camera sampler, cursor renderer or effect engine.

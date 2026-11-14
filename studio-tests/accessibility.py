@@ -5,6 +5,7 @@ from pathlib import Path
 from browser_test import StudioTests, ROOT
 from caption_search_audit import audit_caption_search
 from voice_impact_audit import audit_voice_impact
+from earth_audit import audit_earth
 
 
 def main():
@@ -149,6 +150,7 @@ def main():
         audit_caption_search(case, audit)
         audit_voice_impact(case, audit)
         assert page.locator('#timecode').get_attribute('aria-live') == 'off'
+        audit_earth(case, audit, axe)
         report['passed'] = not any(a['violations'] for a in report['audits'])
         report['manualReviewStillRequired'] = True
         assert not case.errors, case.errors

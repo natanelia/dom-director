@@ -78,7 +78,7 @@ def load_site(site: Path, project: Path | None) -> tuple[dict[str, bytes], str]:
     site = site.resolve()
     manifest = json.loads((site / '_build.json').read_text())
     from build_site import STUDIO_MODULES
-    names = {'studio.html', 'studio.css', 'studio-view.mjs'}
+    names = {'studio.html', 'studio.css', 'studio-view.mjs', 'earth.mjs', 'earth.css'}
     names.update('studio-sdk/' + name for name in STUDIO_MODULES)
     names.update('assets/' + name + '.mp3' for name in SAMPLES)
     names.update(name for name in manifest['files'] if re.fullmatch(r'sdk/[A-Za-z0-9.-]+\.js', name))

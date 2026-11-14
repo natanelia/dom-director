@@ -6,6 +6,7 @@
   <meta name="description" content="A video-style editor for real DOM. Compose captions, voiceover, cursor motion and camera keyframes on one timeline.">
   <link rel="stylesheet" href="./studio.css">
   <link rel="stylesheet" href="./studio-selection.css">
+  <link rel="stylesheet" href="./earth.css">
 </head>
 <body>
 <div class="studio" id="studio" data-ready="false">
@@ -21,10 +22,10 @@
       <p class="muted small">Select a scene. Shape the moment.</p><ol id="scene-list" class="scene-list"></ol>
       <button id="add-scene" class="full">＋ Add scene</button>
       <div class="scene-buttons"><button id="scene-up" aria-label="Move scene earlier">↑ Earlier</button><button id="scene-down" aria-label="Move scene later">↓ Later</button><button id="scene-duplicate" title="Copy this scene and all of its tracks">Duplicate scene</button><button id="scene-delete">Delete scene</button></div>
-      <div class="scene-note"><span class="eyebrow">A living canvas</span><p>Not a screen recording.<br>Every shot is real DOM.</p><p>Visual preview never clicks the application.</p><a href="./agent.html">Agent lab ↗</a></div>
+      <div class="scene-note"><span class="eyebrow">A living canvas</span><p>Frame a real application.<br>Teach one control at a time.</p><p>Visual preview never clicks the application.</p><a href="./studio.html?example=orbit" id="example-switch">Orbit example ↗</a><br><a href="./agent.html">Agent lab ↗</a></div>
     </aside>
     <section class="canvas-panel" aria-label="Live presentation preview">
-      <div class="canvas-toolbar"><span id="scene-name">01 / The living workspace</span><div><label>Canvas view <select id="canvas-zoom"><option value="1">Fit</option><option value="1.25">125%</option><option value="1.5">150%</option></select></label><button id="motion" aria-pressed="false">Motion on</button></div></div>
+      <div class="canvas-toolbar"><span id="scene-name">01 / Meet your planet</span><div><button id="try-controls" aria-pressed="false" hidden>Try controls</button><label>Canvas view <select id="canvas-zoom"><option value="1">Fit</option><option value="1.25">125%</option><option value="1.5">150%</option></select></label><button id="motion" aria-pressed="false">Motion on</button></div></div>
       <div class="canvas-stage-wrap"><div id="stage" class="canvas-stage">
         <div id="scene" class="orbit" inert>
           <nav class="orbit-nav" aria-label="Synthetic Orbit workspace"><strong>◉ ORBIT</strong><span class="orbit-nav-active">Overview</span><span>Routes</span><span>Reviews</span><small>● All systems live</small><span class="avatar">NE</span></nav>
@@ -35,7 +36,7 @@
           </div>
         </div>
         <div id="stage-overlays" aria-hidden="true"><svg id="cursor-layer"></svg><div id="caption-overlay"></div><svg id="edit-handles"></svg></div>
-        <button id="canvas-picker" hidden>Choose this focus</button><div class="stage-label">LIVE DOM · EDITABLE</div>
+        <button id="canvas-picker" hidden>Choose this focus</button><div id="stage-label" class="stage-label">LIVE APP · EDITABLE</div>
       </div></div>
       <div class="transport"><div><button id="restart" aria-label="Go to start">⏮</button><button id="play" class="play-button" aria-label="Play preview">▶</button><button id="stop" aria-label="Stop preview">■</button><output id="timecode" aria-live="off">00:00.00 / 00:22.60</output></div><div><button id="loop" aria-pressed="false">Loop clip</button><button id="sound" aria-pressed="false">Sound off</button><button id="captions" aria-pressed="true">CC</button></div></div>
       <label class="seek-label"><span class="sr-only">Playhead position in seconds</span><input id="seek" type="range" min="0" max="23" step="0.001" value="0"></label>

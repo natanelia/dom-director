@@ -27,7 +27,12 @@ jobs:
       - name: Verify schemas models and public template
         run: |
           python3 tools/build_runtime.py
+          mkdir -p node_modules/@dom-director
+          ln -s ../../packages/core node_modules/@dom-director/core
           node --check site/app.mjs
+          node --check site/app-entry.mjs
+          node --check site/earth-demo.mjs
+          node --check site/earth.mjs
           node --check site/agent.mjs
           node --test site-tests/model.test.mjs
           python3 site-tests/build_test.py

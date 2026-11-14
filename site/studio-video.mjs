@@ -34,7 +34,7 @@ function installVideoHandoff() {
   if ($('studio')?.dataset.ready !== 'true') return;
   const trigger=$('export-open'), dialog=$('dialog'), title=$('dialog-title'), body=$('dialog-body'), actions=$('dialog-actions');
   const lifetime=new AbortController();
-  let values={...VIDEO_DEFAULTS}, epoch=0;
+  let values={...VIDEO_DEFAULTS,audio:$('studio').dataset.host!=='earth'}, epoch=0;
   function node(tag,text,parent) {const element=document.createElement(tag);if(text!==undefined)element.textContent=text;parent?.append(element);return element;}
   function button(label,id,callback) {const element=node('button',label,actions);element.type='button';element.id=id;element.addEventListener('click',callback);return element;}
   dialog.addEventListener('close',()=>{epoch++;},{signal:lifetime.signal});
@@ -102,7 +102,7 @@ function installVideoHandoff() {
       times.hidden=values.range!=='range';status.textContent='';
       try{
         const result=videoCommand(values);command.value=result.command;copy.disabled=false;summary.className='note';
-        summary.textContent=(result.frames===null?'The renderer checks that the saved project fits the 120-second limit.':result.frames+' frames; the final partial frame holds to its boundary.')+' Compatible Orbit projects only.';
+        summary.textContent=(result.frames===null?'The renderer checks that the saved project fits the 120-second limit.':result.frames+' frames; the final partial frame holds to its boundary.')+' Compatible Earth and Orbit projects. Live globe exploration is not recorded in a project.'+($('studio').dataset.host==='earth'?' Earth starts without recorded narration. Enable audio after attaching voice takes.':'');
         fields.start.removeAttribute('aria-invalid');fields.end.removeAttribute('aria-invalid');
       }catch(error){command.value='';copy.disabled=true;summary.className='error';summary.textContent=error.message;fields.start.setAttribute('aria-invalid','true');fields.end.setAttribute('aria-invalid','true');}
     }
