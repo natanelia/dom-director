@@ -249,7 +249,7 @@ class EarthDemoTests(EarthAssertions, StudioTests):
             self.assert_globe_changed(action)
             self.page.wait_for_function("document.querySelector('#stage').dataset.state!=='waiting'")
             self.assert_tutorial_healthy()
-            self.assertEqual(self.page.locator('#earth-progress').inner_text(), f'{index+1} / 6 controls explored')
+            self.assertEqual(self.page.locator('#earth-progress').text_content(), f'{index+1} / 6 controls explored')
         state, pixels = self.earth_state(), self.pixels()
         self.page.locator('#restart').click()
         self.assert_tutorial_healthy()
@@ -267,7 +267,7 @@ class EarthDemoTests(EarthAssertions, StudioTests):
         self.page.wait_for_function("document.querySelector('#earth-progress').textContent.startsWith('0 / 6')")
         self.page.wait_for_function("!document.querySelector('#earth-reset').disabled")
         self.assertNotEqual(self.page.locator('#stage').get_attribute('data-status'), 'error')
-        self.assertEqual(self.page.locator('#toast').inner_text(), 'Practice reset. Start again whenever you are ready.')
+        self.assertEqual(self.page.locator('#toast').text_content(), 'Practice reset. Start again whenever you are ready.')
         self.assertEqual(self.earth_state(), {
             'earthMetric': 'population', 'earthYear': '2000', 'earthRegion': 'world',
             'earthConnections': 'false', 'earthNight': 'false'})
