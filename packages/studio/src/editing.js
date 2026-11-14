@@ -1,5 +1,6 @@
 import {editProject,findClip,freshId,sceneTimeline,requireProject,proposeRetime,PRESETS} from './project.js';
 import {parseSubtitles} from './subtitles.js';
+import {canonical,freezeData} from '@dom-director/core/data';
 const copy=value=>JSON.parse(JSON.stringify(value));
 const demand=(ok,message)=>{if(!ok)throw new Error(message);};
 
@@ -157,6 +158,115 @@ export function proposeVoiceReplacement(project,clipId,asset,{fitScene=false}={}
     const existing=next.assets.find(a=>a.id===asset.id);demand(!existing||JSON.stringify(existing)===JSON.stringify(asset),'An audio identity cannot be rebound.');
     if(!existing)next.assets.push(copy(asset));const c=findClip(next,clipId).clip;c.assetId=asset.id;c.sourceInMs=0;c.durationMs=length;c.fadeInMs=Math.min(clip.fadeInMs,length);c.fadeOutMs=Math.min(clip.fadeOutMs,length-c.fadeInMs);
   });return {value:requireProject(value),changes,deltaMs:fitScene?length-scene.durationMs:0};
+}
+
+/** Describe the actual validated replacement, never a separately calculated retime. */
+export function describeVoiceReplacementImpact(input,proposed,clipId,{limit=20,offsets={}}={}){
+  const kinds=['captions','camera','cursor','voice'];
+  demand(Number.isInteger(limit)&&limit>=1&&limit<=100,'Impact pages must contain 1–100 items.');
+  demand(offsets&&typeof offsets==='object'&&!Array.isArray(offsets)&&Object.keys(offsets).every(kind=>kinds.includes(kind))&&
+    Object.values(offsets).every(offset=>Number.isSafeInteger(offset)&&offset>=0),'Impact offsets must use known tracks and non-negative whole numbers.');
+  const before=requireProject(input),after=requireProject(proposed),original=findClip(before,clipId),replacement=findClip(after,clipId);
+  demand(original.track.kind==='voice'&&replacement.track.kind==='voice','Select the same voice clip in both projects.');
+  const same=(a,b)=>canonical(a)===canonical(b);
+  const omit=(value,fields)=>Object.fromEntries(Object.entries(value).filter(([key])=>!fields.includes(key)));
+  const compatible=(condition)=>demand(condition,'Review the same project with only voice replacement timing and source changes.');
+  compatible(same(omit(before,['scenes','tracks','assets']),omit(after,['scenes','tracks','assets'])));
+  compatible(before.scenes.length===after.scenes.length&&before.tracks.length===after.tracks.length);
+  const sceneId=original.clip.sceneId,oldScenes=sceneTimeline(before),newScenes=sceneTimeline(after);
+  for(const [index,scene] of oldScenes.entries()){
+    const next=newScenes[index];
+    compatible(scene.id===next.id&&scene.title===next.title&&(scene.id===sceneId||scene.durationMs===next.durationMs));
+  }
+  const oldSceneMap=new Map(oldScenes.map(scene=>[scene.id,scene])),newSceneMap=new Map(newScenes.map(scene=>[scene.id,scene]));
+  const oldAssets=new Map(before.assets.map(asset=>[asset.id,asset])),newAssets=new Map(after.assets.map(asset=>[asset.id,asset]));
+  compatible(before.assets.every(asset=>same(asset,newAssets.get(asset.id)))&&
+    after.assets.every(asset=>oldAssets.has(asset.id)||asset.id===replacement.clip.assetId));
+  const pages=new Map(kinds.map(kind=>[kind,{kind,total:0,items:[],offset:offsets[kind]??0,limit,hasMore:false}]));
+  const oldClips=new Map(),newClips=new Map();
+  for(const track of before.tracks)for(const clip of track.clips)oldClips.set(clip.id,{track,clip});
+  for(const track of after.tracks)for(const clip of track.clips)newClips.set(clip.id,{track,clip});
+  const wordIndexes=new WeakMap();
+  function linkInfo(project,clips,timing){
+    if(!timing)return undefined;
+    const source=clips.get(timing.captionId);
+    if(!wordIndexes.has(source.clip))wordIndexes.set(source.clip,new Map(source.clip.words.map(word=>[word.id,word])));
+    const word=wordIndexes.get(source.clip).get(timing.wordId);
+    return {...timing,wordText:word.text,captionText:source.clip.text,
+      ...(source.track.language?{language:source.track.language}:{}),hidden:!source.track.enabled||source.track.id!==project.captionTrack};
+  }
+  function bounds(project,sceneMap,assets,track,clip){
+    const startMs=sceneMap.get(clip.sceneId).startMs+clip.startMs,result={startMs,endMs:startMs+clip.durationMs};
+    if(track.kind==='camera'||track.kind==='cursor')Object.assign(result,{sourceStartMs:clip.offsetMs,sourceEndMs:clip.offsetMs+clip.durationMs});
+    if(track.kind==='voice')Object.assign(result,{sourceStartMs:clip.sourceInMs,sourceEndMs:clip.sourceInMs+clip.durationMs,
+      assetId:clip.assetId,assetName:assets.get(clip.assetId)?.name??null,fadeInMs:clip.fadeInMs,fadeOutMs:clip.fadeOutMs});
+    return result;
+  }
+  function point(project,clips,sceneMap,clip,key,inclusiveEnd){
+    const startMs=sceneMap.get(clip.sceneId).startMs+clip.startMs+key.atMs-clip.offsetMs;
+    const link=linkInfo(project,clips,key.timing);
+    return {startMs,endMs:startMs,sourceStartMs:key.atMs,sourceEndMs:key.atMs,
+      visible:key.atMs>=clip.offsetMs&&(inclusiveEnd?key.atMs<=clip.offsetMs+clip.durationMs:key.atMs<clip.offsetMs+clip.durationMs),...(link?{link}:{})};
+  }
+  function emit(track,clip,type,label,oldValue,newValue,extra={}){
+    if(same(oldValue,newValue)&&!(type==='clip'&&clip.id===clipId))return;
+    const page=pages.get(track.kind),index=page.total++;
+    // Count every change, retaining at most one requested page per track kind.
+    if(index<page.offset||index>=page.offset+limit)return;
+    page.items.push({id:JSON.stringify([type,clip.id,extra.entityId??extra.wordIndex??clip.id]),type,
+      sceneId:clip.sceneId,sceneTitle:oldSceneMap.get(clip.sceneId).title,trackId:track.id,trackName:track.name,
+      clipId:clip.id,label,enabled:track.enabled,
+      ...(track.kind==='captions'?{active:track.id===before.captionTrack,...(track.language?{language:track.language}:{})}:{}),
+      ...extra,...(newValue.link?{link:newValue.link}:{}),before:oldValue,after:newValue});
+  }
+  // Validate the comparison scope before emitting: captions, identity, styles, media
+  // catalog entries and link relationships must not be silently replaced by a review.
+  const trackPairs=[];
+  for(const [index,track] of before.tracks.entries()){
+    const next=after.tracks[index];
+    compatible(same(omit(track,['clips']),omit(next,['clips']))&&track.clips.length===next.clips.length);
+    const nextClips=new Map(next.clips.map(clip=>[clip.id,clip]));
+    for(const clip of track.clips){
+      const other=nextClips.get(clip.id);compatible(other&&other.sceneId===clip.sceneId);
+      if(clip.sceneId!==sceneId){compatible(same(clip,other));continue;}
+      if(track.kind==='voice'){
+        compatible(same(omit(clip,clip.id===clipId?['startMs','durationMs','assetId','sourceInMs','fadeInMs','fadeOutMs']:['startMs']),
+          omit(other,clip.id===clipId?['startMs','durationMs','assetId','sourceInMs','fadeInMs','fadeOutMs']:['startMs'])));
+      }else{
+        compatible(same(omit(clip,['startMs','durationMs','offsetMs','keys','gestures','words']),omit(other,['startMs','durationMs','offsetMs','keys','gestures','words'])));
+        for(const [field,times] of [['words',['startMs','endMs']],['keys',['atMs']],['gestures',['atMs']]]){
+          const oldItems=clip[field]??[],newItems=other[field]??[];compatible(oldItems.length===newItems.length);
+          const byId=new Map(newItems.map((item,i)=>[item.id??i,item]));
+          for(const [i,item] of oldItems.entries()){
+            const changed=byId.get(item.id??i);compatible(changed&&same(omit(item,times),omit(changed,times)));
+          }
+        }
+      }
+    }
+    trackPairs.push({track,nextClips});
+  }
+  for(const scene of oldScenes)for(const {track,nextClips} of trackPairs){
+    const clips=track.clips.filter(clip=>clip.sceneId===scene.id).sort((a,b)=>a.startMs-b.startMs||(a.id<b.id?-1:a.id>b.id?1:0));
+    for(const clip of clips){
+      const other=nextClips.get(clip.id),oldBounds=bounds(before,oldSceneMap,oldAssets,track,clip),newBounds=bounds(after,newSceneMap,newAssets,track,other);
+      emit(track,clip,'clip',track.kind==='captions'?clip.text:track.kind==='voice'?(newBounds.assetName??'Voice clip'):track.name,oldBounds,newBounds,{entityId:clip.id});
+      for(const [wordIndex,word] of (clip.words??[]).entries()){
+        const changed=word.id?other.words.find(item=>item.id===word.id):other.words[wordIndex];
+        emit(track,clip,'word',word.text,{startMs:oldBounds.startMs+word.startMs,endMs:oldBounds.startMs+word.endMs},
+          {startMs:newBounds.startMs+changed.startMs,endMs:newBounds.startMs+changed.endMs},{wordIndex,...(word.id?{entityId:word.id}:{})});
+      }
+      for(const field of ['keys','gestures']){
+        const newItems=new Map((other[field]??[]).map(item=>[item.id,item]));
+        for(const item of clip[field]??[])emit(track,clip,field==='keys'?'keyframe':'gesture',item.target??item.kind,
+          point(before,oldClips,oldSceneMap,clip,item,field==='keys'),point(after,newClips,newSceneMap,other,newItems.get(item.id),field==='keys'),{entityId:item.id});
+      }
+    }
+  }
+  const groups=[...pages.values()];for(const page of groups)page.hasMore=page.offset+page.items.length<page.total;
+  const scene=oldSceneMap.get(sceneId),next=newSceneMap.get(sceneId),summary=value=>({startMs:value.startMs,endMs:value.endMs,durationMs:value.durationMs});
+  return freezeData({clipId,scene:{id:sceneId,title:scene.title,before:summary(scene),after:summary(next),deltaMs:next.durationMs-scene.durationMs},
+    shiftedSceneCount:oldScenes.filter((scene,index)=>scene.id!==sceneId&&scene.startMs!==newScenes[index].startMs).length,
+    total:groups.reduce((sum,page)=>sum+page.total,0),groups});
 }
 
 /**

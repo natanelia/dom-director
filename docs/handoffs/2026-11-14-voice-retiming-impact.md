@@ -1,6 +1,6 @@
 # Next-agent handoff: Voice replacement retiming review
 
-**Status:** Draft handoff only. No runtime implementation is claimed in this PR; leave it open for the next agent.  
+**Status:** The continuation now implements the impact descriptor and review UI in this PR. See [the creator/API guide](../voice-retiming-review.md) and the PR's current head-specific test results; the original baseline runs below do not validate the new feature.
 **Recorded:** 14 November 2026. **Baseline:** main at bee5a0c496ec40f5583b4d52fb0c54f1eec0347a (PR #46 merged). There were no open PRs when this branch was created. Refresh remote refs before continuing.
 
 ## Why this work exists
@@ -29,8 +29,8 @@ The remaining creator-facing gap selected for the next PR is **explaining the pr
 
 ## Recommended tests and release gates
 
-Run the Studio Node tests with: node --test packages/studio/test/*.test.js  
-Run package consumers with: python3 tools/check_studio.py  
+Run the Studio Node tests with: node --test packages/studio/test/*.test.js
+Run package consumers with: python3 tools/check_studio.py
 Use the repository Studio workflow for real-browser and exact staged-artifact acceptance. Do not claim a local browser pass if navigation is blocked. Preserve the existing deployment artifact allowlist and check post-merge public playback.
 
 Baseline evidence only (these are **not** tests of the proposed new UI):
@@ -43,4 +43,4 @@ Baseline evidence only (these are **not** tests of the proposed new UI):
 
 No automatic speech alignment, voice generation/voice cloning, provider connection, new microphone request, audio stretching, arbitrary-page capture, registry publication, extra public route, telemetry, cloud storage or business-state rollback. Existing manual physical iOS/Android, VoiceOver/NVDA, device audio, browser zoom and first-time usability acceptance remains in [issue #19](https://github.com/natanelia/dom-director/issues/19).
 
-This is a **handoff checkpoint**, not a release or completed feature. Update the PR body with new head SHA, test evidence, unresolved issues and user-visible changes as actual implementation proceeds.
+This document records the original **handoff checkpoint** and acceptance scope. The PR body tracks implementation, current head SHA, executed test evidence, unresolved issues, and deployment state.
