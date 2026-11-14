@@ -33,8 +33,8 @@ function installVideoHandoff() {
   const $ = id => document.getElementById(id);
   if ($('studio')?.dataset.ready !== 'true') return;
   const trigger=$('export-open'), dialog=$('dialog'), title=$('dialog-title'), body=$('dialog-body'), actions=$('dialog-actions');
-  const lifetime=new AbortController();
-  let values={...VIDEO_DEFAULTS,audio:$('studio').dataset.host!=='earth'}, epoch=0;
+  const lifetime=new AbortController(),audioChoices=new Map();
+  let values={...VIDEO_DEFAULTS}, epoch=0;
   function node(tag,text,parent) {const element=document.createElement(tag);if(text!==undefined)element.textContent=text;parent?.append(element);return element;}
   function button(label,id,callback) {const element=node('button',label,actions);element.type='button';element.id=id;element.addEventListener('click',callback);return element;}
   dialog.addEventListener('close',()=>{epoch++;},{signal:lifetime.signal});
@@ -51,6 +51,8 @@ function installVideoHandoff() {
   function show() {
     $('stop').click();
     ++epoch;
+    const host=$('studio').dataset.host;
+    values={...values,audio:audioChoices.get(host)??(host!=='earth')};
     title.textContent='Prepare a local video export';body.replaceChildren();actions.replaceChildren();
     node('p','Render an MP4 or WebM on your computer using Python, Chromium and FFmpeg. This panel prepares a command; it does not render video in this browser or upload your project.',body);
     const guide=node('p',undefined,body);
@@ -73,7 +75,7 @@ function installVideoHandoff() {
       fields[id]=input;input.addEventListener('input',update);
     }
     for(const [id,label] of [['audio','Include voiceover'],['captions','Burn in styled captions'],['reduced','Use reduced motion']]){
-      const wrapper=node('label',undefined,body);wrapper.className='field checkbox';const input=node('input',undefined,wrapper);input.type='checkbox';input.id='video-'+id;input.checked=values[id];wrapper.append(document.createTextNode(label));fields[id]=input;input.addEventListener('change',update);
+      const wrapper=node('label',undefined,body);wrapper.className='field checkbox';const input=node('input',undefined,wrapper);input.type='checkbox';input.id='video-'+id;input.checked=values[id];wrapper.append(document.createTextNode(label));fields[id]=input;input.addEventListener('change',()=>{if(id==='audio')audioChoices.set(host,input.checked);update();});
     }
     node('p','These are export settings, independent of Sound off, CC and Motion switches in the preview. The renderer validates targets and voice takes before writing a file.',body).className='note';
     const summary=node('p',undefined,body);summary.id='video-summary';summary.setAttribute('role','status');

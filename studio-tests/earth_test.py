@@ -126,11 +126,33 @@ class StudioEarthTests(EarthAssertions, StudioTests):
           const {createSample}=await import('./studio-sdk/index.js');
           return JSON.stringify({format:'dom-director-studio/1',project:createSample(),files:[]})+'\\n';
         }""").encode()
-        for payload, host, count in [(orbit, 'orbit', 3), (earth, 'earth', 6)]:
+        def video_audio(expected, override=None, configure=False):
+            self.page.locator('#export-open').click()
+            self.page.locator('#video-open').click()
+            if configure:
+                self.page.locator('#video-format').select_option('webm')
+                self.page.locator('#video-fps').select_option('24')
+            self.assertEqual(self.page.locator('#video-format').input_value(), 'webm')
+            self.assertEqual(self.page.locator('#video-fps').input_value(), '24')
+            audio = self.page.locator('#video-audio')
+            self.assertEqual(audio.is_checked(), expected)
+            self.assertEqual('--silent' in self.page.locator('#video-command').input_value().split(), not expected)
+            if override is not None:
+                audio.set_checked(override)
+                self.assertEqual(audio.is_checked(), override)
+                self.assertEqual('--silent' in self.page.locator('#video-command').input_value().split(), not override)
+            self.page.locator('#video-close').click()
+            self.assertTrue(self.page.locator('#dialog').is_hidden())
+
+        video_audio(False, configure=True)
+        for payload, host, count, audio, override in [
+                (orbit, 'orbit', 3, True, False), (earth, 'earth', 6, False, True),
+                (orbit, 'orbit', 3, False, None), (earth, 'earth', 6, True, None)]:
             self.page.locator('#project-file').set_input_files({'name': 'example.director', 'mimeType': 'application/x-dom-director', 'buffer': payload})
             self.page.get_by_role('button', name='Open project', exact=True).click()
             self.page.wait_for_function("host=>document.querySelector('#studio').dataset.host===host", arg=host)
             self.assertEqual(self.page.locator('#scene-list button').count(), count)
+            video_audio(audio, override)
         mixed = json.loads(earth.splitlines()[0])
         mixed['project']['tracks'][0]['clips'][0]['keys'][0]['target'] = 'orbit.overview'
         self.page.locator('#project-file').set_input_files({'name': 'mixed.director', 'mimeType': 'application/x-dom-director', 'buffer': (json.dumps(mixed)+'\n').encode()})
