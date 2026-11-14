@@ -4,6 +4,8 @@ Optional rich-project authoring and presentation primitives, separate from the e
 
 `createSample()` provides a purpose-built three-scene, four-track project using the repository's licensed prepared synthetic narration. `validateProject` reads bounded data-only JSON and rejects unknown versions/fields, unsafe object shapes, source URLs, invalid times, duplicate identities and lane overlap. `createEvaluator` samples camera, cursor and CC deterministically with the core's existing geometry and easing. Callers supply approved scene-coordinate target bounds; no DOM discovery or actions occur in the evaluator.
 
+The sample carries each scene's final cursor position and camera framing into the next scene's first keys, so playback flows between checkpoints without resetting. Authored projects retain their explicit start keys, source windows and intentional Cut easing; seeking samples the same path without adding a separate animation.
+
 ```js
 import {createSample, createProjectStore, updateClip, createEvaluator} from '@dom-director/studio';
 const store = createProjectStore(createSample());

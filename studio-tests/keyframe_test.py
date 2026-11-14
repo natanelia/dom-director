@@ -1,10 +1,49 @@
-"""Selecting an existing keyframe must never round its authored coordinates."""
+"""Motion stays continuous while selection preserves authored coordinates."""
 import json
+import math
 import unittest
 import browser_test as baseline
 
 
 class StudioKeyframeTests(baseline.StudioTests):
+    def test_sample_cursor_flows_across_scene_boundaries_and_seeks_exactly(self):
+        project = self.project()
+        boundary = 0
+
+        def position():
+            return self.page.locator('#cursor-layer > g').evaluate('''node => {
+                const matrix = node.transform.baseVal.consolidate().matrix;
+                return {x: matrix.e, y: matrix.f};
+            }''')
+
+        def distance(a, b):
+            return math.hypot(a['x'] - b['x'], a['y'] - b['y'])
+
+        for index, scene in enumerate(project['scenes'][:-1]):
+            boundary += scene['durationMs']
+            self.seek((boundary - 1) / 1000)
+            before = position()
+            self.seek(boundary / 1000)
+            at = position()
+            self.assertEqual(self.page.locator('#stage').get_attribute('data-scene'),
+                             project['scenes'][index + 1]['id'])
+            self.assertLess(distance(before, at), .01,
+                            'The cursor must not reset at the next scene.')
+            self.seek((boundary + 1) / 1000)
+            self.assertLess(distance(at, position()), .01)
+            self.seek((boundary + 1200) / 1000)
+            moving = position()
+            self.assertGreater(distance(at, moving), 1)
+            self.seek((boundary + 2500) / 1000)
+            self.assertGreater(distance(moving, position()), 1)
+            self.seek(0)
+            self.seek((boundary + 1200) / 1000)
+            self.assertLess(distance(moving, position()), .01)
+
+        self.page.locator('#motion').click()
+        self.assertEqual(self.page.locator('#cursor-layer > g').count(), 0)
+        self.assertTrue(self.page.locator('#caption-overlay').is_visible())
+
     def test_clicking_fractional_keyframe_handles_is_selection_not_an_edit(self):
         saved = self.bundle().splitlines()
         header = json.loads(saved[0])
