@@ -20,6 +20,26 @@ PIXELS = """canvas => {
   return hash>>>0;
 }"""
 
+EARTH_PROBE = r"""() => {
+  const rect=Element.prototype.getBoundingClientRect;
+  const trace=window.earthGeometryProbe={reads:[],invalidReads:[]};
+  const append=(list,value)=>{list.push(value);if(list.length>50)list.shift();};
+  Element.prototype.getBoundingClientRect=function(...args){
+    const r=rect.apply(this,args);
+    if(this.id==='stage'||this.id==='scene'||[...this.classList].some(name=>name.startsWith('earth-'))){
+      const stage=document.getElementById('stage'),seek=document.getElementById('seek');
+      const entry={id:this.id,tag:this.tagName,classes:[...this.classList],
+        x:r.x,y:r.y,width:r.width,height:r.height,
+        stageWidth:stage?.clientWidth,stageHeight:stage?.clientHeight,
+        scene:stage?.dataset.scene,status:stage?.dataset.status,time:seek?.value};
+      append(trace.reads,entry);
+      if(![r.x,r.y,r.width,r.height].every(Number.isFinite)||r.width<=0||r.height<=0)
+        append(trace.invalidReads,{...entry,stack:new Error().stack});
+    }
+    return r;
+  };
+}"""
+
 
 class EarthAssertions:
     def pixels(self):
@@ -171,6 +191,7 @@ class EarthDemoTests(EarthAssertions, StudioTests):
         self.errors, self.requests = [], []
         self.page.on('pageerror', lambda error: self.errors.append(str(error)))
         self.page.on('request', lambda request: self.requests.append(request.url))
+        self.page.add_init_script('('+EARTH_PROBE+')()')
         self.page.emulate_media(reduced_motion='reduce')
         self.page.goto(self.url + '?verify=' + os.environ.get('DEPLOYED_SHA', 'local'))
         self.page.wait_for_function("document.querySelector('#stage')?.dataset.runtime==='sdk' && !!document.querySelector('canvas.earth-globe')")
@@ -184,6 +205,23 @@ class EarthDemoTests(EarthAssertions, StudioTests):
         self.page.locator('#chapter-strip [data-scene="'+scene+'"]').click()
         self.page.wait_for_function("scene=>document.querySelector('#stage').dataset.scene===scene && document.querySelector('#stage').dataset.state==='waiting'", arg=scene)
 
+    def assert_tutorial_healthy(self):
+        toast = self.page.locator('#toast')
+        status = self.page.locator('#stage').get_attribute('data-status')
+        if status != 'error' and toast.is_hidden():
+            return
+        geometry = self.page.evaluate("""()=>Object.fromEntries(
+          ['#stage','#scene','.earth-visual','.earth-metric-control','.earth-year-control',
+           '.earth-region-control','[data-earth-layer="connections"]','[data-earth-layer="night"]'].map(selector=>{
+            const el=document.querySelector(selector),r=el.getBoundingClientRect();
+            return [selector,{x:r.x,y:r.y,width:r.width,height:r.height,
+              clientWidth:el.clientWidth,clientHeight:el.clientHeight,transform:getComputedStyle(el).transform}];
+          }))""")
+        self.fail('Unexpected walkthrough diagnostic: ' + json.dumps({
+            'status': status, 'scene': self.page.locator('#stage').get_attribute('data-scene'),
+            'time': self.page.locator('#seek').input_value(), 'notice': toast.inner_text(), 'geometry': geometry,
+            'probe': self.page.evaluate('window.earthGeometryProbe')}))
+
     def test_default_homepage_is_earth_and_same_origin_without_audio(self):
         self.assertEqual(self.page.locator('#chapter-strip [data-scene]').count(), 6)
         self.assertEqual(self.page.locator('#stage').get_attribute('data-scene'), 'earth.overview')
@@ -196,6 +234,7 @@ class EarthDemoTests(EarthAssertions, StudioTests):
 
     def test_all_six_try_checkpoints_require_real_controls_and_change_globe_pixels(self):
         self.mode('try')
+        self.assert_tutorial_healthy()
         actions = [
             ('earth.overview', lambda: self.page.locator('canvas.earth-globe').press('ArrowRight')),
             ('earth.metric', lambda: self.page.locator('button[data-earth-metric="energy"]').click()),
@@ -206,16 +245,29 @@ class EarthDemoTests(EarthAssertions, StudioTests):
         ]
         for index, (scene, action) in enumerate(actions):
             self.gate(scene)
+            self.assert_tutorial_healthy()
             self.assert_globe_changed(action)
             self.page.wait_for_function("document.querySelector('#stage').dataset.state!=='waiting'")
-            self.assertIn(str(index+1), self.page.locator('#earth-progress').inner_text())
+            self.assert_tutorial_healthy()
+            self.assertEqual(self.page.locator('#earth-progress').inner_text(), f'{index+1} / 6 controls explored')
         state, pixels = self.earth_state(), self.pixels()
         self.page.locator('#restart').click()
+        self.assert_tutorial_healthy()
+        self.assertEqual(self.page.locator('#stage').get_attribute('data-scene'), 'earth.overview')
+        self.assertEqual(self.page.locator('#current-time').inner_text(), '00:00')
+        self.assertEqual(float(self.page.locator('#seek').input_value()), 0)
         self.assertEqual(self.earth_state(), state)
         self.assertEqual(self.pixels(), pixels)
         self.page.screenshot(path=str(self.output / 'earth-demo-completed-controls.png'), full_page=True)
+        self.page.locator('#play').click()
+        self.page.wait_for_function("Number(document.querySelector('#seek').value)>.25 && document.querySelector('#stage').dataset.state==='playing'")
+        self.assert_tutorial_healthy()
+        self.page.locator('#play').click()
         self.page.locator('#earth-reset').click()
         self.page.wait_for_function("document.querySelector('#earth-progress').textContent.startsWith('0 / 6')")
+        self.page.wait_for_function("!document.querySelector('#earth-reset').disabled")
+        self.assertNotEqual(self.page.locator('#stage').get_attribute('data-status'), 'error')
+        self.assertEqual(self.page.locator('#toast').inner_text(), 'Practice reset. Start again whenever you are ready.')
         self.assertEqual(self.earth_state(), {
             'earthMetric': 'population', 'earthYear': '2000', 'earthRegion': 'world',
             'earthConnections': 'false', 'earthNight': 'false'})

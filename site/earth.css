@@ -15,3 +15,6 @@
  .earth-live .earth-footer{height:38px;padding:0 14px;gap:6px;font-size:7px;letter-spacing:.1px}.earth-live .earth-footer>span:first-child{display:none}.earth-live .earth-coordinates{font-size:7px}
 }
 .earth-app[data-earth-reduced-motion=true] *{transition:none!important}
+/* The globe shares a visual card with its headline; focus belongs around that card. */
+.earth-app .earth-globe:focus-visible{outline:none}
+.earth-app .earth-visual:has(.earth-globe:focus-visible){outline:3px solid #e8f8c4;outline-offset:-3px}
