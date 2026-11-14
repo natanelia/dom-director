@@ -21,6 +21,11 @@ word links nor the selected take changes. **Keep scene timing** and the explicit
 **Fit scene to voice** review remain the only replacement paths. Undo still restores
 the replacement as one edit; listening does not create undo entries.
 
+The [timing review](voice-retiming-review.md) names the affected captions, authored
+words, camera/cursor keys and gestures, and voice source windows at millisecond
+precision. It includes hidden-language links and off-window source keys, with
+paginated details for longer projects. Opening it stops the audition.
+
 Stop, Cancel, Escape, native dialog close, leaving the page, hiding the page, starting
 a tour preview or changing the project stop listening. Returning to a hidden or
 history-restored tab does not restart audio. Accepting a take or entering the retiming

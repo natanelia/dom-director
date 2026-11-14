@@ -22,3 +22,5 @@ Subtitles support bounded plain-text VTT/SRT import and text/timing export, with
 Run `node --test packages/studio/test/*.test.js` with the local core linked under `node_modules/@dom-director/core`. `tools/check_studio.py` tests packed consumers and TypeScript declarations. No npm publication is performed. The full editor and media/browser integration are separate reviewable changes.
 
 `duplicateScene(project, sceneId)` from `@dom-director/studio/editing` copies a whole scene after its source. It returns `{value, sceneId}`, retains shared media, and remaps copied word links to independent identities. Locked content and project limits remain enforced. See [scene duplication](../../docs/scene-duplication.md).
+
+`describeVoiceReplacementImpact(before, after, clipId)` from the same editing entry describes the actual validated replacement without committing it. It returns exact before/after timeline and source positions, linked-word details, shifted-scene counts, and bounded per-track pages. See [voice-retiming review](../../docs/voice-retiming-review.md) for the comparison scope, pagination options, and creator workflow.

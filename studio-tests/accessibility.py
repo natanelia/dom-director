@@ -4,6 +4,7 @@ import os
 from pathlib import Path
 from browser_test import StudioTests, ROOT
 from caption_search_audit import audit_caption_search
+from voice_impact_audit import audit_voice_impact
 
 
 def main():
@@ -146,6 +147,7 @@ def main():
         assert not page.evaluate('document.documentElement.scrollWidth > innerWidth')
         audit('selection-voice-mix-mobile')
         audit_caption_search(case, audit)
+        audit_voice_impact(case, audit)
         assert page.locator('#timecode').get_attribute('aria-live') == 'off'
         report['passed'] = not any(a['violations'] for a in report['audits'])
         report['manualReviewStillRequired'] = True

@@ -1,0 +1,11 @@
+import assert from 'node:assert/strict';
+import {createSample,createProjectStore} from '@dom-director/studio';
+import {proposeVoiceReplacement,describeVoiceReplacementImpact} from '@dom-director/studio/editing';
+assert.equal(typeof document,'undefined');
+const before=createSample(),after=proposeVoiceReplacement(before,'voice.overview',{id:'new.take',name:'New take',mime:'audio/wav',durationMs:9000,source:'sample',sample:'new.take'},{fitScene:true}).value;
+const impact=describeVoiceReplacementImpact(before,after,'voice.overview',{limit:2,offsets:{captions:2}});
+assert.equal(impact.scene.before.durationMs,6980);assert.equal(impact.scene.after.durationMs,9000);assert.equal(impact.shiftedSceneCount,2);
+assert.equal(impact.groups[0].total,6);assert.equal(impact.groups[0].items.length,2);assert.equal(impact.groups[0].offset,2);
+assert.equal(impact.groups[0].hasMore,true);assert.equal(Object.isFrozen(impact.groups[0].items[0].after),true);
+const store=createProjectStore(before);store.commit(after,'Reviewed replacement',0);assert.deepEqual(store.undo().project,before);
+console.log('Installed voice replacement impact consumer passed');

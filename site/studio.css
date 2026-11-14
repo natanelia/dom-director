@@ -45,3 +45,16 @@
 .timeline-key[data-word-linked=true]::after{content:"↔";position:absolute;left:calc(var(--key-center,12px) - 6px);top:4px;font:bold 12px/16px system-ui;color:#233c2c;background:#f8faf0;border-radius:2px}
 #link-result,#caption-link-review{overflow-wrap:anywhere}
 @media(max-width:800px){.timing-link-panel button{min-height:40px}.timing-link-panel .actions{gap:8px}}
+#voice-impact-summary{padding:14px 16px;border:1px solid var(--line);border-radius:8px;background:#eff3e7;overflow-wrap:anywhere}
+#dialog[open]:has(#voice-impact-summary){display:grid;grid-template-rows:auto minmax(0,1fr) auto;height:min(780px,85dvh);overflow:hidden}
+#dialog:has(#voice-impact-summary) #dialog-body{min-height:0;overflow:auto;padding:3px;scrollbar-gutter:stable}
+#dialog:has(#voice-impact-summary) #dialog-actions{margin:12px 0 0;padding-top:12px;border-top:1px solid var(--line)}
+button.primary:hover:not(:disabled){color:#fff;background:#2b4433;border-color:#2b4433}
+#voice-impact-summary h3{font-size:14px;margin:0 0 6px}#voice-impact-summary p{margin:5px 0}.voice-impact-duration{font-weight:600;font-variant-numeric:tabular-nums}
+.voice-impact-group{margin:12px 0;border:1px solid var(--line);border-radius:8px;padding:10px 12px;overflow-wrap:anywhere}
+.voice-impact-group summary{cursor:pointer;font-weight:600;min-height:28px;padding:3px 0}
+.voice-impact-group ol{padding-left:22px;margin:12px 0}.voice-impact-group li{padding:10px 0;border-bottom:1px solid var(--line)}.voice-impact-group li:last-child{border-bottom:0}
+.voice-impact-group li p{margin:4px 0;font-variant-numeric:tabular-nums}.voice-impact-group .note{font-size:12px;color:#46573f}
+.voice-impact-paging{display:flex;align-items:center;flex-wrap:wrap;gap:8px;border-top:1px solid var(--line);padding-top:8px}.voice-impact-paging p{flex:1 1 180px;margin:0;font-size:12px}.voice-impact-paging button{min-height:36px}
+#voice-impact-error{overflow-wrap:anywhere}#voice-impact-error:empty{display:none}
+@media(max-width:800px){.voice-impact-group{padding:8px}.voice-impact-group summary,.voice-impact-paging button{min-height:40px}}
