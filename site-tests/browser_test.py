@@ -75,6 +75,117 @@ class PublicSDKTests(unittest.TestCase):
         second=self.page.locator('#scene').evaluate('el=>el.style.transform')
         self.assertNotEqual(first,second);self.assertEqual(before,self.page.locator('#scene').evaluate('el=>[el.offsetWidth,el.offsetHeight]'))
         self.assertEqual(self.page.locator('#flag-count').inner_text(),'01')
+    def test_cursor_remains_visible_through_actual_orbit_camera_pans(self):
+        script=json.loads(self.page.locator('#script-json').text_content())
+        scenes={};start=0
+        for scene in script['scenes']:
+            scenes[scene['id']]={**scene,'startMs':start};start+=scene['durationMs']
+        self.page.locator('#stage').scroll_into_view_if_needed()
+
+        def sample(scene_id,local_ms):
+            # The public scrubber has a 10 ms step; round upward so a scene's
+            # first sample cannot accidentally land in its preceding scene.
+            at=math.ceil((scenes[scene_id]['startMs']+local_ms)/10)*10
+            frame=self.page.locator('#seek').evaluate('''(field, at) => {
+              field.value=String(at/1000);field.dispatchEvent(new Event('input',{bubbles:true}));
+              const stage=document.querySelector('#stage'),box=stage.getBoundingClientRect();
+              const nodes=document.querySelectorAll('[data-director-overlay] [data-kind="cursor"]');
+              const node=nodes[0],rect=node?.getBoundingClientRect(),style=node?getComputedStyle(node):null;
+              const matrix=style?new DOMMatrix(style.transform):null;
+              return {sceneId:stage.dataset.scene,status:stage.dataset.status,timeMs:Number(field.value)*1000,
+                count:nodes.length,visible:!!rect&&rect.width>0&&rect.height>0&&style.display!=='none'&&
+                  style.visibility==='visible'&&Number(style.opacity)>0,
+                inside:!!rect&&rect.left>=box.left-2&&rect.right<=box.right+2&&
+                  rect.top>=box.top-2&&rect.bottom<=box.bottom+2,
+                point:matrix?{x:matrix.e-box.left,y:matrix.f-box.top}:null,
+                camera:document.querySelector('#scene').style.transform,
+                toast:document.querySelector('#toast').textContent};
+            }''',at)
+            self.assertEqual(frame['sceneId'],scene_id,frame)
+            self.assertEqual(frame['status'],'paused',frame)
+            self.assertAlmostEqual(frame['timeMs'],at,delta=.01,msg=str(frame))
+            self.assertEqual(frame['count'],1,frame)
+            self.assertTrue(frame['visible'],frame)
+            self.assertTrue(frame['inside'],'The cursor left the visible stage during a pan: '+str(frame))
+            self.assertTrue(all(math.isfinite(value) for value in frame['point'].values()),frame)
+            return frame
+
+        def distance(a,b):
+            return math.hypot(a['point']['x']-b['point']['x'],a['point']['y']-b['point']['y'])
+
+        def transition(previous,current):
+            before=sample(previous,scenes[previous]['durationMs']-20)
+            frames=[sample(current,at) for at in [0,150,450,750,880,900,1050,1200]]
+            self.assertLess(distance(before,frames[0]),1,'The cursor jumped at the scene boundary.')
+            self.assertNotEqual(frames[0]['camera'],frames[-1]['camera'])
+            self.assertLess(distance(frames[4],frames[5]),40,'The cursor jumped when its next cue became active.')
+            return frames[2]
+
+        remembered=transition('signal','story')
+        # Observe the actual playing transport on animation frames as well as
+        # exact seeks. A transient missing pointer must not escape between seeks.
+        sample('signal',scenes['signal']['durationMs']-20)
+        chapter=self.page.locator('.chapter-button[data-scene="story"]')
+        chapter.scroll_into_view_if_needed()
+        self.page.evaluate('''endMs => {
+          const run=window.cursorPanRun={done:false,error:null,frames:[]};
+          const deadline=performance.now()+6000;
+          function observe(){
+            const stage=document.querySelector('#stage');
+            if(performance.now()>deadline){run.error='Playback did not finish its camera pan';run.done=true;return;}
+            if(stage.dataset.status==='error'){run.error=document.querySelector('#toast').textContent;run.done=true;return;}
+            if(stage.dataset.scene==='story'&&stage.dataset.status==='playing'){
+              const box=stage.getBoundingClientRect();
+              const nodes=document.querySelectorAll('[data-director-overlay] [data-kind="cursor"]');
+              const node=nodes[0],rect=node?.getBoundingClientRect(),style=node?getComputedStyle(node):null;
+              const matrix=style?new DOMMatrix(style.transform):null;
+              const timeMs=Number(document.querySelector('#seek').value)*1000;
+              run.frames.push({timeMs,count:nodes.length,
+                visible:!!rect&&rect.width>0&&rect.height>0&&style.display!=='none'&&
+                  style.visibility==='visible'&&Number(style.opacity)>0,
+                inside:!!rect&&rect.left>=box.left-2&&rect.right<=box.right+2&&
+                  rect.top>=box.top-2&&rect.bottom<=box.bottom+2,
+                point:matrix?{x:matrix.e-box.left,y:matrix.f-box.top}:null,
+                camera:document.querySelector('#scene').style.transform});
+              if(timeMs>=endMs){run.done=true;return;}
+            }
+            requestAnimationFrame(observe);
+          }
+          requestAnimationFrame(observe);
+        }''',scenes['story']['startMs']+1250)
+        chapter.click()
+        self.page.wait_for_function('window.cursorPanRun.done',timeout=8000)
+        playback=self.page.evaluate('window.cursorPanRun')
+        self.assertIsNone(playback['error'],playback)
+        self.assertGreater(len(playback['frames']),20,playback)
+        self.assertGreater(len({frame['camera'] for frame in playback['frames']}),1,playback)
+        for frame in playback['frames']:
+            self.assertEqual(frame['count'],1,frame)
+            self.assertTrue(frame['visible'],frame)
+            self.assertTrue(frame['inside'],frame)
+            self.assertTrue(all(math.isfinite(value) for value in frame['point'].values()),frame)
+        self.page.locator('#play').click()
+        transition('story','handoff')
+        # Watch resolves its real condition gate through playback. Do not remove
+        # the gate, approve the fixture, or silently bypass a failed seek.
+        self.page.locator('.chapter-button[data-scene="handoff"]').click()
+        self.page.wait_for_function('''start => document.querySelector('#stage').dataset.status==='playing'&&
+            Number(document.querySelector('#seek').value)*1000>start+1800''',
+            arg=scenes['handoff']['startMs'],timeout=6000)
+        self.page.locator('#play').click()
+        transition('handoff','possibility')
+        transition('possibility','outro')
+        sample('outro',2000)  # A cursorless scene retains the pointer after its pan, too.
+        self.assertLess(distance(remembered,sample('story',450)),.2)
+        self.assertEqual(self.page.locator('#flag-count').inner_text(),'01')
+        self.page.locator('#motion-toggle').click()
+        self.assertEqual(self.page.locator('#stage').get_attribute('data-status'),'paused')
+        self.assertEqual(self.page.locator('[data-director-overlay] [data-kind="cursor"]').count(),0)
+        self.assertTrue(self.page.locator('#caption').is_visible())
+        self.page.locator('#motion-toggle').click()
+        sample('outro',600)
+        self.page.locator('#exit-tour').click()
+        self.assertEqual(self.page.locator('[data-director-overlay] [data-kind="cursor"]').count(),0)
     def test_try_waits_for_actual_user_and_does_not_undo_approval(self):
         self.mode('try');self.handoff();self.assertEqual(self.page.locator('#flag-count').inner_text(),'01')
         self.page.locator('#approve-route').click();self.page.wait_for_function("document.querySelector('#stage').dataset.state==='playing'")
