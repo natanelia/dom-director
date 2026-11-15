@@ -113,7 +113,9 @@ function render(force=false){
   const clickProgress=(state.timeMs-action.at)/clickDurationMs;
   earth.setReducedMotion(state.reducedMotion);
   earth.setClickFeedback(started&&state.mode==='watch'&&!state.reducedMotion&&clickProgress>=0&&clickProgress<1?{target:step.target,progress:clickProgress}:null);
-  const now=performance.now();if(!force&&now-lastUi<80)return;lastUi=now;
+  // System motion changes can arrive on the only frame of a paused player.
+  // Refresh that preference immediately instead of waiting for another tick.
+  const now=performance.now();if(!force&&now-lastUi<80&&$('stage').dataset.reducedMotion===String(state.reducedMotion))return;lastUi=now;
   const waiting=state.waitingFor?.kind==='gate'?state.waitingFor:null;
   const running=isPlaying(state),next=state.reasons?.includes('step');
   Object.assign($('stage').dataset,{runtime:'sdk',scene:step.id,status:state.status,mode:state.mode,state:waiting?'waiting':running?'playing':'paused',clock:'text',reducedMotion:String(state.reducedMotion),ready:'true'});
