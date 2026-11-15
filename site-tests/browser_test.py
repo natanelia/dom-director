@@ -138,6 +138,11 @@ class PublicSDKTests(unittest.TestCase):
         remembered=transition('signal','story')
         # Observe the actual playing transport on animation frames as well as
         # exact seeks. A transient missing pointer must not escape between seeks.
+        story=scenes['story']
+        camera=next(cue for cue in story['cues'] if cue['kind']=='camera')
+        cursor_at=next(cue['at'] for cue in story['cues'] if cue['id']=='cursor.story')
+        camera_end=camera['at']+camera['durationMs']
+        completed_at=camera_end+50
         sample('signal',scenes['signal']['durationMs']-20)
         chapter=self.page.locator('.chapter-button[data-scene="story"]')
         chapter.scroll_into_view_if_needed()
@@ -154,7 +159,7 @@ class PublicSDKTests(unittest.TestCase):
               const node=nodes[0],rect=node?.getBoundingClientRect(),style=node?getComputedStyle(node):null;
               const matrix=style?new DOMMatrix(style.transform):null;
               const timeMs=Number(document.querySelector('#seek').value)*1000;
-              run.frames.push({timeMs,count:nodes.length,
+              run.frames.push({timeMs,cue:node?.dataset.cue||null,count:nodes.length,
                 visible:!!rect&&rect.width>0&&rect.height>0&&style.display!=='none'&&
                   style.visibility==='visible'&&Number(style.opacity)>0,
                 inside:!!rect&&rect.left>=box.left-2&&rect.right<=box.right+2&&
@@ -166,14 +171,18 @@ class PublicSDKTests(unittest.TestCase):
             requestAnimationFrame(observe);
           }
           requestAnimationFrame(observe);
-        }''',scenes['story']['startMs']+1250)
+        }''',story['startMs']+completed_at)
         chapter.click()
         self.page.wait_for_function('window.cursorPanRun.done',timeout=8000)
         playback=self.page.evaluate('window.cursorPanRun')
         self.assertIsNone(playback['error'],playback)
-        self.assertGreater(len(playback['frames']),20,playback)
-        self.assertGreater(len({frame['camera'] for frame in playback['frames']}),1,playback)
-        early=[frame for frame in playback['frames'] if frame['timeMs']<scenes['story']['startMs']+900]
+        local_times=[frame['timeMs']-story['startMs'] for frame in playback['frames']]
+        # Cover pointer travel, arrival during the pan, and the settled view.
+        self.assertTrue(any(0<=at<cursor_at for at in local_times),playback)
+        self.assertTrue(any(cursor_at<=at<camera_end for at in local_times),playback)
+        self.assertGreaterEqual(local_times[-1],completed_at,playback)
+        self.assertGreaterEqual(len({frame['camera'] for frame in playback['frames']}),3,playback)
+        early=[frame for frame in playback['frames'] if frame['cue']=='cursor.travel.story']
         self.assertGreater(len(early),2,playback)
         self.assertTrue(any(frame['camera']!=early[0]['camera'] and distance(early[0],frame)>1
                             for frame in early[1:]),
