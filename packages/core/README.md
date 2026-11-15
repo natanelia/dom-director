@@ -69,6 +69,10 @@ Sequential cursor cues ease from the preceding cursor destination, including acr
 
 Active scene targets follow the camera. At a scene boundary, the pointer carries its visible position relative to the viewport until the next cue moves it toward its new target. Ordinary pointer motion stays inside the surface's safe area, so a pan cannot carry it offscreen. Explicit drag paths and client-space targets keep their exact coordinates. Completed scenes retain only numeric cursor coordinates, so previous-route elements can unmount.
 
+To move the cursor while a scene pans, start a `point` cue with the camera cue. Ordinary cursor travel uses that camera's remaining duration and easing, capped at the cursor cue's end, while its destination is projected through the current camera on every frame. This works when the camera frames a panel and the cursor points to a control inside it. Without an overlapping camera, cursor travel keeps its usual duration; explicit drags retain their own duration and linear path.
+
+If a click or touch should appear later, end the initial `point` cue at that gesture's start. The pointer arrives first and the gesture starts at the same destination, with no second departure. Orbit uses explicit point travel from `0–900 ms` alongside each `0–1200 ms` pan, preserving its existing `900 ms` cues. Future cursor targets are not measured or moved toward before their authored cue starts.
+
 ## Guided tasks and checkpoints
 
 `createGuidance` owns registered conditions, actions, fixture reset and a default-deny authorization callback. Conditions can observe level state or new revisions with explicit evidence. Actions validate arguments, recheck authorization and retain bounded effect evidence. Persistent actions require Guide mode plus idempotency or reconciliation. Unknown outcomes cannot silently retry.

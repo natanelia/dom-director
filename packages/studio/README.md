@@ -4,6 +4,8 @@ Optional rich-project authoring and presentation primitives, separate from the e
 
 `createEarthSample()` provides the default six-scene Earth statistics story, with four tracks and caption-first voice scripts (no audio asset). The shared `EARTH_CHECKPOINTS` data describes the live tutorial. See [Earth demo](../../docs/earth-demo.md) for real controls, host compatibility and state boundaries.
 
+Each Earth checkpoint's pointer lands at 1.4 seconds and shows a 700 ms click ring starting at 1.8 seconds. The ring follows presentation time in Studio preview and video export, including when seeking. These visual gestures do not dispatch input or authorize an application action; reduced motion hides them.
+
 `createSample()` still provides a purpose-built three-scene, four-track project using the repository's licensed prepared synthetic narration. `validateProject` reads bounded data-only JSON and rejects unknown versions/fields, unsafe object shapes, source URLs, invalid times, duplicate identities and lane overlap. `createEvaluator` samples camera, cursor and CC deterministically with the core's existing geometry and easing. Callers supply approved scene-coordinate target bounds; no DOM discovery or actions occur in the evaluator.
 
 The sample carries each scene's final cursor position and camera framing into the next scene's first keys, so playback flows between checkpoints without resetting. Authored projects retain their explicit start keys, source windows and intentional Cut easing; seeking samples the same path without adding a separate animation.

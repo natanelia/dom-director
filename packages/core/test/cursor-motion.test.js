@@ -6,6 +6,7 @@ import {cursorTargets,sampleCursor,cursorPosition,cursorAnchor} from '../src/cur
 const box={x:0,y:0,width:800,height:600},origin={x:30,y:50};
 const bounds={a:{space:'scene',rect:{x:20,y:40,width:40,height:20}},b:{space:'scene',rect:{x:600,y:400,width:80,height:40}},c:{space:'client',rect:{x:200,y:100,width:20,height:30}}};
 const cue=(id,target,atMs,durationMs=1200,extra={})=>({id,target,kind:'cursor',gesture:'point',atMs,durationMs,endMs:atMs+durationMs,...extra});
+const pan=(atMs,durationMs,target='a')=>({id:'pan',kind:'camera',target,atMs,durationMs,endMs:atMs+durationMs});
 const scene={cues:[cue('first','a',0),cue('second','b',1200)]};
 const position=(s,time,options={},camera=IDENTITY,data=bounds)=>cursorPosition(sampleCursor(s,time,data,options),camera,origin,box);
 
@@ -116,4 +117,57 @@ test('retained endpoints contain only numeric geometry, without host element ref
   const element={},data={a:{...bounds.a,element,revision:5}};
   const state=sampleCursor({cues:[cue('first','a',0)]},1200,data);
   assert.deepEqual(state.endpoint,bounds.a);assert.notEqual(state.endpoint.rect,bounds.a.rect);
+});
+
+test('a neutral travel cue uses the active pan until its own end and then hands off without restarting',()=>{
+  const travel={cues:[pan(0,1200),cue('travel','b',0,900),cue('click','b',900,1800,{gesture:'click'})]};
+  const options={initial:bounds.a};
+  assert.deepEqual(position(travel,0,options),{x:70,y:100});
+  assert.deepEqual(position(travel,225,options),{x:107.5,y:123.125});
+  assert.deepEqual(position(travel,450,options),{x:370,y:285});
+  assert.deepEqual(position(travel,675,options),{x:632.5,y:446.875});
+  assert.equal(sampleCursor(travel,899,bounds,options).cue.gesture,'point');
+  for(const time of [900,901,1050,1200]){
+    assert.deepEqual(position(travel,time,options),{x:670,y:470});
+    assert.equal(sampleCursor(travel,time,bounds,options).cue.gesture,'click');
+  }
+  const reversed={cues:[travel.cues[1],travel.cues[0],travel.cues[2]]};
+  assert.deepEqual(position(reversed,450,options),position(travel,450,options),'same-start cue ordering does not change travel time');
+});
+
+test('source geometry stays required for the complete camera-paced journey',()=>{
+  const travel={cues:[pan(0,1200),cue('first','a',0,300),cue('second','b',300,900)]};
+  assert.deepEqual(cursorTargets(travel,900),['b','a']);
+  assert.throws(()=>sampleCursor(travel,900,{b:bounds.b}),error=>error.diagnostic.code==='TARGET_MISSING');
+  const retained=new Map([['first',bounds.a]]),sample=sampleCursor(travel,900,{b:bounds.b},{retained});
+  assert.ok(sample.progress<1,'a 900 ms journey cannot finish after the old 450 ms default');
+  assert.deepEqual(cursorTargets(travel,900,retained),['b']);
+  assert.deepEqual(cursorTargets(travel,1200),['b']);
+});
+
+test('ordinary travel shares the active camera easing while explicit drags remain linear',()=>{
+  const camera={...pan(0,1200),easing:'direct'},options={initial:bounds.a,preset:'gentle'};
+  const travel={cues:[camera,cue('travel','b',0,900)]};
+  assert.deepEqual(position(travel,225,options),{x:220,y:192.5});
+  const drag={cues:[{...camera,easing:'instant'},cue('drag','b',0,1200,{gesture:'drag',fromTarget:'a'})]};
+  assert.deepEqual(position(drag,300,options),{x:220,y:192.5});
+});
+
+test('only the camera interval active at departure determines ordinary travel time',()=>{
+  const options={initial:bounds.a};
+  const ongoing={cues:[pan(200,1000),cue('cursor','b',500,1500)]};
+  assert.deepEqual(position(ongoing,850,options),{x:370,y:285},'travel uses the remaining 700 ms of the pan');
+  assert.deepEqual(position(ongoing,1200,options),{x:670,y:470});
+  const ended={cues:[pan(0,500),cue('cursor','b',500,1500)]};
+  assert.deepEqual(position(ended,800,options),{x:370,y:285},'a camera ending at departure leaves the 600 ms default');
+  const future={cues:[cue('cursor','b',500,1500),pan(600,1000)]};
+  assert.deepEqual(position(future,800,options),{x:370,y:285},'a later pan cannot retime a cursor already in motion');
+  const instant={cues:[pan(0,0),cue('cursor','b',0,1200)]};
+  assert.deepEqual(position(instant,300,options),{x:370,y:285},'a zero-duration camera cue is not a travel interval');
+});
+
+test('explicit drags retain their full authored duration while the camera moves',()=>{
+  const drag={cues:[pan(0,200),cue('drag','b',0,1200,{gesture:'drag',fromTarget:'a'})]};
+  assert.deepEqual(position(drag,600),{x:370,y:285});
+  assert.deepEqual(cursorTargets(drag,900),['b','a']);
 });

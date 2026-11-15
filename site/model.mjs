@@ -20,15 +20,17 @@ const targets=Object.fromEntries(['overview','globe','metric','year','region','c
 return {
   schemaVersion:'0.1.0-draft.1',id:'earth-statistics',title:'Earth · a world you can change',locale:'en',
   entryScene:steps[0].id,modes:['watch','try','guide'],
-  capabilities:steps.map(step=>'condition:'+step.id).concat('fixture:reset'),
+  capabilities:steps.flatMap(step=>['action:'+step.id,'condition:'+step.id]).concat('fixture:reset'),
   defaults:{easing:'gentle',motion:'respect-user',captions:'on'},targets,assets:{},
   scenes:steps.map((step,index)=>({
     id:step.id,title:step.title,summary:step.text,durationMs:step.durationMs,
     narration:{transcript:step.text,cues:[{id:'speech.'+step.id,startMs:0,endMs:step.durationMs,text:step.text}]},
     cues:[
       {id:'camera.'+step.id,kind:'camera',at:0,durationMs:index?1000:0,target:'overview',minScale:0.1,maxScale:1,paddingPx:0},
+      {id:'cursor.travel.'+step.id,kind:'cursor',at:0,durationMs:700,target:step.target.split('.')[1],gesture:'point'},
       {id:'focus.'+step.id,kind:'highlight',at:700,durationMs:6300,target:step.target.split('.')[1],style:'outline'},
       {id:'cursor.'+step.id,kind:'cursor',at:700,durationMs:6300,target:step.target.split('.')[1],gesture:'point'},
+      {id:'demo.'+step.id,kind:'action',at:1800,actionRef:step.id,args:{},timeoutMs:5000},
       {id:'try.'+step.id,kind:'gate',at:1800,conditionRef:step.id,timeoutMs:60000,onTimeout:'pause',instruction:step.instruction},
     ],...(index<steps.length-1?{next:steps[index+1].id}:{}),
   })),

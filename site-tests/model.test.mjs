@@ -13,6 +13,32 @@ test('flagship uses the canonical grammar with one safe condition and no scripte
 test('every scene has prepared narration captions and matching timing',()=>{
   for(const scene of script.scenes){assert.ok(script.assets[scene.narration.audioAsset]);assert.equal(scene.narration.cues[0].endMs,scene.durationMs);assert.equal(scene.narration.cues[0].text,scene.summary);}
 });
+test('each Orbit camera pan explicitly starts a neutral cursor journey to its actual destination',()=>{
+  for(const scene of script.scenes){
+    const camera=scene.cues.find(cue=>cue.kind==='camera');
+    if(!camera.durationMs)continue;
+    const travel=scene.cues.find(cue=>cue.id==='cursor.travel.'+scene.id);
+    const arrival=scene.cues.find(cue=>cue.id==='cursor.'+scene.id);
+    assert.ok(travel,scene.id+' must not wait until the camera settles to move its cursor');
+    assert.deepEqual(travel,{id:'cursor.travel.'+scene.id,kind:'cursor',at:camera.at,
+      durationMs:arrival?arrival.at-camera.at:camera.durationMs,
+      target:arrival?.target||camera.target,gesture:'point'});
+    assert.ok(travel.durationMs>0);
+  }
+});
+test('new pointer travel preserves the original cue and real checkpoint timings',()=>{
+  const originals=script.scenes.flatMap(scene=>scene.cues.filter(cue=>cue.id==='cursor.'+scene.id));
+  assert.deepEqual(originals,[
+    {id:'cursor.signal',kind:'cursor',at:900,durationMs:7308,target:'metrics',gesture:'point'},
+    {id:'cursor.story',kind:'cursor',at:900,durationMs:6509,target:'routes',gesture:'point'},
+    {id:'cursor.handoff',kind:'cursor',at:900,durationMs:6882,target:'approve',gesture:'point'},
+    {id:'cursor.possibility',kind:'cursor',at:900,durationMs:6791,target:'approve',gesture:'point'},
+  ]);
+  const gate=script.scenes.flatMap(scene=>scene.cues).find(cue=>cue.id==='approval');
+  assert.equal(gate.kind,'gate');assert.equal(gate.at,1700);
+  assert.equal(gate.conditionRef,'orbit.approved');assert.equal(gate.timeoutMs,30000);
+  assert.equal(gate.onTimeout,'pause');
+});
 test('global UI positions translate to bounded scene-local positions',()=>{
   const track=timeline(script);for(const scene of track.scenes){assert.deepEqual(track.locate(scene.startMs+100),{sceneId:scene.id,timeMs:100});assert.equal(track.position({sceneId:scene.id,timeMs:100}),scene.startMs+100);}
   assert.deepEqual(track.locate(-100),{sceneId:'overview',timeMs:0});assert.equal(track.locate(1e9).timeMs,script.scenes.at(-1).durationMs);
@@ -24,15 +50,21 @@ test('camera personality changes canonical defaults without mutating the source'
 test('time display is presentation-only with explicit millisecond formatting',()=>{
   assert.equal(timecode(1250),'00:01');assert.equal(timecode(1250,true),'00:01.250');assert.equal(timecode(-1),'00:00');
 });
-test('Earth compiles six real-control conditions without scripted effects or mismatched audio',()=>{
+test('Earth compiles six approved demo actions and preserves all real-control conditions',()=>{
   const tour=createEarthTour(EARTH_CHECKPOINTS),result=compile(tour);
   assert.equal(result.ok,true,JSON.stringify(result.diagnostics));
   assert.deepEqual(tour.modes,['watch','try','guide']);
   assert.deepEqual(tour.assets,{});
-  const cues=tour.scenes.flatMap(scene=>scene.cues),gates=cues.filter(cue=>cue.kind==='gate');
-  assert.equal(gates.length,6);assert.equal(cues.filter(cue=>cue.kind==='action').length,0);
+  const cues=tour.scenes.flatMap(scene=>scene.cues),gates=cues.filter(cue=>cue.kind==='gate'),actions=cues.filter(cue=>cue.kind==='action');
+  assert.equal(gates.length,6);assert.equal(actions.length,6);
   assert.equal(new Set(gates.map(cue=>cue.conditionRef)).size,6);
-  assert.deepEqual(tour.capabilities,[...gates.map(cue=>'condition:'+cue.conditionRef),'fixture:reset']);
+  assert.deepEqual(tour.capabilities,[...gates.flatMap(cue=>['action:'+cue.conditionRef,'condition:'+cue.conditionRef]),'fixture:reset']);
+  for(const scene of tour.scenes){
+    const action=scene.cues.find(cue=>cue.kind==='action'),gate=scene.cues.find(cue=>cue.kind==='gate');
+    assert.equal(action.actionRef,gate.conditionRef);assert.deepEqual(action.args,{});
+    assert.equal(action.at,gate.at);assert.ok(scene.cues.indexOf(action)<scene.cues.indexOf(gate));
+    assert.equal(action.timeoutMs,5000);
+  }
   assert.ok(tour.scenes.every(scene=>!Object.hasOwn(scene.narration,'audioAsset')));
 });
 test('Earth live tutorial and Studio teach the same controls with the same captions and boundaries',()=>{
@@ -46,6 +78,9 @@ test('Earth live tutorial and Studio teach the same controls with the same capti
     assert.equal(scene.narration.cues[0].text,scene.summary);
     assert.equal(scene.narration.cues[0].endMs,scene.durationMs);
     assert.equal(scene.summary,sample.tracks.find(track=>track.kind==='captions').clips[index].text);
+    const action=scene.cues.find(cue=>cue.kind==='action'),gesture=sample.tracks.find(track=>track.kind==='cursor').clips[index].gestures[0];
+    assert.equal(action.at,gesture.atMs);assert.equal(gesture.kind,'click');
+    assert.ok(cursor.at+cursor.durationMs<=action.at,'The public pointer lands before the demonstration.');
   }
 });
 test('Earth timeline locations and camera preferences remain pure presentation data',()=>{
@@ -57,4 +92,18 @@ test('Earth timeline locations and camera preferences remain pure presentation d
   }
   for(const value of ['gentle','direct','overview','instant'])assert.equal(compile(withEasing(tour,value)).ok,true);
   assert.equal(JSON.stringify(tour),before);
+});
+test('Earth moves its cursor immediately while preserving all original arrival and gate timings',()=>{
+  const tour=createEarthTour(EARTH_CHECKPOINTS);
+  for(const [index,scene] of tour.scenes.entries()){
+    const target=EARTH_CHECKPOINTS[index].target.split('.')[1];
+    assert.deepEqual(scene.cues.find(cue=>cue.id==='cursor.travel.'+scene.id),
+      {id:'cursor.travel.'+scene.id,kind:'cursor',at:0,durationMs:700,target,gesture:'point'});
+    assert.deepEqual(scene.cues.find(cue=>cue.id==='cursor.'+scene.id),
+      {id:'cursor.'+scene.id,kind:'cursor',at:700,durationMs:6300,target,gesture:'point'});
+    const camera=scene.cues.find(cue=>cue.kind==='camera'),gate=scene.cues.find(cue=>cue.kind==='gate');
+    assert.equal(camera.at,0);assert.equal(camera.durationMs,index?1000:0);assert.equal(camera.target,'overview');
+    assert.equal(gate.at,1800);assert.equal(gate.timeoutMs,60000);assert.equal(gate.conditionRef,scene.id);
+    assert.equal(scene.cues.find(cue=>cue.kind==='highlight').at,700);
+  }
 });

@@ -10,8 +10,14 @@ function pair(scene,time){
   }
   return {previous,current};
 }
-const travel=cue=>cue.gesture==='drag'?cue.durationMs:Math.min(600,cue.durationMs/2);
-const moving=(cue,time)=>time<cue.endMs&&time-cue.atMs<travel(cue);
+function travel(scene,cue){
+  if(cue.gesture==='drag')return {duration:cue.durationMs};
+  const camera=scene.cues.find(candidate=>candidate.kind==='camera'&&candidate.atMs<=cue.atMs&&cue.atMs<candidate.endMs);
+  // An authored pointer move shares the active pan's remaining time. A short
+  // point cue can arrive before a later click/touch without moving that gesture.
+  return {duration:camera?Math.min(cue.durationMs,camera.endMs-cue.atMs):Math.min(600,cue.durationMs/2),preset:camera?.easing};
+}
+const moving=(scene,cue,time)=>time<cue.endMs&&time-cue.atMs<travel(scene,cue).duration;
 function bound(bounds,target){
   const value=bounds[target];
   requireValue(value,'TARGET_MISSING','Cursor target geometry is unavailable.');
@@ -40,7 +46,7 @@ function visiblePoint(point,origin,box){
 export function cursorTargets(scene,time,retained){
   const {previous,current}=pair(scene,time);if(!current)return [];
   const targets=time<current.endMs||!retained?.has(current.id)?[current.target]:[];
-  if(moving(current,time)){
+  if(moving(scene,current,time)){
     const source=current.fromTarget||(!retained?.has(previous?.id)&&previous?.target);
     if(source)targets.push(source);
   }
@@ -57,10 +63,10 @@ export function sampleCursor(scene,time,bounds,{initial=null,preset='gentle',ret
   const destinations=target?[[current.id,target]]:[],result={...held(target||initial),destinations};
   if(reduced)return {...result,target:null};
   if(!active)return result;
-  const duration=travel(current),progress=duration?Math.min(1,(time-current.atMs)/duration):1;
+  const {duration,preset:cameraPreset}=travel(scene,current),progress=duration?Math.min(1,(time-current.atMs)/duration):1;
   const source=progress>=1?target:current.fromTarget?bound(bounds,current.fromTarget):previous?(retained?.get(previous.id)||bound(bounds,previous.target)):initial;
   if(progress<1&&!current.fromTarget&&previous)destinations.push([previous.id,source]);
-  return {...result,cue:current,source,target,progress:current.gesture==='drag'?progress:easing(progress,preset)};
+  return {...result,cue:current,source,target,progress:current.gesture==='drag'?progress:easing(progress,cameraPreset||preset)};
 }
 
 export function cursorPosition(state,camera,origin,box){
