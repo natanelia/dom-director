@@ -7,6 +7,8 @@ import json
 import math
 import os
 import unittest
+from functools import wraps
+from uuid import uuid4
 from browser_test import StudioTests
 
 
@@ -34,6 +36,108 @@ DEMO_CLICK = """() => {
     coordinates:root.querySelector('.earth-coordinates').textContent,
     state:Object.fromEntries(['earthMetric','earthYear','earthRegion','earthConnections','earthNight','earthZoom'].map(key=>[key,root.dataset[key]]))};
 }"""
+
+
+PAUSE_DIAGNOSTICS = """() => {
+  const stage=document.querySelector('#stage'),play=document.querySelector('#play');
+  const describe=node=>node?{tag:node.tagName||node.nodeName,id:node.id||null,
+    control:node.closest?.('button,input,select,canvas')?.id||null}:null;
+  const state=()=>({atMs:performance.now(),status:stage.dataset.status,state:stage.dataset.state,
+    scene:stage.dataset.scene,mode:stage.dataset.mode,timeSeconds:Number(document.querySelector('#seek').value),
+    hidden:document.hidden,activeElement:describe(document.activeElement),scrollX,scrollY,
+    play:{label:play.getAttribute('aria-label'),disabled:play.disabled,text:play.textContent},
+    playerText:document.querySelector('#player-state').textContent,
+    toast:{hidden:document.querySelector('#toast').hidden,text:document.querySelector('#toast').textContent}});
+  const record={events:[],transitions:[],snapshots:[],droppedEvents:0,droppedTransitions:0};
+  const append=(name,value)=>{if(record[name].length<200)record[name].push(value);
+    else record[name==='events'?'droppedEvents':'droppedTransitions']++;};
+  const cleanups=[];
+  for(const type of ['pointerdown','pointerup','pointercancel','mousedown','mouseup','click','dblclick',
+      'focusin','focusout','keydown','keyup','visibilitychange']){
+    for(const capture of [true,false]){
+      const listener=event=>append('events',{type,phase:capture?'capture':'bubble',trusted:event.isTrusted,
+        eventTimeMs:event.timeStamp,
+        target:describe(event.target),relatedTarget:describe(event.relatedTarget),defaultPrevented:event.defaultPrevented,
+        button:event.button,buttons:event.buttons,clientX:event.clientX,clientY:event.clientY,
+        pointerId:event.pointerId,key:event.key,detail:event.detail,state:state()});
+      document.addEventListener(type,listener,capture);
+      cleanups.push(()=>document.removeEventListener(type,listener,capture));
+    }
+  }
+  const observer=new MutationObserver(records=>{
+    const nextValues=new Map(),changes=[];
+    for(let i=records.length-1;i>=0;i--){
+      const entry=records[i],name=entry.attributeName;
+      const value=nextValues.has(name)?nextValues.get(name):stage.getAttribute(name);
+      nextValues.set(name,entry.oldValue);
+      if(entry.oldValue!==value)changes.unshift({attribute:name,from:entry.oldValue,to:value});
+    }
+    if(changes.length)append('transitions',{changes,state:state()});
+  });
+  observer.observe(stage,{attributes:true,attributeOldValue:true,
+    attributeFilter:['data-status','data-state','data-scene','data-mode']});
+  const snapshot=label=>{
+    const box=play.getBoundingClientRect(),x=box.x+box.width/2,y=box.y+box.height/2;
+    record.snapshots.push({label,state:state(),playBox:{x:box.x,y:box.y,width:box.width,height:box.height},
+      playCenterTarget:describe(document.elementFromPoint(x,y)),
+      cameraTransform:getComputedStyle(document.querySelector('#scene')).transform});
+  };
+  window.earthPauseDiagnostics={snapshot,finish(label){
+    snapshot(label);observer.disconnect();cleanups.forEach(off=>off());
+    return {...record,final:state(),revision:document.querySelector('meta[name="dom-director-revision"]')?.content,
+      viewport:{width:innerWidth,height:innerHeight,devicePixelRatio},
+      reducedMotion:matchMedia('(prefers-reduced-motion: reduce)').matches};
+  }};
+  snapshot('test-start');
+}"""
+
+
+def pause_diagnostics(test):
+    """Opt-in evidence for one native pause test; never retry or alter its actions."""
+    @wraps(test)
+    def run(self):
+        if os.environ.get('EARTH_PAUSE_DIAGNOSTICS') != '1':
+            return test(self)
+        prefix = self.output / (self._testMethodName + '-' + uuid4().hex)
+        report = {'test': self.id(), 'engine': self.engine, 'browserVersion': self.browser.version,
+                  'expectedRevision': os.environ.get('DEPLOYED_SHA'), 'url': self.page.url,
+                  'result': 'passed', 'captureErrors': []}
+        self.page.context.tracing.start(screenshots=True, snapshots=True, sources=True)
+        try:
+            self.page.evaluate(PAUSE_DIAGNOSTICS)
+            self._earth_pause_diagnostics = True
+            return test(self)
+        except BaseException as error:
+            report.update(result='failed', failure={'type': type(error).__name__, 'message': str(error)})
+            raise
+        finally:
+            self._earth_pause_diagnostics = False
+            try:
+                report['diagnostics'] = self.page.evaluate(
+                    'label=>window.earthPauseDiagnostics.finish(label)', report['result'])
+            except Exception as error:
+                report['captureErrors'].append({'capture': 'state', 'message': str(error)})
+            if report['result'] == 'failed':
+                try:
+                    self.page.screenshot(path=str(prefix) + '.png', full_page=True, timeout=3000)
+                except Exception as error:
+                    report['captureErrors'].append({'capture': 'screenshot', 'message': str(error)})
+            try:
+                self.page.context.tracing.stop(**({'path': str(prefix) + '.trace.zip'}
+                                                 if report['result'] == 'failed' else {}))
+            except Exception as error:
+                report['captureErrors'].append({'capture': 'trace', 'message': str(error)})
+            try:
+                prefix.with_suffix('.json').write_text(json.dumps(report, indent=2) + '\n')
+            except Exception as error:
+                report['captureErrors'].append({'capture': 'json', 'message': str(error)})
+            try:
+                print(json.dumps({'earthPauseDiagnostics': prefix.name, 'result': report['result'],
+                                  'state': report.get('diagnostics', {}).get('final'),
+                                  'captureErrors': report['captureErrors']}), flush=True)
+            except Exception:
+                pass  # Evidence output must never replace the original test failure.
+    return run
 
 
 class EarthAssertions:
@@ -241,6 +345,10 @@ class EarthDemoTests(EarthAssertions, StudioTests):
 
     def demo_click(self):
         return self.page.evaluate(DEMO_CLICK)
+
+    def pause_diagnostic_snapshot(self, label):
+        if getattr(self, '_earth_pause_diagnostics', False):
+            self.page.evaluate('label=>window.earthPauseDiagnostics.snapshot(label)', label)
 
     def wait_for_demo_click(self, target):
         return self.page.wait_for_function(
@@ -481,6 +589,7 @@ class EarthDemoTests(EarthAssertions, StudioTests):
                          'A consumed Watch action must not overwrite a later manual change in the same run.')
         self.assert_tutorial_healthy()
 
+    @pause_diagnostics
     def test_cinematic_push_in_pullback_and_globe_transition_freeze_with_the_player(self):
         self.page.emulate_media(reduced_motion='no-preference')
         self.page.wait_for_function("document.querySelector('#stage').dataset.reducedMotion==='false'")
@@ -498,7 +607,9 @@ class EarthDemoTests(EarthAssertions, StudioTests):
         self.page.wait_for_timeout(180)
         self.assertNotEqual(self.pixels(), moving_pixels,
                             'The globe should turn through intermediate frames, not snap at the action.')
+        self.pause_diagnostic_snapshot('before-pause-click')
         self.page.locator('#play').click()
+        self.pause_diagnostic_snapshot('after-pause-click')
         self.page.wait_for_function("document.querySelector('#stage').dataset.status==='paused'")
         paused_pixels, paused_camera = self.pixels(), self.page.evaluate(camera)
         paused_time, committed = self.page.locator('#seek').input_value(), self.earth_state()

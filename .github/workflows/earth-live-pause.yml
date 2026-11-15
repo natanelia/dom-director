@@ -1,0 +1,54 @@
+name: Earth live pause diagnostic
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/earth-live-pause.yml'
+      - 'studio-tests/earth_test.py'
+permissions:
+  contents: read
+concurrency:
+  group: earth-live-pause-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  diagnose:
+    name: Trace native pause in live WebKit
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: '3.13'
+      - name: Install the pinned test browser
+        env:
+          BROWSER_ENGINE: webkit
+        run: |
+          python3 tools/build_runtime.py
+          bash tools/install_test_browser.sh
+      - name: Observe six fresh live pause interactions
+        env:
+          BROWSER_ENGINE: webkit
+          STUDIO_PUBLIC_URL: https://natanelia.github.io/dom-director/studio.html
+          DEPLOYED_SHA: 56687c0fa26461fccc3bc79e5a74e38d5eee5ab3
+          EARTH_PAUSE_DIAGNOSTICS: '1'
+          PYTHONPATH: studio-tests
+        run: |
+          python3 - <<'PY'
+          import sys
+          import unittest
+          from earth_test import EarthDemoTests
+          name = 'test_cinematic_push_in_pullback_and_globe_transition_freeze_with_the_player'
+          suite = unittest.TestSuite(EarthDemoTests(name) for _ in range(6))
+          result = unittest.TextTestRunner(verbosity=2).run(suite)
+          sys.exit(not result.wasSuccessful())
+          PY
+      - name: Preserve synthetic interaction evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: earth-live-pause-webkit
+          path: studio-results/
+          if-no-files-found: error
+          retention-days: 7
