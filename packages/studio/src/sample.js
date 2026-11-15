@@ -1,10 +1,26 @@
 import {STUDIO_VERSION,CAPTION_THEME,CURSOR_THEME,requireProject} from './project.js';
 
 /** One authored story shared by the live Earth tutorial and the Studio sample. */
+function earthShots(control){
+  const shot=(atMs,durationMs,target)=>Object.freeze({atMs,durationMs,target:'earth.'+target});
+  // The zoom pair carries its close framing across the cut, then eases back
+  // enough to reveal Zoom out before pulling out to the whole application.
+  if(control==='orbit')return Object.freeze([shot(0,1600,'planet'),shot(4000,2200,'overview')]);
+  if(control==='zoomIn')return Object.freeze([shot(0,1400,'globe'),shot(2600,2200,'planet')]);
+  if(control==='zoomOut')return Object.freeze([shot(0,1400,'globe'),shot(2600,2800,'overview')]);
+  if(control==='region')return Object.freeze([shot(0,1500,'detail'),shot(2600,2400,'planet')]);
+  return Object.freeze([shot(0,1500,'detail'),shot(2600,1800,'planet'),shot(5000,1800,'overview')]);
+}
 export const EARTH_CHECKPOINTS = Object.freeze([
   {id:'earth.overview',title:'Take the planet for a spin',target:'earth.globe',control:'orbit',durationMs:7000,
     text:'Meet Earth, a world of data you can touch. Drag the globe, or focus it and use the arrow keys to explore.',
     instruction:'Drag the globe to rotate it, or focus the globe and press an arrow key.'},
+  {id:'earth.zoom-in',title:'Zoom in to the details',target:'earth.zoomIn',control:'zoomIn',durationMs:7000,
+    text:'Move in close. Choose Zoom in to bring the planet forward and see its cities and data in detail.',
+    instruction:'Choose Zoom in, or focus the globe and press +, to bring Earth closer.'},
+  {id:'earth.zoom-out',title:'Zoom out to the whole world',target:'earth.zoomOut',control:'zoomOut',durationMs:7000,
+    text:'Now pull back. Choose Zoom out and watch the detail become a whole planet again. Every view remains live.',
+    instruction:'Choose Zoom out, or focus the globe and press −, to see more of the planet.'},
   {id:'earth.metric',title:'See a different world',target:'earth.metric',control:'metric',durationMs:7000,
     text:'One planet, different stories. Choose Energy to change the color and height of the data pillars.',
     instruction:'Choose Energy under Choose a story. Watch the pillars change.'},
@@ -20,21 +36,37 @@ export const EARTH_CHECKPOINTS = Object.freeze([
   {id:'earth.lighting',title:'Discover the world after dark',target:'earth.lighting',control:'night',durationMs:7000,
     text:'Switch to Night to bring the lights into view. This is still your app: keep exploring, or reset the view and begin again.',
     instruction:'Turn on Night view to change the lighting and reveal the city lights.'},
-].map(Object.freeze));
+].map(step=>Object.freeze({...step,shots:earthShots(step.control)})));
 
 /** Caption-first sample: the old Orbit narration never speaks over the Earth story. */
 export function createEarthSample(){
   const scenes=EARTH_CHECKPOINTS.map(({id,title,durationMs})=>({id,title,durationMs}));
   const common=(s,kind)=>({id:kind+'.'+s.id,sceneId:s.id,startMs:0,durationMs:s.durationMs});
-  // Keep the planet and its controls in frame. The cursor teaches the exact control,
-  // carrying its preceding endpoint across each scene boundary without a jump.
-  const point=step=>({target:step.target,x:0,y:0,curve:0,easing:'gentle'});
+  const cameraPoint=target=>({target,zoom:1,x:0,y:0,easing:'gentle'});
+  const point=target=>({target,x:0,y:0,curve:0,easing:'gentle'});
+  const resultArrival=step=>2600+(step.shots.find(shot=>shot.atMs===2600)?.durationMs??600);
+  // Every scene inherits the preceding final framing. Hold keys preserve the
+  // intended pause between a control close-up and its result, without hard cuts.
+  const cameraKeys=(step,index)=>{
+    let target=index?EARTH_CHECKPOINTS[index-1].shots.at(-1).target:'earth.overview';
+    const keys=[{id:'camera.from.'+step.id,atMs:0,...cameraPoint(target)}];
+    for(const [i,shot] of step.shots.entries()){
+      if(shot.atMs>keys.at(-1).atMs)keys.push({id:'camera.hold.'+step.id+'.'+i,atMs:shot.atMs,...cameraPoint(target)});
+      target=shot.target;keys.push({id:'camera.to.'+step.id+'.'+i,atMs:shot.atMs+shot.durationMs,...cameraPoint(target)});
+    }
+    return keys;
+  };
   return requireProject({studioVersion:STUDIO_VERSION,id:'earth-studio',title:'Earth · a world you can change',canvas:{width:960,height:540},scenes,
     captionTheme:{...CAPTION_THEME,background:'#071b29',color:'#f0fafb',size:24,y:88,width:84},
     cursorTheme:{...CURSOR_THEME,color:'#8df2dd',stroke:'#071b29'},captionTrack:'cc.en',assets:[],
     tracks:[
-      {id:'camera',kind:'camera',name:'Camera',enabled:true,locked:false,clips:scenes.map(s=>({...common(s,'camera'),offsetMs:0,keys:[{id:'camera.from.'+s.id,atMs:0,target:'earth.overview',zoom:1,x:0,y:0,easing:'gentle'},{id:'camera.to.'+s.id,atMs:1200,target:'earth.overview',zoom:1,x:0,y:0,easing:'gentle'}]}))},
-      {id:'cursor',kind:'cursor',name:'Cursor',enabled:true,locked:false,clips:scenes.map((s,i)=>({...common(s,'cursor'),offsetMs:0,keys:[{id:'cursor.from.'+s.id,atMs:0,...point(EARTH_CHECKPOINTS[Math.max(0,i-1)])},{id:'cursor.to.'+s.id,atMs:1400,...point(EARTH_CHECKPOINTS[i]),curve:i?28:0}],gestures:[{id:'click.'+s.id,atMs:1800,kind:'click'}]}))},
+      {id:'camera',kind:'camera',name:'Camera',enabled:true,locked:false,clips:scenes.map((s,i)=>({...common(s,'camera'),offsetMs:0,keys:cameraKeys(EARTH_CHECKPOINTS[i],i)}))},
+      {id:'cursor',kind:'cursor',name:'Cursor',enabled:true,locked:false,clips:scenes.map((s,i)=>({...common(s,'cursor'),offsetMs:0,keys:[
+        {id:'cursor.from.'+s.id,atMs:0,...point(i?'earth.planet':'earth.globe')},
+        {id:'cursor.to.'+s.id,atMs:700,...point(EARTH_CHECKPOINTS[i].target),curve:i?20:0},
+        {id:'cursor.hold.'+s.id,atMs:2600,...point(EARTH_CHECKPOINTS[i].target)},
+        {id:'cursor.result.'+s.id,atMs:resultArrival(EARTH_CHECKPOINTS[i]),...point('earth.planet'),curve:-20},
+      ],gestures:[{id:'click.'+s.id,atMs:1800,kind:'click'}]}))},
       {id:'voice',kind:'voice',name:'Voiceover',enabled:true,locked:false,clips:scenes.map((s,i)=>({...common(s,'voice'),assetId:null,script:EARTH_CHECKPOINTS[i].text,sourceInMs:0,gain:1,fadeInMs:0,fadeOutMs:0}))},
       {id:'cc.en',kind:'captions',name:'CC · English',language:'en',enabled:true,locked:false,clips:scenes.map((s,i)=>({...common(s,'cc'),text:EARTH_CHECKPOINTS[i].text}))},
     ]});

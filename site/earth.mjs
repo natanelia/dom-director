@@ -2,6 +2,12 @@
 const RAD=Math.PI/180;
 const clamp=(v,min,max)=>Math.max(min,Math.min(max,v));
 const lerp=(a,b,t)=>a+(b-a)*t;
+const ZOOM_MIN=.65,ZOOM_MAX=1.75,ZOOM_STEP=.2;
+const STATE_KEYS=Object.keys({metric:0,year:0,region:0,connections:0,night:0,rotation:0,tilt:0,zoom:0});
+const sameState=(a,b)=>STATE_KEYS.every(key=>a[key]===b[key]);
+function mixColor(a,b,t){return '#'+[1,3,5].map(i=>Math.round(lerp(parseInt(a.slice(i,i+2),16),parseInt(b.slice(i,i+2),16),t)).toString(16).padStart(2,'0')).join('');}
+// Fixed authored stars: no downloaded textures, random state or idle animation.
+const STARS=Array.from({length:94},(_,i)=>({x:(i*137.508)%652,y:(i*i*19.31+17)%376,r:i%11===0?1.15:.35+(i%4)*.14,alpha:.14+(i%7)*.06}));
 export const EARTH_DEFAULT_STATE=Object.freeze({metric:'population',year:2000,region:'world',connections:false,night:false,rotation:28,tilt:12,zoom:1});
 const REGIONS={world:{name:'Whole world',rotation:28,tilt:12},asia:{name:'Asia Pacific',rotation:105,tilt:24},europe:{name:'Europe',rotation:18,tilt:42},americas:{name:'The Americas',rotation:-80,tilt:18},africa:{name:'Africa',rotation:20,tilt:0}};
 const METRICS={population:{name:'Population',unit:'M',color:'#83dfca',light:'#d9fff3',label:'Sample population',detail:'Millions of people in our sample cities',values:[16,13,11,19,12,8,10,14,9,7,12,6,7,5,10,8,6,8,5,4]},energy:{name:'Clean energy',unit:'%',color:'#ffc17a',light:'#ffeed2',label:'Clean energy share',detail:'Illustrative share of electricity from clean sources',values:[20,18,32,11,14,9,26,12,18,22,8,29,21,12,18,23,15,10,24,28]},connectivity:{name:'Connectivity',unit:'%',color:'#aeb6ff',light:'#ebeaff',label:'Connected population',detail:'Illustrative share with internet access',values:[38,42,30,16,12,15,28,20,14,35,8,25,27,19,16,23,22,12,29,34]}};
@@ -68,7 +74,7 @@ function normalizeState(previous,patch){
     else if(key==='connections'||key==='night'){if(typeof value!=='boolean')throw new TypeError('Earth layer values must be booleans.');next[key]=value;}
     else {if(typeof value!=='number'||!Number.isFinite(value))throw new TypeError('Earth view values must be finite numbers.');next[key]=value;}
   }
-  next.year=Math.round(clamp(next.year,2000,2025));next.tilt=clamp(next.tilt,-65,65);next.zoom=clamp(next.zoom,.8,1.35);
+  next.year=Math.round(clamp(next.year,2000,2025));next.tilt=clamp(next.tilt,-65,65);next.zoom=clamp(next.zoom,ZOOM_MIN,ZOOM_MAX);
   next.rotation=((next.rotation+180)%360+360)%360-180;
   if(Object.hasOwn(patch,'region')&&patch.region!==previous.region){if(!Object.hasOwn(patch,'rotation'))next.rotation=REGIONS[next.region].rotation;if(!Object.hasOwn(patch,'tilt'))next.tilt=REGIONS[next.region].tilt;}
   return next;
@@ -82,11 +88,11 @@ export function createEarthApp({root,onChange,interactive=true}={}){
   const initialInert=root.inert,initialClass=root.classList.contains('earth-app'),initialPosition=root.style.position;
   const ownsPosition=window.getComputedStyle(root).position==='static';
   if(ownsPosition)root.style.position='relative';
-  let state={...EARTH_DEFAULT_STATE},display={...state},disposed=false,raf=null,drag=null,enabled=!!interactive,reducedOverride=null;
+  let state={...EARTH_DEFAULT_STATE},display={...state},disposed=false,raf=null,drag=null,enabled=!!interactive,reducedOverride=null,presentation=null;
   const reduced=window.matchMedia('(prefers-reduced-motion: reduce)');
   root.classList.add('earth-app');
   root.innerHTML=`<header class="earth-topbar"><div class="earth-brand"><span class="earth-brand-icon" aria-hidden="true">◉</span><strong>EARTH<span>OBSERVATORY</span></strong></div><span class="earth-topbar-tab">Explore</span><span class="earth-topbar-note"><i></i> A living planet, in your hands</span><span class="earth-edition">01 / EXPLORE</span></header>
-    <div class="earth-workspace"><section class="earth-visual" aria-label="Interactive Earth visualization"><div class="earth-headline"><div><p class="earth-eyebrow">A DIFFERENT PERSPECTIVE</p><h2>One planet. Many stories.</h2></div><span class="earth-live-tag">3D EXPLORER</span></div><div class="earth-globe-wrap"><canvas class="earth-globe" width="1304" height="752" tabindex="0" role="img" aria-label="Interactive 3D Earth. Drag or use arrow keys to rotate. Use plus and minus to zoom."></canvas><div class="earth-globe-caption"><span class="earth-legend-dot"></span><span class="earth-legend">Population</span><span class="earth-region-name">Whole world</span></div><div class="earth-zoom"><button type="button" data-earth-zoom="in" aria-label="Zoom into Earth">+</button><button type="button" data-earth-zoom="out" aria-label="Zoom out of Earth">−</button></div><p class="earth-orbit-help">DRAG TO ROTATE <span>·</span> ARROW KEYS TO EXPLORE</p></div><div class="earth-summary"><div><span class="earth-summary-label">Sample population</span><strong class="earth-summary-value"></strong></div><div><span>Sample cities</span><strong class="earth-city-count">20</strong></div><div><span>Snapshot</span><strong class="earth-snapshot">2000</strong></div><p class="earth-summary-detail"></p></div></section>
+    <div class="earth-workspace"><section class="earth-visual" aria-label="Interactive Earth visualization"><div class="earth-headline"><div><p class="earth-eyebrow">A DIFFERENT PERSPECTIVE</p><h2>One planet. Many stories.</h2></div><span class="earth-live-tag">3D EXPLORER</span></div><div class="earth-globe-wrap"><canvas class="earth-globe" width="1304" height="752" tabindex="0" role="img" aria-label="Interactive 3D Earth. Drag or use arrow keys to rotate. Use plus and minus to zoom."></canvas><div class="earth-globe-caption"><span class="earth-legend-dot"></span><span class="earth-legend">Population</span><span class="earth-region-name">Whole world</span></div><div class="earth-zoom" role="group" aria-label="Earth zoom controls"><button type="button" data-earth-zoom="in" aria-label="Zoom into Earth"><span aria-hidden="true">+</span><span>Zoom in</span></button><output class="earth-zoom-value" aria-label="Earth zoom">100%</output><button type="button" data-earth-zoom="out" aria-label="Zoom out of Earth"><span aria-hidden="true">−</span><span>Zoom out</span></button></div><p class="earth-orbit-help">DRAG TO ROTATE <span>·</span> + / − TO ZOOM</p></div><div class="earth-summary"><div><span class="earth-summary-label">Sample population</span><strong class="earth-summary-value"></strong></div><div><span>Sample cities</span><strong class="earth-city-count">20</strong></div><div><span>Snapshot</span><strong class="earth-snapshot">2000</strong></div><p class="earth-summary-detail"></p></div></section>
     <section class="earth-controls" aria-label="Earth controls"><div class="earth-controls-heading"><span class="earth-eyebrow">MAKE THE WORLD MOVE</span><span class="earth-controls-number">01—05</span></div><fieldset class="earth-control earth-metric-control"><legend><span>01</span> Choose a story</legend><div class="earth-metrics" role="group" aria-label="Statistic to visualize"><button type="button" data-earth-metric="population" aria-pressed="true">Population</button><button type="button" data-earth-metric="energy" aria-pressed="false">Energy</button><button type="button" data-earth-metric="connectivity" aria-pressed="false">Internet</button></div><p>New colors. A new perspective.</p></fieldset>
     <div class="earth-control earth-year-control"><label for="earth-year"><span>02</span> Travel through time <output class="earth-year-value">2000</output></label><input id="earth-year" class="earth-year" type="range" min="2000" max="2025" value="2000" step="1"><div class="earth-range-labels"><span>2000</span><span>2025</span></div></div>
     <div class="earth-control earth-region-control"><label for="earth-region"><span>03</span> Find your region</label><select id="earth-region" class="earth-region"><option value="world">Whole world</option><option value="asia">Asia Pacific</option><option value="europe">Europe</option><option value="americas">The Americas</option><option value="africa">Africa</option></select></div>
@@ -99,7 +105,10 @@ export function createEarthApp({root,onChange,interactive=true}={}){
   // IDs are unique even if a host mounts multiple controlled applications.
   const suffix=createEarthApp.instances=(createEarthApp.instances||0)+1;
   for(const name of ['year','region']){const input=$('.earth-'+name);input.id='earth-'+name+'-'+suffix;$('.earth-'+name+'-control label').htmlFor=input.id;}
-  const targets={'earth.overview':root,'earth.globe':$('.earth-visual'),'earth.metric':$('.earth-metric-control'),'earth.year':$('.earth-year-control'),'earth.region':$('.earth-region-control'),'earth.connections':$('[data-earth-layer="connections"]'),'earth.lighting':$('[data-earth-layer="night"]'),'earth.reset':$('.earth-reset')};
+  // These semantic composition boxes are geometry only. They never cover inputs
+  // or enter the accessibility tree, and they resize with the controlled surface.
+  for(const name of ['planet','detail']){const node=document.createElement('div');node.className='earth-shot-frame earth-'+name+'-frame';node.setAttribute('aria-hidden','true');root.append(node);}
+  const targets={'earth.overview':root,'earth.globe':$('.earth-visual'),'earth.planet':$('.earth-planet-frame'),'earth.detail':$('.earth-detail-frame'),'earth.zoomIn':$('[data-earth-zoom="in"]'),'earth.zoomOut':$('[data-earth-zoom="out"]'),'earth.metric':$('.earth-metric-control'),'earth.year':$('.earth-year-control'),'earth.region':$('.earth-region-control'),'earth.connections':$('[data-earth-layer="connections"]'),'earth.lighting':$('[data-earth-layer="night"]'),'earth.reset':$('.earth-reset')};
   function on(node,type,fn,options){node.addEventListener(type,fn,options);cleanups.push(()=>node.removeEventListener(type,fn,options));}
   const clickLayer=document.createElement('div');clickLayer.className='earth-click-layer';clickLayer.setAttribute('aria-hidden','true');root.append(clickLayer);
   function clickNode(source){const node=document.createElement('div');node.className='earth-click-feedback';node.dataset.source=source;const ring=document.createElement('span'),dot=document.createElement('span');ring.className='earth-click-ring';dot.className='earth-click-dot';node.append(ring,dot);clickLayer.append(node);return node;}
@@ -171,7 +180,8 @@ export function createEarthApp({root,onChange,interactive=true}={}){
   on(root,'click',event=>{if(event.detail!==0)return;const element=manualTarget(event);if(element&&!(lastKeyboard?.element===element&&window.performance.now()-lastKeyboard.at<250))showManualClick(element);},true);
   function updateDom(){
     const metric=METRICS[state.metric],summary=stats(state);
-    root.style.setProperty('--earth-accent',metric.color);root.dataset.earthMetric=state.metric;root.dataset.earthYear=String(state.year);root.dataset.earthRegion=state.region;root.dataset.earthConnections=String(state.connections);root.dataset.earthNight=String(state.night);
+    root.style.setProperty('--earth-accent',metric.color);root.dataset.earthMetric=state.metric;root.dataset.earthYear=String(state.year);root.dataset.earthRegion=state.region;root.dataset.earthConnections=String(state.connections);root.dataset.earthNight=String(state.night);root.dataset.earthZoom=String(state.zoom);
+    $('.earth-zoom-value').textContent=Math.round(state.zoom*100)+'%';$('[data-earth-zoom="in"]').disabled=state.zoom>=ZOOM_MAX;$('[data-earth-zoom="out"]').disabled=state.zoom<=ZOOM_MIN;
     root.querySelectorAll('[data-earth-metric]').forEach(button=>button.setAttribute('aria-pressed',String(button.dataset.earthMetric===state.metric)));
     $('.earth-year').value=String(state.year);$('.earth-year').style.setProperty('--earth-progress',(state.year-2000)*4+'%');$('.earth-year-value').textContent=String(state.year);
     $('.earth-region').value=state.region;$('.earth-region-name').textContent=REGIONS[state.region].name;$('.earth-legend').textContent=metric.name;
@@ -182,16 +192,21 @@ export function createEarthApp({root,onChange,interactive=true}={}){
   }
   function frame(view){
     if(disposed)return;
-    const ctx=context,W=652,H=376,cx=326,cy=179,r=153*view.zoom,metric=METRICS[view.metric],theta=view.rotation*RAD,phi=view.tilt*RAD,st=Math.sin(theta),ct=Math.cos(theta),sp=Math.sin(phi),cp=Math.cos(phi);
+    const ctx=context,W=652,H=376,cx=326,cy=179,r=153*view.zoom,night=view.nightAmount??Number(view.night),connectionAmount=view.connectionAmount??Number(view.connections),baseMetric=METRICS[view.metric],fromMetric=METRICS[view.fromMetric||view.metric],metricProgress=view.metricProgress??1,metric={...baseMetric,color:mixColor(fromMetric.color,baseMetric.color,metricProgress),light:mixColor(fromMetric.light,baseMetric.light,metricProgress)},theta=view.rotation*RAD,phi=view.tilt*RAD,st=Math.sin(theta),ct=Math.cos(theta),sp=Math.sin(phi),cp=Math.cos(phi);
     ctx.setTransform(2,0,0,2,0,0);ctx.clearRect(0,0,W,H);
     const turn=v=>{const x=v[0]*ct-v[2]*st,z=v[0]*st+v[2]*ct;return [x,v[1]*cp-z*sp,v[1]*sp+z*cp];};
     const project=(p,scale=1)=>[cx+p[0]*r*scale,cy-p[1]*r*scale];
     function circle(x,y,rad,fill){ctx.beginPath();ctx.arc(x,y,rad,0,Math.PI*2);ctx.fillStyle=fill;ctx.fill();}
     function path(points,predicate=()=>true){let begun=false;ctx.beginPath();for(const v of points){const p=turn(v),valid=predicate(p);if(!valid){begun=false;continue;}const [x,y]=project(p);if(begun)ctx.lineTo(x,y);else{ctx.moveTo(x,y);begun=true;}}ctx.stroke();}
-    function arcs(front){if(!view.connections)return;ctx.lineWidth=1.3;ctx.strokeStyle=view.night?'rgba(150,232,220,.68)':'rgba(155,222,208,.5)';for(let i=0;i<ARCS.length;i++){const [a,b]=CONNECTIONS[i];if(view.region!=='world'&&CITIES[a][3]!==view.region&&CITIES[b][3]!==view.region)continue;path(ARCS[i],p=>front?p[2]>=0:p[2]<0);}}
-    const halo=ctx.createRadialGradient(cx,cy,r*.85,cx,cy,r*1.25);halo.addColorStop(0,'rgba(79,160,177,0)');halo.addColorStop(.65,view.night?'rgba(46,120,154,.15)':'rgba(65,153,176,.16)');halo.addColorStop(1,'rgba(39,98,134,0)');circle(cx,cy,r*1.25,halo);
+    function arcs(front){if(connectionAmount<=0)return;ctx.save();ctx.globalAlpha=connectionAmount;ctx.lineWidth=front?1.45:.8;ctx.strokeStyle=front?'rgba(163,235,219,.72)':'rgba(119,180,197,.27)';ctx.shadowColor='#84e8d580';ctx.shadowBlur=front?5:0;for(let i=0;i<ARCS.length;i++){const [a,b]=CONNECTIONS[i];if(view.region!=='world'&&CITIES[a][3]!==view.region&&CITIES[b][3]!==view.region)continue;path(ARCS[i],p=>front?p[2]>=0:p[2]<0);}ctx.restore();}
+    // The surrounding space stays quiet. Its small parallax follows the same
+    // supplied view as the globe, so pause/seek remain exact and idle stays idle.
+    const nebula=ctx.createRadialGradient(135,55,0,170,90,420);nebula.addColorStop(0,'rgba(59,103,128,.16)');nebula.addColorStop(.55,'rgba(30,58,87,.07)');nebula.addColorStop(1,'rgba(7,14,24,0)');ctx.fillStyle=nebula;ctx.fillRect(0,0,W,H);
+    for(const star of STARS){const x=((star.x-view.rotation*.045)%W+W)%W,y=star.y+view.tilt*.035;circle(x,y,star.r,`rgba(193,216,235,${star.alpha})`);}
+    const sunrise=ctx.createRadialGradient(cx-r*.77,cy-r*.72,0,cx-r*.77,cy-r*.72,r*.8);sunrise.addColorStop(0,`rgba(132,204,227,${.11-night*.07})`);sunrise.addColorStop(1,'rgba(90,160,205,0)');circle(cx-r*.77,cy-r*.72,r*.8,sunrise);
+    const halo=ctx.createRadialGradient(cx,cy,r*.94,cx,cy,r*1.18);halo.addColorStop(0,'rgba(92,185,220,0)');halo.addColorStop(.18,`rgba(100,193,224,${.24-night*.08})`);halo.addColorStop(.45,'rgba(54,118,174,.10)');halo.addColorStop(1,'rgba(30,80,135,0)');circle(cx,cy,r*1.18,halo);
     arcs(false);
-    const ocean=ctx.createRadialGradient(cx-r*.45,cy-r*.45,r*.05,cx,cy,r*1.05);ocean.addColorStop(0,view.night?'#102c3b':'#24565b');ocean.addColorStop(.57,view.night?'#0b1e2d':'#12343f');ocean.addColorStop(1,'#06101b');circle(cx,cy,r,ocean);
+    const ocean=ctx.createRadialGradient(cx-r*.45,cy-r*.45,r*.05,cx,cy,r*1.05);ocean.addColorStop(0,mixColor('#397988','#102b40',night));ocean.addColorStop(.45,mixColor('#1a485e','#0b1b2e',night));ocean.addColorStop(.8,mixColor('#0b253b','#050f1e',night));ocean.addColorStop(1,'#030a14');circle(cx,cy,r,ocean);
     ctx.save();ctx.beginPath();ctx.arc(cx,cy,r,0,Math.PI*2);ctx.clip();
     ctx.beginPath();
     for(const triangle of LAND){
@@ -200,27 +215,42 @@ export function createEarthApp({root,onChange,interactive=true}={}){
       if(clipped.length<3)continue;
       clipped.forEach((p,i)=>{const [x,y]=project(p);if(i===0)ctx.moveTo(x,y);else ctx.lineTo(x,y);});ctx.closePath();
     }
-    ctx.fillStyle=view.night?'#123b3f':'#387c73';ctx.fill();
-    ctx.lineWidth=.7;ctx.strokeStyle=view.night?'rgba(73,129,133,.35)':'rgba(144,209,189,.46)';for(const line of OUTLINES)path([...line,line[0]],p=>p[2]>.006);
-    ctx.lineWidth=.5;ctx.strokeStyle=view.night?'rgba(112,153,170,.1)':'rgba(142,199,200,.16)';GRID.forEach(line=>path(line,p=>p[2]>=0));
-    const shade=ctx.createLinearGradient(cx-r,cy-r*.3,cx+r,cy+r*.5);shade.addColorStop(0,'rgba(170,230,220,.04)');shade.addColorStop(.45,'rgba(0,0,0,0)');shade.addColorStop(1,view.night?'rgba(0,4,15,.76)':'rgba(0,6,20,.66)');ctx.fillStyle=shade;ctx.fillRect(cx-r,cy-r,r*2,r*2);
-    const rim=ctx.createRadialGradient(cx,cy,r*.83,cx,cy,r);rim.addColorStop(0,'rgba(0,0,0,0)');rim.addColorStop(.8,'rgba(75,157,174,.03)');rim.addColorStop(1,'rgba(92,180,205,.31)');circle(cx,cy,r,rim);
+    const terrain=ctx.createLinearGradient(cx-r,cy-r,cx+r,cy+r*.7);terrain.addColorStop(0,mixColor('#92b9a3','#1f5557',night));terrain.addColorStop(.4,mixColor('#4b8c7c','#163e43',night));terrain.addColorStop(1,mixColor('#1e4c49','#081c2a',night));ctx.fillStyle=terrain;ctx.fill();
+    ctx.lineWidth=.7;ctx.strokeStyle=`rgba(164,218,203,${.47-night*.24})`;for(const line of OUTLINES)path([...line,line[0]],p=>p[2]>.006);
+    ctx.lineWidth=.5;ctx.strokeStyle=`rgba(150,199,216,${.13-night*.04})`;GRID.forEach(line=>path(line,p=>p[2]>=0));
+    const shade=ctx.createLinearGradient(cx-r,cy-r*.3,cx+r,cy+r*.5);shade.addColorStop(0,'rgba(170,230,220,.04)');shade.addColorStop(.32,'rgba(0,0,0,0)');shade.addColorStop(.68,`rgba(0,6,20,${.38+night*.18})`);shade.addColorStop(1,`rgba(0,4,15,${.82+night*.1})`);ctx.fillStyle=shade;ctx.fillRect(cx-r,cy-r,r*2,r*2);
+    const rim=ctx.createRadialGradient(cx,cy,r*.83,cx,cy,r);rim.addColorStop(0,'rgba(0,0,0,0)');rim.addColorStop(.7,'rgba(75,157,198,.02)');rim.addColorStop(1,'rgba(126,211,235,.40)');circle(cx,cy,r,rim);
     ctx.restore();ctx.beginPath();ctx.arc(cx,cy,r+.4,0,Math.PI*2);ctx.strokeStyle='rgba(111,190,206,.35)';ctx.lineWidth=.8;ctx.stroke();
     arcs(true);
     const markers=CITY_VECTORS.map((v,index)=>({point:turn(v),index})).filter(x=>x.point[2]>.04).sort((a,b)=>a.point[2]-b.point[2]);
     const labels=[];
     for(const {point,index} of markers){
-      const active=view.region==='world'||CITIES[index][3]===view.region,value=valueAt(index,view),height=(.045+value/(view.metric==='population'?35:100)*.20)*(active?1:.35),base=project(point),tip=project(point,1+height),alpha=active?(.45+.55*point[2]):.15;
+      const active=view.region==='world'||CITIES[index][3]===view.region,value=lerp(valueAt(index,{...view,metric:view.fromMetric||view.metric}),valueAt(index,view),metricProgress),height=(.045+value/(view.metric==='population'?35:100)*.20)*(active?1:.35),base=project(point),tip=project(point,1+height),alpha=active?(.45+.55*point[2]):.15;
       ctx.globalAlpha=alpha;
-      if(view.night){const glow=ctx.createRadialGradient(...base,0,...base,9);glow.addColorStop(0,'rgba(255,203,128,.65)');glow.addColorStop(1,'rgba(255,190,100,0)');circle(...base,9,glow);}
+      if(night>0){const glow=ctx.createRadialGradient(...base,0,...base,12);glow.addColorStop(0,`rgba(255,211,146,${night*.8})`);glow.addColorStop(.3,`rgba(255,191,105,${night*.25})`);glow.addColorStop(1,'rgba(255,190,100,0)');circle(...base,12,glow);for(let j=0;j<7;j++){const angle=(index*31+j*137.5)*RAD,spread=(2+j*.85)*view.zoom;circle(base[0]+Math.cos(angle)*spread,base[1]+Math.sin(angle)*spread,.45+(j%3)*.17,`rgba(255,223,163,${night*(.4+(j%3)*.2)})`);}}
       circle(...base,active?3.3:1.9,metric.color+'55');ctx.beginPath();ctx.moveTo(...base);ctx.lineTo(...tip);ctx.strokeStyle=metric.color;ctx.lineWidth=active?2.8:1.4;ctx.lineCap='round';ctx.stroke();circle(...tip,active?2.5:1.4,metric.light);
       if(active&&point[2]>.65&&labels.length<4){const text=CITIES[index][0],x=tip[0]+(point[0]>0?7:-7),y=tip[1]-5,width=text.length*5,box={left:x-(point[0]>0?0:width),right:x+(point[0]>0?width:0),top:y-10,bottom:y+3};if(labels.every(b=>b.right+5<box.left||b.left>box.right+5||b.bottom+4<box.top||b.top>box.bottom+4)){ctx.font='9px system-ui,sans-serif';ctx.fillStyle='#d6e8e5';ctx.textAlign=point[0]>0?'left':'right';ctx.fillText(text,x,y);labels.push(box);}}
     }
     ctx.globalAlpha=1;ctx.lineCap='butt';
   }
   function cancel(){if(raf!==null){window.cancelAnimationFrame(raf);raf=null;}if(root.dataset.earthRendering!=='false')root.dataset.earthRendering='false';}
+  /** Paint a Director-owned sample without changing the host's committed state.
+   * The caller supplies eased progress; there is no second animation clock. */
+  function setPresentationFrame(sample){
+    if(disposed)return;
+    if(sample===null){if(presentation===null)return;presentation=null;display={...state};frame(display);return;}
+    if(!sample||typeof sample!=='object'||Array.isArray(sample)||typeof sample.progress!=='number'||!Number.isFinite(sample.progress)||sample.progress<0||sample.progress>1)throw new TypeError('Earth presentation needs states and progress between zero and one.');
+    const from=normalizeState(EARTH_DEFAULT_STATE,sample.from),to=normalizeState(EARTH_DEFAULT_STATE,sample.to),t=sample.progress;
+    if(motionReduced()){setPresentationFrame(null);return;}
+    if(presentation&&presentation.progress===t&&sameState(presentation.from,from)&&sameState(presentation.to,to))return;
+    cancel();presentation={from,to,progress:t};
+    const rotationDelta=((to.rotation-from.rotation+540)%360)-180;
+    display={...to,rotation:from.rotation+rotationDelta*t,tilt:lerp(from.tilt,to.tilt,t),zoom:lerp(from.zoom,to.zoom,t),year:lerp(from.year,to.year,t),fromMetric:from.metric,metricProgress:t,nightAmount:lerp(Number(from.night),Number(to.night),t),connectionAmount:lerp(Number(from.connections),Number(to.connections),t)};
+    frame(display);
+  }
   function setState(patch,{animate=true}={}){
     if(disposed)return;
+    setPresentationFrame(null);
     const next=normalizeState(state,patch),changed=Object.keys(next).some(k=>next[k]!==state[k]);state=next;
     if(!changed&&!raf)return;
     cancel();updateDom();
@@ -233,24 +263,24 @@ export function createEarthApp({root,onChange,interactive=true}={}){
     }
     root.dataset.earthRendering='true';raf=window.requestAnimationFrame(tick);
   }
-  function userChange(control,patch,options){if(!enabled||disposed)return;const before=state;setState(patch,options);if(Object.keys(state).some(key=>state[key]!==before[key]))onChange?.({...state},{control,source:'user'});}
+  function userChange(control,patch,options){if(!enabled||disposed)return;setPresentationFrame(null);const before=state;setState(patch,options);if(Object.keys(state).some(key=>state[key]!==before[key]))onChange?.({...state},{control,source:'user'});}
   root.querySelectorAll('[data-earth-metric]').forEach(button=>on(button,'click',()=>userChange('metric',{metric:button.dataset.earthMetric})));
   on($('.earth-year'),'input',event=>userChange('year',{year:Number(event.target.value)},{animate:false}));
   on($('.earth-region'),'change',event=>userChange('region',{region:event.target.value}));
   on($('[data-earth-layer="connections"]'),'click',()=>userChange('connections',{connections:!state.connections}));
   on($('[data-earth-layer="night"]'),'click',()=>userChange('lighting',{night:!state.night}));
   on($('.earth-reset'),'click',()=>userChange('reset',{...EARTH_DEFAULT_STATE}));
-  root.querySelectorAll('[data-earth-zoom]').forEach(button=>on(button,'click',()=>userChange('globe',{zoom:state.zoom+(button.dataset.earthZoom==='in'?.1:-.1)})));
+  root.querySelectorAll('[data-earth-zoom]').forEach(button=>on(button,'click',()=>userChange(button.dataset.earthZoom==='in'?'zoomIn':'zoomOut',{zoom:state.zoom+(button.dataset.earthZoom==='in'?ZOOM_STEP:-ZOOM_STEP)})));
   on(canvas,'pointerdown',event=>{if(!enabled||event.button!==0)return;const rect=canvas.getBoundingClientRect();drag={id:event.pointerId,x:event.clientX,y:event.clientY,rotation:state.rotation,tilt:state.tilt,scale:652/Math.max(1,rect.width)};canvas.setPointerCapture(event.pointerId);canvas.classList.add('earth-dragging');});
   on(canvas,'pointermove',event=>{if(!drag||event.pointerId!==drag.id||!enabled)return;userChange('globe',{rotation:drag.rotation-(event.clientX-drag.x)*drag.scale*.32,tilt:drag.tilt+(event.clientY-drag.y)*drag.scale*.27},{animate:false});});
   function release(event){if(!drag||event.pointerId!==drag.id)return;drag=null;canvas.classList.remove('earth-dragging');if(canvas.hasPointerCapture(event.pointerId))canvas.releasePointerCapture(event.pointerId);}
   on(canvas,'pointerup',release);on(canvas,'pointercancel',release);on(canvas,'lostpointercapture',()=>{drag=null;canvas.classList.remove('earth-dragging');});
-  on(canvas,'keydown',event=>{const changes={ArrowLeft:{rotation:state.rotation-12},ArrowRight:{rotation:state.rotation+12},ArrowUp:{tilt:state.tilt+8},ArrowDown:{tilt:state.tilt-8},'+':{zoom:state.zoom+.1},'=':{zoom:state.zoom+.1},'-':{zoom:state.zoom-.1},Home:{...EARTH_DEFAULT_STATE}};if(!enabled||!changes[event.key])return;event.preventDefault();event.stopPropagation();userChange('globe',changes[event.key]);});
+  on(canvas,'keydown',event=>{const changes={ArrowLeft:{rotation:state.rotation-12},ArrowRight:{rotation:state.rotation+12},ArrowUp:{tilt:state.tilt+8},ArrowDown:{tilt:state.tilt-8},'+':{zoom:state.zoom+ZOOM_STEP},'=':{zoom:state.zoom+ZOOM_STEP},'-':{zoom:state.zoom-ZOOM_STEP},Home:{...EARTH_DEFAULT_STATE}};if(!enabled||!changes[event.key])return;event.preventDefault();event.stopPropagation();userChange(event.key==='+'||event.key==='='?'zoomIn':event.key==='-'?'zoomOut':'globe',changes[event.key]);});
   const resize=new window.ResizeObserver(()=>{if(!disposed){frame(display);clickPoint=null;paintDemoClick();}});resize.observe(root);
-  function applyMotionPreference(){const value=motionReduced();if(appliedMotion===value)return;appliedMotion=value;root.dataset.earthReducedMotion=String(value);if(value){cancel();display={...state};frame(display);for(const entry of manualClicks)makeStaticClick(entry);}paintDemoClick();}
+  function applyMotionPreference(){const value=motionReduced();if(appliedMotion===value)return;appliedMotion=value;root.dataset.earthReducedMotion=String(value);if(value){presentation=null;cancel();display={...state};frame(display);for(const entry of manualClicks)makeStaticClick(entry);}paintDemoClick();}
   on(reduced,'change',applyMotionPreference);
   function setReducedMotion(value){if(disposed)return;if(typeof value!=='boolean'&&value!==null)throw new TypeError('Earth motion preference must be a boolean or null.');if(reducedOverride===value)return;reducedOverride=value;applyMotionPreference();}
   function setInteractive(value){if(disposed)return;enabled=!!value;root.inert=!enabled;root.dataset.earthInteractive=String(enabled);if(!enabled){const id=drag?.id;drag=null;canvas.classList.remove('earth-dragging');if(id!==undefined&&canvas.hasPointerCapture(id))canvas.releasePointerCapture(id);for(const entry of manualClicks)removeManualClick(entry);}}
   setInteractive(interactive);root.dataset.earthRendering='false';root.dataset.earthReducedMotion=String(reduced.matches);updateDom();frame(display);
-  return {targets,getState:()=>({...state}),setState,setInteractive,setReducedMotion,setClickFeedback,reset:()=>setState({...EARTH_DEFAULT_STATE}),destroy(){if(disposed)return;disposed=true;cancel();resize.disconnect();cleanups.splice(0).forEach(off=>off());for(const entry of manualClicks)removeManualClick(entry);clickSample=null;clickPoint=null;root.inert=initialInert;root.classList.toggle('earth-app',initialClass);if(ownsPosition&&root.style.position==='relative')root.style.position=initialPosition;root.style.removeProperty('--earth-accent');for(const key of ['earthMetric','earthYear','earthRegion','earthConnections','earthNight','earthInteractive','earthRendering','earthReducedMotion'])delete root.dataset[key];root.replaceChildren();}};
+  return {targets,getState:()=>({...state}),setState,setInteractive,setReducedMotion,setClickFeedback,setPresentationFrame,reset:()=>setState({...EARTH_DEFAULT_STATE}),destroy(){if(disposed)return;disposed=true;cancel();resize.disconnect();cleanups.splice(0).forEach(off=>off());for(const entry of manualClicks)removeManualClick(entry);clickSample=null;clickPoint=null;presentation=null;root.inert=initialInert;root.classList.toggle('earth-app',initialClass);if(ownsPosition&&root.style.position==='relative')root.style.position=initialPosition;root.style.removeProperty('--earth-accent');for(const key of ['earthMetric','earthYear','earthRegion','earthConnections','earthNight','earthZoom','earthInteractive','earthRendering','earthReducedMotion'])delete root.dataset[key];root.replaceChildren();}};
 }

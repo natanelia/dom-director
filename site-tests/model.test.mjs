@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import {compile} from '../packages/core/src/compiler.js';
+import {sampleVisual} from '../packages/core/src/visual.js';
 import {timeline,timecode,withEasing,createEarthTour} from '../site/model.mjs';
 import {EARTH_CHECKPOINTS,createEarthSample} from '../packages/studio/src/sample.js';
 const script=JSON.parse(fs.readFileSync(new URL('../site/orbit.tour.json',import.meta.url),'utf8'));
@@ -50,14 +51,15 @@ test('camera personality changes canonical defaults without mutating the source'
 test('time display is presentation-only with explicit millisecond formatting',()=>{
   assert.equal(timecode(1250),'00:01');assert.equal(timecode(1250,true),'00:01.250');assert.equal(timecode(-1),'00:00');
 });
-test('Earth compiles six approved demo actions and preserves all real-control conditions',()=>{
+test('Earth compiles eight approved demo actions including zoom and preserves all real-control conditions',()=>{
   const tour=createEarthTour(EARTH_CHECKPOINTS),result=compile(tour);
   assert.equal(result.ok,true,JSON.stringify(result.diagnostics));
   assert.deepEqual(tour.modes,['watch','try','guide']);
   assert.deepEqual(tour.assets,{});
   const cues=tour.scenes.flatMap(scene=>scene.cues),gates=cues.filter(cue=>cue.kind==='gate'),actions=cues.filter(cue=>cue.kind==='action');
-  assert.equal(gates.length,6);assert.equal(actions.length,6);
-  assert.equal(new Set(gates.map(cue=>cue.conditionRef)).size,6);
+  assert.equal(gates.length,8);assert.equal(actions.length,8);
+  assert.equal(new Set(gates.map(cue=>cue.conditionRef)).size,8);
+  assert.deepEqual(tour.scenes.slice(1,3).map(scene=>scene.id),['earth.zoom-in','earth.zoom-out']);
   assert.deepEqual(tour.capabilities,[...gates.flatMap(cue=>['action:'+cue.conditionRef,'condition:'+cue.conditionRef]),'fixture:reset']);
   for(const scene of tour.scenes){
     const action=scene.cues.find(cue=>cue.kind==='action'),gate=scene.cues.find(cue=>cue.kind==='gate');
@@ -85,7 +87,7 @@ test('Earth live tutorial and Studio teach the same controls with the same capti
 });
 test('Earth timeline locations and camera preferences remain pure presentation data',()=>{
   const tour=createEarthTour(EARTH_CHECKPOINTS),before=JSON.stringify(tour),track=timeline(tour);
-  assert.equal(track.total,42000);
+  assert.equal(track.total,56000);
   for(const scene of track.scenes){
     assert.deepEqual(track.locate(scene.startMs+1800),{sceneId:scene.id,timeMs:1800});
     assert.equal(track.position({sceneId:scene.id,timeMs:1800}),scene.startMs+1800);
@@ -93,17 +95,54 @@ test('Earth timeline locations and camera preferences remain pure presentation d
   for(const value of ['gentle','direct','overview','instant'])assert.equal(compile(withEasing(tour,value)).ok,true);
   assert.equal(JSON.stringify(tour),before);
 });
-test('Earth moves its cursor immediately while preserving all original arrival and gate timings',()=>{
+test('Earth moves its cursor with the camera and keeps the real control visible through each click and gate',()=>{
   const tour=createEarthTour(EARTH_CHECKPOINTS);
   for(const [index,scene] of tour.scenes.entries()){
     const target=EARTH_CHECKPOINTS[index].target.split('.')[1];
     assert.deepEqual(scene.cues.find(cue=>cue.id==='cursor.travel.'+scene.id),
       {id:'cursor.travel.'+scene.id,kind:'cursor',at:0,durationMs:700,target,gesture:'point'});
     assert.deepEqual(scene.cues.find(cue=>cue.id==='cursor.'+scene.id),
-      {id:'cursor.'+scene.id,kind:'cursor',at:700,durationMs:6300,target,gesture:'point'});
+      {id:'cursor.'+scene.id,kind:'cursor',at:700,durationMs:1900,target,gesture:'point'});
     const camera=scene.cues.find(cue=>cue.kind==='camera'),gate=scene.cues.find(cue=>cue.kind==='gate');
-    assert.equal(camera.at,0);assert.equal(camera.durationMs,index?1000:0);assert.equal(camera.target,'overview');
+    assert.equal(camera.at,0);assert.ok(camera.durationMs>=1400);
     assert.equal(gate.at,1800);assert.equal(gate.timeoutMs,60000);assert.equal(gate.conditionRef,scene.id);
     assert.equal(scene.cues.find(cue=>cue.kind==='highlight').at,700);
+    const reveal=scene.cues.find(cue=>cue.id==='cursor.result.'+scene.id);
+    assert.equal(reveal.at,2600);assert.equal(reveal.target,'planet');
+    assert.equal(reveal.at+reveal.durationMs,scene.durationMs);
   }
+});
+
+test('Earth authored geometry actually zooms in, travels to the result, and pulls back',()=>{
+  const result=compile(createEarthTour(EARTH_CHECKPOINTS));assert.equal(result.ok,true);
+  const bounds=Object.fromEntries(Object.entries({
+    overview:{x:0,y:0,width:960,height:540},globe:{x:18,y:69,width:650,height:425},
+    planet:{x:105.6,y:91.8,width:518.4,height:334.8},detail:{x:403.2,y:102.6,width:489.6,height:313.2},
+    zoomIn:{x:566,y:320,width:79,height:36},zoomOut:{x:566,y:380,width:79,height:36},
+    metric:{x:702,y:118,width:226,height:64},year:{x:702,y:197,width:226,height:54},
+    region:{x:702,y:266,width:226,height:54},connections:{x:702,y:335,width:226,height:24},lighting:{x:702,y:374,width:226,height:24},
+  }).map(([id,rect])=>[id,{rect,space:'scene'}]));
+  const safe={x:0,y:0,width:960,height:540},frames=new Map();
+  let initial={x:0,y:0,scale:1};
+  for(const step of EARTH_CHECKPOINTS){
+    const scene=result.plan.scenes[step.id],sample=time=>sampleVisual(scene,time,bounds,safe,{initial}).camera;
+    const start=sample(0),mid=sample(700),control=sample(1800),reveal=sample(4800),end=sample(7000);
+    assert.deepEqual(start,initial,'Scenes must inherit the preceding shot instead of snapping.');
+    assert.ok(Object.values(mid).every(Number.isFinite));
+    if(step.control!=='zoomOut')assert.ok(Math.hypot(mid.x-start.x,mid.y-start.y)>2,'The initial camera pan must have moved while the cursor is travelling.');
+    if(['metric','year','region','connections','night'].includes(step.control)){
+      assert.ok(control.scale>1.4,'Controls should be a real close-up.');
+      assert.ok(Math.abs(reveal.x-control.x)>200,'Show the globe result after demonstrating the control.');
+    }
+    frames.set(step.control,{start,control,reveal,end});initial=end;
+  }
+  assert.ok(frames.get('orbit').control.scale>1.4);
+  assert.ok(frames.get('orbit').end.scale<1.05);
+  assert.ok(frames.get('zoomIn').end.scale>frames.get('zoomIn').start.scale*1.4);
+  assert.deepEqual(frames.get('zoomOut').start,frames.get('zoomIn').end);
+  assert.ok(frames.get('zoomOut').end.scale<frames.get('zoomOut').start.scale*.75);
+  assert.ok(frames.get('night').end.scale<1.05,'Finish on the entire live application.');
+  const reduced=sampleVisual(result.plan.scenes['earth.metric'],1800,bounds,safe,{reduced:true});
+  assert.deepEqual(reduced.camera,{x:0,y:0,scale:1});
+  assert.ok(reduced.overlays.every(cue=>cue.kind!=='cursor'));
 });

@@ -2,7 +2,7 @@
 
 Optional rich-project authoring and presentation primitives, separate from the existing small core player. This package is private and unpublished. The owner approved implementation of design PR #22 on 7 November 2026; this is an incremental implementation, not a claim that every design stage is finished.
 
-`createEarthSample()` provides the default six-scene Earth statistics story, with four tracks and caption-first voice scripts (no audio asset). The shared `EARTH_CHECKPOINTS` data describes the live tutorial. See [Earth demo](../../docs/earth-demo.md) for real controls, host compatibility and state boundaries.
+`createEarthSample()` provides the default eight-scene Earth statistics story, with four tracks and caption-first voice scripts (no audio asset). The shared `EARTH_CHECKPOINTS` data describes the live tutorial. See [Earth demo](../../docs/earth-demo.md) for real controls, host compatibility and state boundaries.
 
 Each Earth checkpoint's pointer lands at 1.4 seconds and shows a 700 ms click ring starting at 1.8 seconds. The ring follows presentation time in Studio preview and video export, including when seeking. These visual gestures do not dispatch input or authorize an application action; reduced motion hides them.
 

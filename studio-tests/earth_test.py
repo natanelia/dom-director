@@ -1,4 +1,4 @@
-"""Real Earth controls, six learning checkpoints, and Studio host compatibility.
+"""Real Earth controls, eight learning checkpoints, and Studio host compatibility.
 
 Pixel digests verify that interactions change the drawn globe, not only labels.
 The fictional Earth fixture is exercised locally and on the existing verified site.
@@ -32,7 +32,7 @@ DEMO_CLICK = """() => {
     point:box?{x:box.x+box.width/2,y:box.y+box.height/2}:null,
     scene:stage.dataset.scene,timeMs:Number(document.querySelector('#seek').value)*1000,
     coordinates:root.querySelector('.earth-coordinates').textContent,
-    state:Object.fromEntries(['earthMetric','earthYear','earthRegion','earthConnections','earthNight'].map(key=>[key,root.dataset[key]]))};
+    state:Object.fromEntries(['earthMetric','earthYear','earthRegion','earthConnections','earthNight','earthZoom'].map(key=>[key,root.dataset[key]]))};
 }"""
 
 
@@ -43,7 +43,7 @@ class EarthAssertions:
 
     def earth_state(self):
         return self.page.locator('.earth-app').evaluate("""root => Object.fromEntries(
-          ['earthMetric','earthYear','earthRegion','earthConnections','earthNight'].map(key=>[key,root.dataset[key]]))""")
+          ['earthMetric','earthYear','earthRegion','earthConnections','earthNight','earthZoom'].map(key=>[key,root.dataset[key]]))""")
 
     def assert_globe_changed(self, action):
         before = self.pixels()
@@ -57,6 +57,8 @@ class EarthAssertions:
         self.page.keyboard.press('End' if year == 2025 else 'Home')
 
     def all_controls(self):
+        self.assert_globe_changed(lambda: self.page.locator('[data-earth-zoom="in"]').click())
+        self.assert_globe_changed(lambda: self.page.locator('[data-earth-zoom="out"]').click())
         self.assert_globe_changed(lambda: self.page.locator('button[data-earth-metric="energy"]').click())
         self.assert_globe_changed(self.change_year)
         self.assert_globe_changed(lambda: self.page.locator('.earth-region').select_option('asia'))
@@ -64,7 +66,7 @@ class EarthAssertions:
         self.assert_globe_changed(lambda: self.page.locator('[data-earth-layer="night"]').click())
         self.assertEqual(self.earth_state(), {
             'earthMetric': 'energy', 'earthYear': '2025', 'earthRegion': 'asia',
-            'earthConnections': 'true', 'earthNight': 'true'})
+            'earthConnections': 'true', 'earthNight': 'true', 'earthZoom': '1'})
 
 
 class StudioEarthTests(EarthAssertions, StudioTests):
@@ -78,9 +80,9 @@ class StudioEarthTests(EarthAssertions, StudioTests):
         super().setUp()
         self.page.emulate_media(reduced_motion='reduce')
 
-    def test_default_earth_has_six_editable_scenes_and_no_wrong_narration(self):
+    def test_default_earth_has_eight_editable_scenes_and_no_wrong_narration(self):
         self.assertEqual(self.page.locator('#studio').get_attribute('data-host'), 'earth')
-        self.assertEqual(self.page.locator('#scene-list button').count(), 6)
+        self.assertEqual(self.page.locator('#scene-list button').count(), 8)
         self.assertTrue(self.page.locator('#scene').evaluate('el=>el.inert'))
         project = self.project()
         self.assertEqual(project['id'], 'earth-studio')
@@ -161,8 +163,8 @@ class StudioEarthTests(EarthAssertions, StudioTests):
 
         video_audio(False, configure=True)
         for payload, host, count, audio, override in [
-                (orbit, 'orbit', 3, True, False), (earth, 'earth', 6, False, True),
-                (orbit, 'orbit', 3, False, None), (earth, 'earth', 6, True, None)]:
+                (orbit, 'orbit', 3, True, False), (earth, 'earth', 8, False, True),
+                (orbit, 'orbit', 3, False, None), (earth, 'earth', 8, True, None)]:
             self.page.locator('#project-file').set_input_files({'name': 'example.director', 'mimeType': 'application/x-dom-director', 'buffer': payload})
             self.page.get_by_role('button', name='Open project', exact=True).click()
             self.page.wait_for_function("host=>document.querySelector('#studio').dataset.host===host", arg=host)
@@ -246,7 +248,7 @@ class EarthDemoTests(EarthAssertions, StudioTests):
             arg=target, timeout=12000).json_value()
 
     def test_default_homepage_is_earth_and_same_origin_without_audio(self):
-        self.assertEqual(self.page.locator('#chapter-strip [data-scene]').count(), 6)
+        self.assertEqual(self.page.locator('#chapter-strip [data-scene]').count(), 8)
         self.assertEqual(self.page.locator('#stage').get_attribute('data-scene'), 'earth.overview')
         self.assertEqual(self.page.locator('#stage').get_attribute('data-mode'), 'watch')
         self.assertEqual(self.page.locator('button[data-mode="watch"]').get_attribute('aria-pressed'), 'true')
@@ -258,14 +260,14 @@ class EarthDemoTests(EarthAssertions, StudioTests):
         self.assertIn('Illustrative', self.page.locator('.earth-app').inner_text())
         self.page.screenshot(path=str(self.output / 'earth-demo-desktop.png'), full_page=True)
 
-    def test_watch_cursor_moves_from_globe_to_metric_before_its_arrival_cue(self):
+    def test_watch_cursor_moves_from_globe_to_zoom_during_the_camera_push_in(self):
         self.page.emulate_media(reduced_motion='no-preference')
         self.mode('watch')
         self.page.wait_for_function("document.querySelector('#stage').dataset.reducedMotion==='false'")
         initial_pixels = self.pixels()
         # Resolve the first Watch gate normally before seeking near the boundary.
         self.page.locator('#play').click()
-        self.page.wait_for_function("Number(document.querySelector('#seek').value)>2 && document.querySelector('#stage').dataset.status==='playing'")
+        self.page.wait_for_function("Number(document.querySelector('#seek').value)>4.2 && document.querySelector('#stage').dataset.status==='playing'")
         self.page.locator('#play').click()
         self.assert_tutorial_healthy()
         state, pixels = self.earth_state(), self.pixels()
@@ -278,8 +280,10 @@ class EarthDemoTests(EarthAssertions, StudioTests):
             const nodes=document.querySelectorAll('[data-director-overlay] [data-kind="cursor"]');
             const node=nodes[0],r=node?.getBoundingClientRect(),style=node?getComputedStyle(node):null;
             const matrix=style?new DOMMatrix(style.transform):null;
-            const target=document.querySelector('.earth-metric-control').getBoundingClientRect();
+            const camera=new DOMMatrix(getComputedStyle(document.querySelector('#scene')).transform);
+            const target=document.querySelector('[data-earth-zoom="in"]').getBoundingClientRect();
             return {scene:stage.dataset.scene,status:stage.dataset.status,timeMs:Number(document.querySelector('#seek').value)*1000,
+              camera:{x:camera.e,y:camera.f,scale:camera.a},
               count:nodes.length,cue:node?.dataset.cue||null,point:matrix?{x:matrix.e-box.left,y:matrix.f-box.top}:null,
               target:{x:target.x+target.width/2-box.left,y:target.y+target.height/2-box.top},
               visible:!!r&&r.width>0&&r.height>0&&style.visibility==='visible'&&Number(style.opacity)>0,
@@ -289,7 +293,7 @@ class EarthDemoTests(EarthAssertions, StudioTests):
           function observe(){
             const frame=readEarthCursor();
             if(frame.status==='error'||performance.now()>deadline){run.error=frame;run.done=true;return;}
-            if(frame.scene==='earth.metric'&&frame.status==='playing'){
+            if(frame.scene==='earth.zoom-in'&&frame.status==='playing'){
               run.frames.push(frame);if(frame.timeMs>=7850){run.done=true;return;}
             }
             requestAnimationFrame(observe);
@@ -313,16 +317,18 @@ class EarthDemoTests(EarthAssertions, StudioTests):
         for frame in observed['frames']:
             assert_pointer(frame)
         # Cue identity is frame-exact even though the public time display is throttled.
-        early = [frame for frame in observed['frames'] if frame['cue'] == 'cursor.travel.earth.metric']
+        early = [frame for frame in observed['frames'] if frame['cue'] == 'cursor.travel.earth.zoom-in']
         self.assertGreater(len(early), 2, observed)
         self.assertGreater(max(distance(early[0], frame) for frame in early), 5,
                            'The live cursor waited for the 700 ms arrival cue.')
+        self.assertGreater(max(frame['camera']['scale'] for frame in early)-min(frame['camera']['scale'] for frame in early), .03,
+                           'The camera must already be zooming while the cursor moves to the zoom control.')
         frames = []
         for at in [7, 7.15, 7.35, 7.55, 7.69, 7.7, 8, 7.35]:
             self.seek(at)
             self.assert_tutorial_healthy()
             frame = self.page.evaluate('readEarthCursor()')
-            self.assertEqual(frame['scene'], 'earth.metric', frame)
+            self.assertEqual(frame['scene'], 'earth.zoom-in', frame)
             self.assertEqual(frame['status'], 'paused', frame)
             self.assertAlmostEqual(frame['timeMs'], at*1000, delta=.01)
             assert_pointer(frame)
@@ -333,7 +339,7 @@ class EarthDemoTests(EarthAssertions, StudioTests):
         self.assertLess(distance(frames[2], frames[-1]), .2)
         self.assertEqual(self.earth_state(), state)
         self.assertEqual(self.pixels(), pixels)
-        self.assertTrue(self.page.locator('#earth-progress').text_content().startswith('1 / 6'))
+        self.assertTrue(self.page.locator('#earth-progress').text_content().startswith('1 / 8'))
         # Watching a visual journey never supplies proof for an unfinished Try gate.
         self.mode('try')
         self.seek(7.35)
@@ -342,24 +348,42 @@ class EarthDemoTests(EarthAssertions, StudioTests):
         self.assertEqual(self.earth_state(), state)
         self.assertEqual(self.pixels(), initial_pixels)
         self.assertEqual(self.page.locator('.earth-coordinates').text_content(), '12° N / 28° E')
-        self.assertTrue(self.page.locator('#earth-progress').text_content().startswith('0 / 6'))
+        self.assertTrue(self.page.locator('#earth-progress').text_content().startswith('0 / 8'))
 
-    def test_default_watch_demonstrates_all_six_controls_with_clocked_clicks_and_fresh_replay(self):
+    def test_default_watch_demonstrates_all_eight_controls_with_clocked_clicks_and_fresh_replay(self):
         self.page.emulate_media(reduced_motion='no-preference')
         self.page.wait_for_function("document.querySelector('#stage').dataset.reducedMotion==='false'")
         self.assertEqual(self.page.locator('#stage').get_attribute('data-mode'), 'watch')
         script = json.loads(self.page.locator('#script-json').text_content())
-        self.assertEqual(sum(scene['durationMs'] for scene in script['scenes']), 42000)
+        self.assertEqual(sum(scene['durationMs'] for scene in script['scenes']), 56000)
         initial_state, initial_pixels = self.earth_state(), self.pixels()
         self.page.evaluate("""()=>{
           window.earthDemoInputs=[];
           for(const type of ['click','input','change','pointerdown','keydown'])
             document.querySelector('#scene').addEventListener(type,event=>
               window.earthDemoInputs.push({type,trusted:event.isTrusted}),true);
+          window.earthDemoCursor={samples:0,failures:[]};
+          function observe(){
+            const stage=document.querySelector('#stage'),record=window.earthDemoCursor;
+            if(stage.dataset.status==='playing'){
+              const viewport=stage.getBoundingClientRect();
+              const nodes=document.querySelectorAll('[data-director-overlay] [data-kind="cursor"]');
+              const cursor=nodes[0],box=cursor?.getBoundingClientRect(),style=cursor?getComputedStyle(cursor):null;
+              record.samples++;
+              const visible=nodes.length===1&&box.width>0&&box.height>0&&style.visibility==='visible'&&Number(style.opacity)>0;
+              const inside=visible&&box.left>=viewport.left-2&&box.right<=viewport.right+2&&box.top>=viewport.top-2&&box.bottom<=viewport.bottom+2;
+              if(!inside&&record.failures.length<10)record.failures.push({scene:stage.dataset.scene,
+                time:Number(document.querySelector('#seek').value),count:nodes.length,visible,inside});
+            }
+            if(stage.dataset.status!=='completed')requestAnimationFrame(observe);
+          }
+          requestAnimationFrame(observe);
         }""")
         expected, previous_pixels, start_ms = dict(initial_state), initial_pixels, 0
         changes = [
             ('earth.globe', {}, '16° N / 65° W'),
+            ('earth.zoomIn', {'earthZoom': '1.65'}, '16° N / 65° W'),
+            ('earth.zoomOut', {'earthZoom': '0.8'}, '16° N / 65° W'),
             ('earth.metric', {'earthMetric': 'energy'}, '16° N / 65° W'),
             ('earth.year', {'earthYear': '2025'}, '16° N / 65° W'),
             ('earth.region', {'earthRegion': 'asia'}, '24° N / 105° E'),
@@ -386,13 +410,16 @@ class EarthDemoTests(EarthAssertions, StudioTests):
             self.assertNotEqual(pixels, previous_pixels, scene['id'] + ' must change the drawn globe.')
             previous_pixels = pixels
             self.assert_tutorial_healthy()
-            self.assertTrue(self.page.locator('#earth-progress').text_content().startswith(f'{index+1} / 6'))
+            self.assertTrue(self.page.locator('#earth-progress').text_content().startswith(f'{index+1} / 8'))
             start_ms += scene['durationMs']
         self.page.wait_for_function("document.querySelector('#stage').dataset.status==='completed'", timeout=12000)
-        self.assertEqual(float(self.page.locator('#seek').input_value()), 42)
-        self.assertEqual(self.page.locator('#chapter-strip [data-complete="true"]').count(), 6)
+        self.assertEqual(float(self.page.locator('#seek').input_value()), 56)
+        self.assertEqual(self.page.locator('#chapter-strip [data-complete="true"]').count(), 8)
         self.assertEqual(self.page.evaluate('window.earthDemoInputs'), [],
                          'Automatic actions must call the host adapter without dispatching DOM input.')
+        cursor = self.page.evaluate('window.earthDemoCursor')
+        self.assertGreater(cursor['samples'], 30)
+        self.assertEqual(cursor['failures'], [], 'The cursor must stay visible through every camera shot.')
         self.assertFalse(self.demo_click()['visible'])
         self.assert_tutorial_healthy()
         self.page.screenshot(path=str(self.output / 'earth-demo-watch-completed.png'), full_page=True)
@@ -402,7 +429,7 @@ class EarthDemoTests(EarthAssertions, StudioTests):
         self.page.wait_for_function("Number(document.querySelector('#seek').value)===0 && !document.querySelector('#play').disabled")
         self.assertEqual(self.earth_state(), initial_state)
         self.assertEqual(self.pixels(), initial_pixels)
-        self.assertTrue(self.page.locator('#earth-progress').text_content().startswith('0 / 6'))
+        self.assertTrue(self.page.locator('#earth-progress').text_content().startswith('0 / 8'))
         self.page.locator('#play').click()
         self.wait_for_demo_click('earth.globe')
         self.page.wait_for_function("Number(document.querySelector('#seek').value)>2.6")
@@ -412,7 +439,7 @@ class EarthDemoTests(EarthAssertions, StudioTests):
         self.assertEqual(self.earth_state(), initial_state)
         self.mode('try')
         self.assertEqual(self.pixels(), initial_pixels)
-        self.assertTrue(self.page.locator('#earth-progress').text_content().startswith('0 / 6'))
+        self.assertTrue(self.page.locator('#earth-progress').text_content().startswith('0 / 8'))
         self.seek(40)
         self.assertEqual(self.page.locator('#stage').get_attribute('data-scene'), 'earth.overview')
         self.assertEqual(self.pixels(), initial_pixels)
@@ -448,6 +475,42 @@ class EarthDemoTests(EarthAssertions, StudioTests):
         self.assertEqual(self.pixels(), pixels)
         self.assertEqual(self.page.locator('.earth-coordinates').text_content(), coordinates,
                          'A consumed Watch action must not overwrite a later manual change in the same run.')
+        self.assert_tutorial_healthy()
+
+    def test_cinematic_push_in_pullback_and_globe_transition_freeze_with_the_player(self):
+        self.page.emulate_media(reduced_motion='no-preference')
+        self.page.wait_for_function("document.querySelector('#stage').dataset.reducedMotion==='false'")
+        camera = """()=>{
+          const matrix=new DOMMatrix(getComputedStyle(document.querySelector('#scene')).transform);
+          return {scale:matrix.a,x:matrix.e,y:matrix.f};
+        }"""
+        initial_camera = self.page.evaluate(camera)
+        self.page.locator('#play').click()
+        self.page.wait_for_function("Number(document.querySelector('#seek').value)>2.1")
+        close_camera = self.page.evaluate(camera)
+        self.assertGreater(close_camera['scale'], initial_camera['scale']*1.3,
+                           'The authored close-up must visibly magnify the real application.')
+        moving_pixels = self.pixels()
+        self.page.wait_for_timeout(180)
+        self.assertNotEqual(self.pixels(), moving_pixels,
+                            'The globe should turn through intermediate frames, not snap at the action.')
+        self.page.locator('#play').click()
+        self.page.wait_for_function("document.querySelector('#stage').dataset.status==='paused'")
+        paused_pixels, paused_camera = self.pixels(), self.page.evaluate(camera)
+        paused_time, committed = self.page.locator('#seek').input_value(), self.earth_state()
+        self.page.wait_for_timeout(350)
+        self.assertEqual(self.pixels(), paused_pixels, 'A paused Director must freeze the globe too.')
+        self.assertEqual(self.page.evaluate(camera), paused_camera)
+        self.assertEqual(self.page.locator('#seek').input_value(), paused_time)
+        self.assertEqual(self.earth_state(), committed)
+        self.page.screenshot(path=str(self.output / 'earth-demo-cinematic-closeup.png'), full_page=True)
+        self.page.locator('#play').click()
+        self.page.wait_for_function("Number(document.querySelector('#seek').value)>6.75")
+        wide_camera = self.page.evaluate(camera)
+        self.assertLess(wide_camera['scale'], close_camera['scale']*.8,
+                        'Playback must pull back from the close-up before the next checkpoint.')
+        self.assertLess(wide_camera['scale'], 1.1)
+        self.page.locator('#play').click()
         self.assert_tutorial_healthy()
 
     def test_reduced_motion_watch_changes_the_globe_without_a_demo_pulse_and_manual_input_pauses_it(self):
@@ -503,11 +566,13 @@ class EarthDemoTests(EarthAssertions, StudioTests):
             self.page.wait_for_function("document.querySelectorAll('.earth-click-feedback[data-source=manual]').length===0", timeout=2000)
         self.assert_tutorial_healthy()
 
-    def test_all_six_try_checkpoints_require_real_controls_and_change_globe_pixels(self):
+    def test_all_eight_try_checkpoints_require_real_controls_and_change_globe_pixels(self):
         self.mode('try')
         self.assert_tutorial_healthy()
         actions = [
             ('earth.overview', lambda: self.page.locator('canvas.earth-globe').press('ArrowRight')),
+            ('earth.zoom-in', lambda: self.page.locator('[data-earth-zoom="in"]').click()),
+            ('earth.zoom-out', lambda: self.page.locator('[data-earth-zoom="out"]').click()),
             ('earth.metric', lambda: self.page.locator('button[data-earth-metric="energy"]').click()),
             ('earth.year', self.change_year),
             ('earth.region', lambda: self.page.locator('.earth-region').select_option('asia')),
@@ -520,7 +585,7 @@ class EarthDemoTests(EarthAssertions, StudioTests):
             self.assert_globe_changed(action)
             self.page.wait_for_function("document.querySelector('#stage').dataset.state!=='waiting'")
             self.assert_tutorial_healthy()
-            self.assertEqual(self.page.locator('#earth-progress').text_content(), f'{index+1} / 6 controls explored')
+            self.assertEqual(self.page.locator('#earth-progress').text_content(), f'{index+1} / 8 controls explored')
         state, pixels = self.earth_state(), self.pixels()
         self.page.locator('#restart').click()
         self.assert_tutorial_healthy()
@@ -535,13 +600,13 @@ class EarthDemoTests(EarthAssertions, StudioTests):
         self.assert_tutorial_healthy()
         self.page.locator('#play').click()
         self.page.locator('#earth-reset').click()
-        self.page.wait_for_function("document.querySelector('#earth-progress').textContent.startsWith('0 / 6')")
+        self.page.wait_for_function("document.querySelector('#earth-progress').textContent.startsWith('0 / 8')")
         self.page.wait_for_function("!document.querySelector('#earth-reset').disabled")
         self.assertNotEqual(self.page.locator('#stage').get_attribute('data-status'), 'error')
         self.assertEqual(self.page.locator('#toast').text_content(), 'Practice reset. Start again whenever you are ready.')
         self.assertEqual(self.earth_state(), {
             'earthMetric': 'population', 'earthYear': '2000', 'earthRegion': 'world',
-            'earthConnections': 'false', 'earthNight': 'false'})
+            'earthConnections': 'false', 'earthNight': 'false', 'earthZoom': '1'})
 
     def test_guide_waits_at_the_scene_boundary_and_modes_keep_their_own_globe(self):
         self.mode('guide')
@@ -553,20 +618,20 @@ class EarthDemoTests(EarthAssertions, StudioTests):
         self.page.locator('#next-step').wait_for(state='visible')
         self.assertEqual(self.page.locator('#stage').get_attribute('data-scene'), 'earth.overview')
         self.page.locator('#next-step').click()
-        self.page.wait_for_function("document.querySelector('#stage').dataset.scene==='earth.metric'")
+        self.page.wait_for_function("document.querySelector('#stage').dataset.scene==='earth.zoom-in'")
         self.page.locator('button[data-earth-metric="energy"]').click()
         self.mode('watch')
         self.assertEqual(self.earth_state()['earthMetric'], 'population')
         self.mode('guide')
         self.assertEqual(self.earth_state()['earthMetric'], 'energy')
 
-    def test_canonical_earth_export_and_transcript_contain_all_six_controls_without_audio(self):
+    def test_canonical_earth_export_and_transcript_contain_all_eight_controls_without_audio(self):
         self.page.locator('#script-open').click()
         script = json.loads(self.page.locator('#script-json').inner_text())
         self.assertEqual(script['schemaVersion'], '0.1.0-draft.1')
         self.assertEqual(script['id'], 'earth-statistics')
         self.assertEqual(script['assets'], {})
-        self.assertEqual(len(script['scenes']), 6)
+        self.assertEqual(len(script['scenes']), 8)
         self.assertTrue(all(any(cue['kind']=='gate' for cue in scene['cues']) for scene in script['scenes']))
         for scene in script['scenes']:
             actions = [cue for cue in scene['cues'] if cue['kind'] == 'action']
@@ -578,7 +643,7 @@ class EarthDemoTests(EarthAssertions, StudioTests):
         self.page.keyboard.press('Escape')
         self.assertTrue(self.page.locator('#script-open').evaluate('el=>el===document.activeElement'))
         self.page.locator('#transcript-toggle').click()
-        self.assertEqual(self.page.locator('#transcript button').count(), 6)
+        self.assertEqual(self.page.locator('#transcript button').count(), 8)
 
     def test_unfinished_checkpoint_cannot_be_skipped_and_seek_never_changes_earth(self):
         state, pixels = self.earth_state(), self.pixels()
@@ -594,7 +659,7 @@ class EarthDemoTests(EarthAssertions, StudioTests):
             self.assertLessEqual(float(self.page.locator('#seek').input_value()), 1.8)
             self.assertEqual(self.earth_state(), state)
             self.assertEqual(self.pixels(), pixels)
-        self.assertTrue(self.page.locator('#earth-progress').text_content().startswith('0 / 6'))
+        self.assertTrue(self.page.locator('#earth-progress').text_content().startswith('0 / 8'))
 
     def test_real_globe_drag_and_explicit_reset_change_only_the_demo(self):
         self.page.locator('#takeover').click()
@@ -612,7 +677,7 @@ class EarthDemoTests(EarthAssertions, StudioTests):
         self.page.locator('.earth-reset').click()
         self.assertEqual(self.earth_state(), {
             'earthMetric': 'population', 'earthYear': '2000', 'earthRegion': 'world',
-            'earthConnections': 'false', 'earthNight': 'false'})
+            'earthConnections': 'false', 'earthNight': 'false', 'earthZoom': '1'})
         self.assertEqual(self.pixels(), before)
 
     def test_mobile_reduced_motion_has_keyboard_controls_captions_and_exit(self):
@@ -623,6 +688,18 @@ class EarthDemoTests(EarthAssertions, StudioTests):
         self.assertFalse(self.page.locator('#caption').is_hidden())
         self.assertEqual(self.page.locator('#stage').get_attribute('data-reduced-motion'), 'true')
         self.assert_globe_changed(lambda: self.page.locator('canvas.earth-globe').press('ArrowRight'))
+        self.gate('earth.zoom-in')
+        self.assert_globe_changed(lambda: self.page.locator('[data-earth-zoom="in"]').press('Enter'))
+        self.gate('earth.zoom-out')
+        self.assert_globe_changed(lambda: self.page.locator('canvas.earth-globe').press('-'))
+        for direction in ['in', 'out']:
+            button = self.page.locator('[data-earth-zoom="'+direction+'"]')
+            box = button.bounding_box()
+            self.assertGreaterEqual(box['width'], 38)
+            self.assertGreaterEqual(box['height'], 38)
+            self.assertTrue(button.is_visible())
+        self.assertEqual(self.earth_state()['earthZoom'], '1')
+        self.assertEqual(self.page.locator('#earth-progress').text_content(), '3 / 8 controls explored')
         self.page.screenshot(path=str(self.output / 'earth-demo-mobile.png'), full_page=True)
         self.page.locator('#exit-tour').click()
         self.assertNotEqual(self.page.locator('#stage').get_attribute('data-state'), 'playing')
@@ -672,7 +749,7 @@ class EarthDemoTests(EarthAssertions, StudioTests):
         self.assertTrue(result['unchanged'])
         self.assertEqual(result['bounded']['year'], 2025)
         self.assertEqual(result['bounded']['tilt'], 65)
-        self.assertEqual(result['bounded']['zoom'], 1.35)
+        self.assertEqual(result['bounded']['zoom'], 1.75)
         self.assertGreaterEqual(result['bounded']['rotation'], -180)
         self.assertLess(result['bounded']['rotation'], 180)
         for flag in ['resets', 'inert', 'destroyed']:
@@ -730,6 +807,40 @@ class EarthDemoTests(EarthAssertions, StudioTests):
         for flag in ['retained', 'frozen', 'ended', 'cleared', 'pure', 'inert', 'destroyed']:
             self.assertTrue(result[flag], flag)
         self.assertEqual(result['calls'], [])
+        self.assertEqual(result['events'], [])
+
+    def test_presentation_frames_change_only_pixels_and_stay_frozen_without_a_clock_tick(self):
+        result = self.page.evaluate("""async()=>{
+          const {createEarthApp}=await import('./earth.mjs');
+          const pixels=""" + PIXELS + """;
+          const root=document.createElement('div');document.body.append(root);
+          const events=[],app=createEarthApp({root,interactive:false,onChange:(_state,event)=>events.push(event)});
+          app.setReducedMotion(false);
+          const from=app.getState(),to={...from,rotation:-65,tilt:16,zoom:1.65,year:2025};
+          app.setState(to,{animate:false});
+          const committed=JSON.stringify(app.getState()),canvas=root.querySelector('canvas');
+          const finalPixels=pixels(canvas),labels=root.innerText;
+          app.setPresentationFrame({from,to,progress:.25});const quarter=pixels(canvas);
+          app.setPresentationFrame({from,to,progress:.75});const threeQuarters=pixels(canvas);
+          await new Promise(resolve=>setTimeout(resolve,120));
+          const frozen=pixels(canvas)===threeQuarters;
+          const observer=new MutationObserver(()=>{});observer.observe(root,{subtree:true,attributes:true,childList:true,characterData:true});
+          app.setPresentationFrame({from,to,progress:.75});app.setPresentationFrame({from,to,progress:.75});
+          const mutations=observer.takeRecords().length;observer.disconnect();
+          const pure=JSON.stringify(app.getState())===committed&&root.innerText===labels;
+          app.setPresentationFrame(null);const cleared=pixels(canvas)===finalPixels;
+          app.setReducedMotion(true);app.setPresentationFrame({from,to,progress:.25});
+          const reduced=pixels(canvas)===finalPixels;
+          const idle=root.dataset.earthRendering==='false';
+          app.destroy();root.remove();
+          return {quarter,threeQuarters,finalPixels,frozen,mutations,pure,cleared,reduced,idle,events};
+        }""")
+        self.assertNotEqual(result['quarter'], result['threeQuarters'])
+        self.assertNotEqual(result['quarter'], result['finalPixels'])
+        self.assertNotEqual(result['threeQuarters'], result['finalPixels'])
+        for flag in ['frozen', 'pure', 'cleared', 'reduced', 'idle']:
+            self.assertTrue(result[flag], flag)
+        self.assertEqual(result['mutations'], 0)
         self.assertEqual(result['events'], [])
 
 

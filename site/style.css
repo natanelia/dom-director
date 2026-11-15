@@ -9,7 +9,16 @@
 .earth-demo .earth-coach button:disabled{opacity:.5}
 .earth-demo .earth-tutorial-target{outline:2px solid #8cebd2;outline-offset:4px}
 .earth-demo .chapter-button[data-complete=true] .chapter-no::after{content:'  ✓'}
+.earth-demo .chapter-strip{grid-template-columns:repeat(8,minmax(0,1fr));gap:14px}
+.earth-demo .chapter-button strong{line-height:1.5}
+.earth-demo .theater{border-color:#2c444b;box-shadow:0 28px 70px -30px #06202d88}
+.earth-demo .theater-bar{background:#0e1d26;color:#d4e4e5}
+.earth-demo .theater-actions button{color:#c0d6dd}
+.earth-demo .caption{background:#0a1b25;border-color:#314551}
+.earth-demo .earth-coach{background:#0c1d27}
+.earth-demo #sdk-overlay{--director-accent:#8df2dd}
 .earth-demo .transport [hidden]{display:none!important}
+@media(max-width:900px){.earth-demo .chapter-strip{grid-template-columns:repeat(8,135px);overflow-x:auto;padding-bottom:10px;scroll-snap-type:x proximity}.earth-demo .chapter-button{scroll-snap-align:start}}
 @media(max-width:700px){.sdk-site.earth-demo .stage,.sdk-site.earth-demo .scene{height:900px}.earth-demo .earth-coach{padding:16px;align-items:flex-start;flex-direction:column;gap:12px}.earth-demo .shortcuts{display:none}}
 .sdk-site .stage{height:600px;aspect-ratio:auto;max-height:none}
 .sdk-site .scene{width:100%;height:600px}

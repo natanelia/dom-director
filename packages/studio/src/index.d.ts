@@ -30,9 +30,9 @@ export type Validation={ok:true;value:Project}|{ok:false;diagnostics:ReadonlyArr
 export function validateProject(input:unknown):Validation;
 export function requireProject(input:unknown):Project;
 export function createSample():Project;
-/** A caption-first six-checkpoint Earth statistics story, with no prepared audio. */
+/** A caption-first eight-checkpoint Earth statistics story, with no prepared audio. */
 export function createEarthSample():Project;
-export interface EarthCheckpoint {id:string;title:string;target:string;control:string;durationMs:number;text:string;instruction:string;}
+export interface EarthCheckpoint {id:string;title:string;target:string;control:string;durationMs:number;text:string;instruction:string;shots:ReadonlyArray<Readonly<{atMs:number;durationMs:number;target:string}>>;}
 export const EARTH_CHECKPOINTS:ReadonlyArray<Readonly<EarthCheckpoint>>;
 export function sceneTimeline(project:Project):Array<DeepReadonly<Scene>&{startMs:number;endMs:number}>;
 export function duration(project:Project):number;
