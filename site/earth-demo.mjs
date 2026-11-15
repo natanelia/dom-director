@@ -66,6 +66,17 @@ const earth=createEarthApp({root:$('scene'),interactive:true,onChange:(state,eve
   notify();render(true);
 }});
 const initial=earth.getState();
+// Taking hold of a control pauses Watch before a value changes. A native menu
+// or an already-selected button must not keep moving underneath the visitor.
+function beginManualInput(event){
+  if(!director||modeName()!=='watch'||!event.isTrusted)return;
+  if(event.type==='pointerdown'&&event.button!==0)return;
+  if(event.type==='keydown'&&!['Enter',' ','ArrowLeft','ArrowRight','ArrowUp','ArrowDown','Home','End','+','=','-'].includes(event.key))return;
+  if(!event.target.closest?.('button,input,select,canvas'))return;
+  clearGlobeTransition();pause();
+}
+on($('scene'),'pointerdown',beginManualInput,true);
+on($('scene'),'keydown',beginManualInput,true);
 const fresh=revision=>({state:{...initial},completed:new Set(),revision});
 models=Object.fromEntries(['watch','try','guide'].map(mode=>[mode,fresh(0)]));
 const conditions=Object.fromEntries(steps.map(step=>[step.id,{

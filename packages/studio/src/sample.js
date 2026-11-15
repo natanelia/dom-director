@@ -6,8 +6,8 @@ function earthShots(control){
   // The zoom pair carries its close framing across the cut, then eases back
   // enough to reveal Zoom out before pulling out to the whole application.
   if(control==='orbit')return Object.freeze([shot(0,1600,'planet'),shot(4000,2200,'overview')]);
-  if(control==='zoomIn')return Object.freeze([shot(0,1400,'globe'),shot(2600,2200,'planet')]);
-  if(control==='zoomOut')return Object.freeze([shot(0,1400,'globe'),shot(2600,2800,'overview')]);
+  if(control==='zoomIn')return Object.freeze([shot(0,1400,'globeFrame'),shot(2600,2200,'planet')]);
+  if(control==='zoomOut')return Object.freeze([shot(0,1400,'globeFrame'),shot(2600,2800,'overview')]);
   if(control==='region')return Object.freeze([shot(0,1500,'detail'),shot(2600,2400,'planet')]);
   return Object.freeze([shot(0,1500,'detail'),shot(2600,1800,'planet'),shot(5000,1800,'overview')]);
 }

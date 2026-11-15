@@ -116,7 +116,7 @@ test('Earth moves its cursor with the camera and keeps the real control visible 
 test('Earth authored geometry actually zooms in, travels to the result, and pulls back',()=>{
   const result=compile(createEarthTour(EARTH_CHECKPOINTS));assert.equal(result.ok,true);
   const bounds=Object.fromEntries(Object.entries({
-    overview:{x:0,y:0,width:960,height:540},globe:{x:18,y:69,width:650,height:425},
+    overview:{x:0,y:0,width:960,height:540},globe:{x:18,y:69,width:650,height:425},globeFrame:{x:18,y:69,width:650,height:425},
     planet:{x:105.6,y:91.8,width:518.4,height:334.8},detail:{x:403.2,y:102.6,width:489.6,height:313.2},
     zoomIn:{x:566,y:320,width:79,height:36},zoomOut:{x:566,y:380,width:79,height:36},
     metric:{x:702,y:118,width:226,height:64},year:{x:702,y:197,width:226,height:54},
@@ -145,4 +145,37 @@ test('Earth authored geometry actually zooms in, travels to the result, and pull
   const reduced=sampleVisual(result.plan.scenes['earth.metric'],1800,bounds,safe,{reduced:true});
   assert.deepEqual(reduced.camera,{x:0,y:0,scale:1});
   assert.ok(reduced.overlays.every(cue=>cue.kind!=='cursor'));
+});
+
+test('portrait Earth shots fill the aperture and keep zoom and practice controls reachable',()=>{
+  const result=compile(createEarthTour(EARTH_CHECKPOINTS));assert.equal(result.ok,true);
+  const width=350,height=900,safe={x:0,y:0,width,height};
+  const bounds=Object.fromEntries(Object.entries({
+    overview:{x:0,y:0,width,height},globe:{x:12,y:66,width:326,height:355},
+    planet:{x:width*.28,y:height*.13,width:width*.44,height:height*.27},
+    globeFrame:{x:width*.48,y:height*.13,width:width*.44,height:height*.27},
+    detail:{x:24,y:24,width:width-48,height:height-48},
+    zoomIn:{x:247,y:203,width:76,height:40},zoomOut:{x:247,y:267,width:76,height:40},
+    metric:{x:27,y:475,width:296,height:80},year:{x:27,y:585,width:142,height:80},
+    region:{x:181,y:585,width:142,height:80},connections:{x:27,y:675,width:142,height:40},lighting:{x:181,y:675,width:142,height:40},
+  }).map(([id,rect])=>[id,{rect,space:'scene'}]));
+  const covers=(pose,label)=>{
+    assert.ok(pose.x<=.001&&pose.y<=.001,label+' must not expose empty space above or left of the scene.');
+    assert.ok(pose.x+width*pose.scale>=width-.001&&pose.y+height*pose.scale>=height-.001,label+' must not expose empty space below or right of the scene.');
+  };
+  let initial={x:0,y:0,scale:1};
+  for(const step of EARTH_CHECKPOINTS){
+    const scene=result.plan.scenes[step.id],sample=time=>sampleVisual(scene,time,bounds,safe,{initial}).camera;
+    for(const shot of step.shots)covers(sample(shot.atMs+shot.durationMs),step.id+' '+shot.target);
+    const control=sample(1800),target=bounds[step.target.split('.')[1]].rect;
+    if(step.control==='orbit')assert.ok(control.scale>1.8,'The portrait globe shot must visibly zoom in.');
+    if(['zoomIn','zoomOut'].includes(step.control)){
+      assert.ok(control.scale>1.8);
+      assert.ok(control.x+target.x*control.scale>=0&&control.y+target.y*control.scale>=0);
+      assert.ok(control.x+(target.x+target.width)*control.scale<=width&&control.y+(target.y+target.height)*control.scale<=height,'The complete actual zoom button must fit inside the shot.');
+    }else if(step.control!=='orbit'){
+      assert.deepEqual(control,{x:0,y:0,scale:1},'Practice controls retain their native overview instead of centering a lower card into blank space.');
+    }
+    initial=sample(7000);
+  }
 });

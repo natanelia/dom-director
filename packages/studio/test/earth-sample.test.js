@@ -5,6 +5,7 @@ import {createEarthSample, createSample, createEvaluator, validateProject, scene
 const bounds={
   'earth.overview':{x:0,y:0,width:960,height:540},
   'earth.globe':{x:24,y:58,width:610,height:430},
+  'earth.globeFrame':{x:18,y:69,width:650,height:425},
   'earth.planet':{x:105.6,y:91.8,width:518.4,height:334.8},
   'earth.detail':{x:403.2,y:102.6,width:489.6,height:313.2},
   'earth.zoomIn':{x:566,y:320,width:79,height:36},

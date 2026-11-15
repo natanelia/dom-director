@@ -16,7 +16,7 @@ export function withEasing(script,value) {
 
 /** Canonical caption-first tutorial data; application behavior stays in the host. */
 export function createEarthTour(steps){
-const targets=Object.fromEntries(['overview','globe','planet','detail','zoomIn','zoomOut','metric','year','region','connections','lighting'].map(key=>[key,{ref:'earth.'+key}]));
+const targets=Object.fromEntries(['overview','globe','globeFrame','planet','detail','zoomIn','zoomOut','metric','year','region','connections','lighting'].map(key=>[key,{ref:'earth.'+key}]));
 return {
   schemaVersion:'0.1.0-draft.1',id:'earth-statistics',title:'Earth · a world you can change',locale:'en',
   entryScene:steps[0].id,modes:['watch','try','guide'],
@@ -26,7 +26,7 @@ return {
     id:step.id,title:step.title,summary:step.text,durationMs:step.durationMs,
     narration:{transcript:step.text,cues:[{id:'speech.'+step.id,startMs:0,endMs:step.durationMs,text:step.text}]},
     cues:[
-      ...step.shots.map((shot,shotIndex)=>({id:'camera.'+step.id+(shotIndex?'.'+shotIndex:''),kind:'camera',at:shot.atMs,durationMs:shot.durationMs,target:shot.target.split('.')[1],minScale:0.1,maxScale:2.2,paddingPx:24})),
+      ...step.shots.map((shot,shotIndex)=>({id:'camera.'+step.id+(shotIndex?'.'+shotIndex:''),kind:'camera',at:shot.atMs,durationMs:shot.durationMs,target:shot.target.split('.')[1],minScale:0.1,maxScale:2.2,paddingPx:shot.target==='earth.overview'?0:24})),
       {id:'cursor.travel.'+step.id,kind:'cursor',at:0,durationMs:700,target:step.target.split('.')[1],gesture:'point'},
       {id:'focus.'+step.id,kind:'highlight',at:700,durationMs:1900,target:step.target.split('.')[1],style:'outline'},
       {id:'cursor.'+step.id,kind:'cursor',at:700,durationMs:1900,target:step.target.split('.')[1],gesture:'point'},

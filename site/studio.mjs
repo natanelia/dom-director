@@ -10,7 +10,7 @@ import {linkKeyframeToCaptionWord,detachTimingLink,detachCaptionTimingLinks,desc
 const $=id=>document.getElementById(id),copy=value=>JSON.parse(JSON.stringify(value)),seconds=ms=>(ms/1000).toFixed(2);
 const clock=ms=>{const n=Math.max(0,ms);return String(Math.floor(n/60000)).padStart(2,'0')+':'+(n/1000%60).toFixed(2).padStart(5,'0');};
 const names={camera:'Camera',cursor:'Cursor',voice:'Voiceover',captions:'Closed captions'};
-const earthTargets=[['earth.overview','Earth workspace'],['earth.globe','3D Earth'],['earth.planet','Planet close-up'],['earth.detail','Control close-up'],['earth.zoomIn','Zoom in'],['earth.zoomOut','Zoom out'],['earth.metric','Statistic layers'],['earth.year','Year slider'],['earth.region','Region focus'],['earth.connections','Connections'],['earth.lighting','Day and night'],['earth.reset','Reset view']].map(([id,label])=>({id,label}));
+const earthTargets=[['earth.overview','Earth workspace'],['earth.globe','3D Earth'],['earth.globeFrame','Globe and zoom controls'],['earth.planet','Planet close-up'],['earth.detail','Control close-up'],['earth.zoomIn','Zoom in'],['earth.zoomOut','Zoom out'],['earth.metric','Statistic layers'],['earth.year','Year slider'],['earth.region','Region focus'],['earth.connections','Connections'],['earth.lighting','Day and night'],['earth.reset','Reset view']].map(([id,label])=>({id,label}));
 const samples=new Set(['voice.overview','voice.signal','voice.story']);
 const orbitMarkup=$('scene').innerHTML,orbitClass=$('scene').className;
 const initialProject=new URLSearchParams(location.search).get('example')==='orbit'?createSample():createEarthSample();

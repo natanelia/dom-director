@@ -406,7 +406,11 @@ class EarthDemoTests(EarthAssertions, StudioTests):
             self.assertAlmostEqual(click['width'], 14 + 56 * click['progress'], delta=.1)
             self.assertAlmostEqual(click['opacity'], 1 - click['progress'], delta=.01)
             self.assertTrue(all(math.isfinite(value) for value in click['point'].values()), click)
-            pixels = self.pixels()
+            # A click can be observed on the action's zero-progress frame. Wait
+            # for an actual rendered change within this scene's bounded transition.
+            pixels = self.page.wait_for_function(
+                'previous=>{const value=(' + PIXELS + ')(document.querySelector("canvas.earth-globe"));return value!==previous?{pixels:value}:false;}',
+                arg=previous_pixels, timeout=2100).json_value()['pixels']
             self.assertNotEqual(pixels, previous_pixels, scene['id'] + ' must change the drawn globe.')
             previous_pixels = pixels
             self.assert_tutorial_healthy()
@@ -528,6 +532,23 @@ class EarthDemoTests(EarthAssertions, StudioTests):
         self.assertFalse(self.demo_click()['visible'])
         self.assertEqual(self.earth_state(), state)
         self.assertEqual(self.pixels(), pixels)
+        self.assert_tutorial_healthy()
+
+    def test_same_value_manual_control_takes_over_watch_without_completing_a_checkpoint(self):
+        initial, pixels = self.earth_state(), self.pixels()
+        selected = self.page.locator('button[data-earth-metric="population"]')
+        self.assertEqual(selected.get_attribute('aria-pressed'), 'true')
+        self.page.locator('#play').click()
+        self.page.wait_for_function("Number(document.querySelector('#seek').value)>.25")
+        selected.click()
+        self.page.wait_for_function("document.querySelector('#stage').dataset.status==='paused'")
+        position = self.page.locator('#seek').input_value()
+        self.assertLess(float(position), 1.8, 'Manual input must stop the tour before its automatic action.')
+        self.page.wait_for_timeout(200)
+        self.assertEqual(self.page.locator('#seek').input_value(), position)
+        self.assertEqual(self.earth_state(), initial)
+        self.assertEqual(self.pixels(), pixels)
+        self.assertEqual(self.page.locator('#earth-progress').text_content(), '0 / 8 controls demonstrated')
         self.assert_tutorial_healthy()
 
     def test_manual_pointer_and_keyboard_click_feedback_is_bounded_and_respects_motion_preference(self):
@@ -703,6 +724,48 @@ class EarthDemoTests(EarthAssertions, StudioTests):
         self.page.screenshot(path=str(self.output / 'earth-demo-mobile.png'), full_page=True)
         self.page.locator('#exit-tour').click()
         self.assertNotEqual(self.page.locator('#stage').get_attribute('data-state'), 'playing')
+
+    def test_mobile_cinematic_framing_fills_the_stage_and_keeps_zoom_controls_visible(self):
+        self.page.set_viewport_size({'width': 390, 'height': 844})
+        self.page.emulate_media(reduced_motion='no-preference')
+        self.page.wait_for_function("document.querySelector('#stage').dataset.reducedMotion==='false'")
+        geometry = """()=>{
+          const stage=document.querySelector('#stage'),scene=document.querySelector('#scene');
+          const rectangle=element=>{const r=element.getBoundingClientRect();return {left:r.left,right:r.right,top:r.top,bottom:r.bottom};};
+          const matrix=new DOMMatrix(getComputedStyle(scene).transform);
+          return {scale:matrix.a,stage:rectangle(stage),scene:rectangle(scene),
+            zoom:rectangle(document.querySelector('[data-earth-zoom="in"]'))};
+        }"""
+        self.page.locator('#play').click()
+        self.page.wait_for_function("Number(document.querySelector('#seek').value)>=1.65 && document.querySelector('#stage').dataset.scene==='earth.overview'")
+        opening = self.page.evaluate(geometry)
+        self.assertGreater(opening['scale'], 1.5, 'Mobile playback must visibly push into the planet.')
+        for edge in ['left', 'top']:
+            self.assertLessEqual(opening['scene'][edge], opening['stage'][edge]+2, opening)
+        for edge in ['right', 'bottom']:
+            self.assertGreaterEqual(opening['scene'][edge], opening['stage'][edge]-2, opening)
+        self.assertFalse(self.page.evaluate('document.documentElement.scrollWidth>innerWidth'))
+        # Resolve the first host action through playback before seeking to the
+        # next control's completed close-up, just before its own action barrier.
+        self.page.wait_for_function("Number(document.querySelector('#seek').value)>2.1 && document.querySelector('#earth-progress').textContent.startsWith('1 / 8')")
+        self.page.locator('#play').click()
+        self.page.locator('#stage').screenshot(path=str(self.output / 'earth-demo-mobile-cinematic-planet.png'))
+        self.seek(8.6)
+        self.assertEqual(self.page.locator('#stage').get_attribute('data-scene'), 'earth.zoom-in')
+        self.assertEqual(self.page.locator('#stage').get_attribute('data-status'), 'paused')
+        focus = self.page.evaluate(geometry)
+        self.assertGreater(focus['scale'], 1.5)
+        for edge in ['left', 'top']:
+            self.assertGreaterEqual(focus['zoom'][edge], focus['stage'][edge]-2, focus)
+        for edge in ['right', 'bottom']:
+            self.assertLessEqual(focus['zoom'][edge], focus['stage'][edge]+2, focus)
+        self.assertEqual(self.earth_state()['earthZoom'], '1', 'Seeking to a zoom control must not activate it.')
+        self.page.locator('#stage').screenshot(path=str(self.output / 'earth-demo-mobile-cinematic-zoom-control.png'))
+        self.page.locator('#play').click()
+        self.page.wait_for_function("document.querySelector('.earth-app').dataset.earthZoom==='1.65' && Number(document.querySelector('#seek').value)>9")
+        self.page.locator('#play').click()
+        self.assertTrue(self.page.locator('#earth-progress').text_content().startswith('2 / 8'))
+        self.assert_tutorial_healthy()
 
     def test_empty_viewport_pauses_cleanly_and_resumes_after_layout_recovers(self):
         self.mode('try')

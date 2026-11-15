@@ -303,7 +303,7 @@ class VideoBrowserTests(unittest.TestCase):
         self.assertIsNone(report['audioCodec'])
         self.assertIsNone(report['audio'])
         self.assertEqual(frames[0][1]['sceneId'], 'earth.overview')
-        self.assertEqual(frames[11][1]['sceneId'], 'earth.metric')
+        self.assertEqual(frames[11][1]['sceneId'], 'earth.zoom-in')
         self.assertEqual(path.read_bytes(), before)
         parity = []
         for index, (png, frame) in frames.items():

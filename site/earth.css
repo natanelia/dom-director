@@ -29,9 +29,14 @@
 
 /* Composition targets have bounds but neither pixels nor interactive behavior. */
 .earth-shot-frame{position:absolute;pointer-events:none;border:0;padding:0;margin:0}
+.earth-globe-frame{left:18px;top:69px;width:calc(100% - 310px);height:425px}
 .earth-planet-frame{left:11%;top:17%;width:54%;height:62%}
 .earth-detail-frame{left:42%;top:19%;width:51%;height:58%}
 @media(max-width:700px){
- .earth-live .earth-planet-frame{left:8%;top:13%;width:84%;height:27%}
- .earth-live .earth-detail-frame{left:7%;top:49%;width:86%;height:43%}
+ /* A narrow portrait crop can fill the tall aperture without translating the
+    entire native app into empty space. The zoom shot includes its real buttons. */
+ .earth-live .earth-planet-frame{left:28%;top:13%;width:44%;height:27%}
+ .earth-live .earth-globe-frame{left:48%;top:13%;width:44%;height:27%}
+ /* 24px framing padding around these inset bounds restores the native view. */
+ .earth-live .earth-detail-frame{inset:24px;width:auto;height:auto}
 }

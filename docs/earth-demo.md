@@ -62,6 +62,11 @@ shots shared with Studio through `EARTH_CHECKPOINTS.shots`. Dedicated `planet`
 and `detail` framing targets give the camera smaller areas to frame; raising a
 maximum zoom while still framing the whole application would not create a zoom.
 The cursor travels alongside these pans and stays visible during the wider reveals.
+The `globeFrame` camera target is separate from the interactive globe target, so
+phone shots can frame the zoom controls without changing what a cursor or gate
+refers to. On narrow screens, the planet and zoom shots use portrait crops that
+keep the scene covering the stage. The controls use a wider view at their native
+size, and Try retains the stacked mobile layout.
 
 The two zoom checkpoints also change the **globe's own zoom**: 100% to 165%, then
 back to 80%. Manual controls display the current percentage and allow 65–175%.
@@ -76,6 +81,8 @@ speed affects both. A completed transition releases its sample. Explicit seeking
 takeover, mode changes, reset and exit settle any active transition to the committed
 view. Seeking never reconstructs old globe settings or replays a demonstration.
 Real input clears the presentation sample before changing the application.
+Watch pauses as soon as a visitor presses a control, including opening a native
+menu or clicking the already-selected layer; no value change is required.
 
 This story is caption-first. It does not reuse the unrelated Orbit narration.
 Studio's eight voice clips have text and no audio asset, ready for an explicitly
