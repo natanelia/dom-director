@@ -201,7 +201,14 @@ async function chooseMode(mode){
   });
   started=true;render(true);
 }
-function begin(){if(modeName()==='watch'?!replayWatch():!seek(0))return;$('experience').scrollIntoView({behavior:director.inspect().reducedMotion?'auto':'smooth',block:'start'});play();}
+function begin(){
+  if(busy||disposed)return;
+  // Position the theater before preparing the first shot. A simultaneous page
+  // scroll can move the stage before the fixed cursor gets its next frame.
+  $('experience').scrollIntoView({behavior:'instant',block:'start'});
+  if(modeName()==='watch'?!replayWatch():!seek(0))return;
+  play();
+}
 on($('play'),'click',()=>isPlaying()?pause():play());
 for(const id of ['hero-play','footer-play','stage-play'])on($(id),'click',begin);
 on($('restart'),'click',()=>modeName()==='watch'?replayWatch():seek(0));
