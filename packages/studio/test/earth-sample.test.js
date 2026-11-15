@@ -32,11 +32,30 @@ test('each Earth checkpoint points to the actual control its caption teaches',()
   for(const [index,scene] of project.scenes.entries()){
     const clip=cursor.clips.find(clip=>clip.sceneId===scene.id);
     assert.equal(clip.keys.at(-1).target,expected[index]);
-    assert.deepEqual(clip.gestures,[],'The instructional pointer does not pretend to activate the app');
     const caption=project.tracks.find(track=>track.kind==='captions').clips.find(clip=>clip.sceneId===scene.id);
     assert.ok(caption.text.length>40);
     assert.equal(caption.durationMs,scene.durationMs);
     assert.equal(project.tracks.find(track=>track.kind==='voice').clips.find(clip=>clip.sceneId===scene.id).script,caption.text);
+  }
+});
+
+test('all six Earth clicks start after landing and follow exact presentation time',()=>{
+  const project=createEarthSample(),evaluator=createEvaluator(project),cursor=project.tracks.find(track=>track.kind==='cursor');
+  assert.equal(cursor.clips.flatMap(clip=>clip.gestures).length,6);
+  for(const scene of sceneTimeline(project)){
+    const clip=cursor.clips.find(clip=>clip.sceneId===scene.id),gesture=clip.gestures[0];
+    assert.deepEqual(clip.gestures.map(value=>({...value})),[{id:'click.'+scene.id,atMs:1800,kind:'click'}]);
+    assert.ok(clip.keys.every(key=>key.atMs<gesture.atMs),'The pointer lands before click feedback starts');
+    const sample=at=>evaluator.sample(scene.startMs+at,bounds).cursor;
+    assert.deepEqual(sample(1799).gestures,[]);
+    const start=sample(1800),target=bounds[clip.keys.at(-1).target];
+    assert.deepEqual({x:start.x,y:start.y},{x:target.x+target.width/2,y:target.y+target.height/2});
+    assert.deepEqual(start.gestures,[{...gesture,progress:0}]);
+    const middle=sample(2150);
+    assert.deepEqual(middle.gestures,[{...gesture,progress:.5}]);
+    assert.deepEqual(sample(2500).gestures,[]);
+    assert.deepEqual(sample(2150),middle,'Seeking back reconstructs the same click phase');
+    assert.equal(evaluator.sample(scene.startMs+2150,bounds,undefined,{reducedMotion:true}).cursor,null);
   }
 });
 

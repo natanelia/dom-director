@@ -79,7 +79,9 @@ function stats(state){const indices=CITIES.map((_,i)=>i).filter(i=>state.region=
 export function createEarthApp({root,onChange,interactive=true}={}){
   if(!root?.ownerDocument)throw new TypeError('Earth needs a host element.');
   const document=root.ownerDocument,window=document.defaultView,cleanups=[];
-  const initialInert=root.inert,initialClass=root.classList.contains('earth-app');
+  const initialInert=root.inert,initialClass=root.classList.contains('earth-app'),initialPosition=root.style.position;
+  const ownsPosition=window.getComputedStyle(root).position==='static';
+  if(ownsPosition)root.style.position='relative';
   let state={...EARTH_DEFAULT_STATE},display={...state},disposed=false,raf=null,drag=null,enabled=!!interactive,reducedOverride=null;
   const reduced=window.matchMedia('(prefers-reduced-motion: reduce)');
   root.classList.add('earth-app');
@@ -93,12 +95,80 @@ export function createEarthApp({root,onChange,interactive=true}={}){
     <button type="button" class="earth-reset">↺ Reset world</button></section></div>
     <footer class="earth-footer"><span><i></i> LIVE CONTROLS · REAL CHANGES</span><span>Illustrative demo data · not for analysis</span><span class="earth-coordinates">12° N / 28° E</span></footer>`;
   const $=selector=>root.querySelector(selector),canvas=$('.earth-globe'),context=canvas.getContext('2d');
-  if(!context){root.replaceChildren();root.classList.toggle('earth-app',initialClass);throw new Error('This browser cannot draw the Earth demo.');}
+  if(!context){root.replaceChildren();root.classList.toggle('earth-app',initialClass);if(ownsPosition)root.style.position=initialPosition;throw new Error('This browser cannot draw the Earth demo.');}
   // IDs are unique even if a host mounts multiple controlled applications.
   const suffix=createEarthApp.instances=(createEarthApp.instances||0)+1;
   for(const name of ['year','region']){const input=$('.earth-'+name);input.id='earth-'+name+'-'+suffix;$('.earth-'+name+'-control label').htmlFor=input.id;}
   const targets={'earth.overview':root,'earth.globe':$('.earth-visual'),'earth.metric':$('.earth-metric-control'),'earth.year':$('.earth-year-control'),'earth.region':$('.earth-region-control'),'earth.connections':$('[data-earth-layer="connections"]'),'earth.lighting':$('[data-earth-layer="night"]'),'earth.reset':$('.earth-reset')};
   function on(node,type,fn,options){node.addEventListener(type,fn,options);cleanups.push(()=>node.removeEventListener(type,fn,options));}
+  const clickLayer=document.createElement('div');clickLayer.className='earth-click-layer';clickLayer.setAttribute('aria-hidden','true');root.append(clickLayer);
+  function clickNode(source){const node=document.createElement('div');node.className='earth-click-feedback';node.dataset.source=source;const ring=document.createElement('span'),dot=document.createElement('span');ring.className='earth-click-ring';dot.className='earth-click-dot';node.append(ring,dot);clickLayer.append(node);return node;}
+  const demoClick=clickNode('demo'),manualClicks=new Set();demoClick.hidden=true;
+  let clickSample=null,clickPoint=null,lastKeyboard=null,clickRadius=null,clickOpacity=null,appliedMotion=reduced.matches;
+  const clickPositions=new WeakMap();
+  const motionReduced=()=>reducedOverride??reduced.matches;
+  function localPoint(element,client){
+    const box=root.getBoundingClientRect();
+    if(!box.width||!box.height||!root.clientWidth||!root.clientHeight)return null;
+    const target=client?null:element.getBoundingClientRect(),x=client?.x??target.left+target.width/2,y=client?.y??target.top+target.height/2;
+    return {x:(x-box.left)*root.clientWidth/box.width,y:(y-box.top)*root.clientHeight/box.height};
+  }
+  function placeClick(node,point){const previous=clickPositions.get(node);if(previous?.x!==point.x)node.style.left=point.x+'px';if(previous?.y!==point.y)node.style.top=point.y+'px';clickPositions.set(node,point);}
+  function hideDemoClick(){if(!demoClick.hidden)demoClick.hidden=true;}
+  function paintDemoClick(){
+    if(!clickSample||clickSample.progress===1){hideDemoClick();return;}
+    clickPoint??=localPoint(targets[clickSample.target]);
+    if(!clickPoint){hideDemoClick();return;}
+    const progress=clickSample.progress,reduced=motionReduced(),radius=reduced?14:7+28*progress,opacity=reduced?.9:1-progress;
+    if(demoClick.hidden)demoClick.hidden=false;placeClick(demoClick,clickPoint);
+    if(demoClick.dataset.static!==String(reduced))demoClick.dataset.static=String(reduced);
+    if(clickOpacity!==opacity){demoClick.style.opacity=String(opacity);clickOpacity=opacity;}
+    if(clickRadius!==radius){const ring=demoClick.firstElementChild;ring.style.width=ring.style.height=radius*2+'px';clickRadius=radius;}
+  }
+  /** Pure presentation sample. It has no timer, application action or input dispatch. */
+  function setClickFeedback(sample){
+    if(disposed)return;
+    // A paused Director observes this scene. Rewriting an unchanged attribute would
+    // invalidate it, render this same sample again and keep a mutation loop alive.
+    if(sample===null){if(clickSample===null)return;clickSample=null;clickPoint=null;hideDemoClick();delete demoClick.dataset.target;delete demoClick.dataset.progress;return;}
+    if(!sample||typeof sample!=='object'||Array.isArray(sample)||typeof sample.target!=='string'||!Object.hasOwn(targets,sample.target))throw new TypeError('Unknown Earth click target.');
+    if(typeof sample.progress!=='number'||!Number.isFinite(sample.progress)||sample.progress<0||sample.progress>1)throw new RangeError('Earth click progress must be between zero and one.');
+    if(clickSample?.target===sample.target&&clickSample.progress===sample.progress)return;
+    if(clickSample?.target!==sample.target)clickPoint=null;
+    clickSample={target:sample.target,progress:sample.progress};
+    if(demoClick.dataset.target!==sample.target)demoClick.dataset.target=sample.target;
+    if(demoClick.dataset.progress!==String(sample.progress))demoClick.dataset.progress=String(sample.progress);
+    paintDemoClick();
+  }
+  function removeManualClick(entry){
+    window.clearTimeout(entry.timer);for(const animation of entry.animations){animation.onfinish=null;animation.cancel();}entry.node.remove();manualClicks.delete(entry);
+  }
+  function makeStaticClick(entry){
+    for(const animation of entry.animations){animation.onfinish=null;animation.cancel();}entry.animations=[];
+    entry.node.dataset.static='true';entry.node.firstElementChild.style.width=entry.node.firstElementChild.style.height='28px';
+  }
+  function showManualClick(element,client){
+    if(!enabled||disposed)return;const point=localPoint(element,client);if(!point)return;
+    while(manualClicks.size>=3)removeManualClick(manualClicks.values().next().value);
+    const node=clickNode('manual'),entry={node,animations:[],timer:null};placeClick(node,point);manualClicks.add(entry);
+    const reduced=motionReduced(),ring=node.firstElementChild,dot=node.lastElementChild;
+    node.dataset.static=String(reduced);
+    if(reduced){ring.style.width=ring.style.height='28px';}
+    else {
+      const animation=ring.animate([{width:'14px',height:'14px',opacity:1},{width:'70px',height:'70px',opacity:0}],{duration:700,easing:'linear',fill:'both'});
+      entry.animations.push(animation,dot.animate([{opacity:1},{opacity:0}],{duration:700,easing:'linear',fill:'both'}));
+      animation.onfinish=()=>removeManualClick(entry);
+    }
+    entry.timer=window.setTimeout(()=>removeManualClick(entry),reduced?350:700);
+  }
+  function manualTarget(event){const element=event.target.closest?.('button,input,select,canvas');return element&&root.contains(element)?element:null;}
+  on(root,'pointerdown',event=>{if(event.button!==0)return;const element=manualTarget(event);if(element)showManualClick(element,{x:event.clientX,y:event.clientY});},true);
+  on(root,'keydown',event=>{
+    if(event.altKey||event.ctrlKey||event.metaKey||!['Enter',' ','ArrowLeft','ArrowRight','ArrowUp','ArrowDown','Home','End','+','=','-'].includes(event.key))return;
+    const element=manualTarget(event);if(!element)return;lastKeyboard={element,at:window.performance.now()};showManualClick(element);
+  },true);
+  // Assistive-technology and native keyboard activation may arrive without a pointer event.
+  on(root,'click',event=>{if(event.detail!==0)return;const element=manualTarget(event);if(element&&!(lastKeyboard?.element===element&&window.performance.now()-lastKeyboard.at<250))showManualClick(element);},true);
   function updateDom(){
     const metric=METRICS[state.metric],summary=stats(state);
     root.style.setProperty('--earth-accent',metric.color);root.dataset.earthMetric=state.metric;root.dataset.earthYear=String(state.year);root.dataset.earthRegion=state.region;root.dataset.earthConnections=String(state.connections);root.dataset.earthNight=String(state.night);
@@ -148,7 +218,7 @@ export function createEarthApp({root,onChange,interactive=true}={}){
     }
     ctx.globalAlpha=1;ctx.lineCap='butt';
   }
-  function cancel(){if(raf!==null){window.cancelAnimationFrame(raf);raf=null;}root.dataset.earthRendering='false';}
+  function cancel(){if(raf!==null){window.cancelAnimationFrame(raf);raf=null;}if(root.dataset.earthRendering!=='false')root.dataset.earthRendering='false';}
   function setState(patch,{animate=true}={}){
     if(disposed)return;
     const next=normalizeState(state,patch),changed=Object.keys(next).some(k=>next[k]!==state[k]);state=next;
@@ -176,11 +246,11 @@ export function createEarthApp({root,onChange,interactive=true}={}){
   function release(event){if(!drag||event.pointerId!==drag.id)return;drag=null;canvas.classList.remove('earth-dragging');if(canvas.hasPointerCapture(event.pointerId))canvas.releasePointerCapture(event.pointerId);}
   on(canvas,'pointerup',release);on(canvas,'pointercancel',release);on(canvas,'lostpointercapture',()=>{drag=null;canvas.classList.remove('earth-dragging');});
   on(canvas,'keydown',event=>{const changes={ArrowLeft:{rotation:state.rotation-12},ArrowRight:{rotation:state.rotation+12},ArrowUp:{tilt:state.tilt+8},ArrowDown:{tilt:state.tilt-8},'+':{zoom:state.zoom+.1},'=':{zoom:state.zoom+.1},'-':{zoom:state.zoom-.1},Home:{...EARTH_DEFAULT_STATE}};if(!enabled||!changes[event.key])return;event.preventDefault();event.stopPropagation();userChange('globe',changes[event.key]);});
-  const resize=new window.ResizeObserver(()=>{if(!disposed)frame(display);});resize.observe(root);
-  function applyMotionPreference(){root.dataset.earthReducedMotion=String(reducedOverride??reduced.matches);if(reducedOverride??reduced.matches){cancel();display={...state};frame(display);}}
+  const resize=new window.ResizeObserver(()=>{if(!disposed){frame(display);clickPoint=null;paintDemoClick();}});resize.observe(root);
+  function applyMotionPreference(){const value=motionReduced();if(appliedMotion===value)return;appliedMotion=value;root.dataset.earthReducedMotion=String(value);if(value){cancel();display={...state};frame(display);for(const entry of manualClicks)makeStaticClick(entry);}paintDemoClick();}
   on(reduced,'change',applyMotionPreference);
   function setReducedMotion(value){if(disposed)return;if(typeof value!=='boolean'&&value!==null)throw new TypeError('Earth motion preference must be a boolean or null.');if(reducedOverride===value)return;reducedOverride=value;applyMotionPreference();}
-  function setInteractive(value){if(disposed)return;enabled=!!value;root.inert=!enabled;root.dataset.earthInteractive=String(enabled);if(!enabled){const id=drag?.id;drag=null;canvas.classList.remove('earth-dragging');if(id!==undefined&&canvas.hasPointerCapture(id))canvas.releasePointerCapture(id);}}
+  function setInteractive(value){if(disposed)return;enabled=!!value;root.inert=!enabled;root.dataset.earthInteractive=String(enabled);if(!enabled){const id=drag?.id;drag=null;canvas.classList.remove('earth-dragging');if(id!==undefined&&canvas.hasPointerCapture(id))canvas.releasePointerCapture(id);for(const entry of manualClicks)removeManualClick(entry);}}
   setInteractive(interactive);root.dataset.earthRendering='false';root.dataset.earthReducedMotion=String(reduced.matches);updateDom();frame(display);
-  return {targets,getState:()=>({...state}),setState,setInteractive,setReducedMotion,reset:()=>setState({...EARTH_DEFAULT_STATE}),destroy(){if(disposed)return;disposed=true;cancel();resize.disconnect();cleanups.splice(0).forEach(off=>off());root.inert=initialInert;root.classList.toggle('earth-app',initialClass);root.style.removeProperty('--earth-accent');for(const key of ['earthMetric','earthYear','earthRegion','earthConnections','earthNight','earthInteractive','earthRendering','earthReducedMotion'])delete root.dataset[key];root.replaceChildren();}};
+  return {targets,getState:()=>({...state}),setState,setInteractive,setReducedMotion,setClickFeedback,reset:()=>setState({...EARTH_DEFAULT_STATE}),destroy(){if(disposed)return;disposed=true;cancel();resize.disconnect();cleanups.splice(0).forEach(off=>off());for(const entry of manualClicks)removeManualClick(entry);clickSample=null;clickPoint=null;root.inert=initialInert;root.classList.toggle('earth-app',initialClass);if(ownsPosition&&root.style.position==='relative')root.style.position=initialPosition;root.style.removeProperty('--earth-accent');for(const key of ['earthMetric','earthYear','earthRegion','earthConnections','earthNight','earthInteractive','earthRendering','earthReducedMotion'])delete root.dataset[key];root.replaceChildren();}};
 }

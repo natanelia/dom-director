@@ -2,6 +2,8 @@
 
 The default homepage and Studio now open the [Earth statistics story](../docs/earth-demo.md). Six checkpoints introduce globe controls with caption-first guidance. The Earth host, data and spherical geometry are bundled locally. The explicit publication additions are app-entry.mjs, earth-demo.mjs, earth.mjs and earth.css. The shared Studio sample exports six checkpoint descriptions and a rich project with no prepared voice assets.
 
+The homepage defaults to automatic Watch, with approved local globe changes and click feedback. Try and Guide retain their real-input checkpoints and separate globe state. Studio and video include visual click gestures; their presentation tracks do not execute the public Watch actions.
+
 The original Orbit flows remain selected with example=orbit. The following implementation notes describe that preserved fixture.
 
 # SDK-powered public-site candidate

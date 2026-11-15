@@ -102,7 +102,9 @@ class PlayerTests(BrowserFixture):
         self.assertEqual(self.page.evaluate('cursorInputs'),[])
         self.assertEqual(self.page.evaluate('clicks'),0)
     def test_real_time_play_pause_seek_and_no_simulated_clicks(self):
-        self.prepare();self.page.evaluate('director.play()');self.page.wait_for_timeout(250)
+        self.prepare();self.page.evaluate('director.play()')
+        # A fixed delay does not guarantee the first animation frame has run.
+        self.page.wait_for_function('director.inspect().timeMs>100',timeout=1500)
         state=self.page.evaluate('director.inspect()');self.assertEqual(state['status'],'playing');self.assertGreater(state['timeMs'],100);self.assertLess(state['timeMs'],1500)
         self.assertEqual(self.page.evaluate('clicks'),0)
         self.page.evaluate('director.pause()');before=self.page.evaluate('director.inspect().timeMs');self.page.wait_for_timeout(80);self.assertEqual(self.page.evaluate('director.inspect().timeMs'),before)

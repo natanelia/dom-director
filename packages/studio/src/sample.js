@@ -34,7 +34,7 @@ export function createEarthSample(){
     cursorTheme:{...CURSOR_THEME,color:'#8df2dd',stroke:'#071b29'},captionTrack:'cc.en',assets:[],
     tracks:[
       {id:'camera',kind:'camera',name:'Camera',enabled:true,locked:false,clips:scenes.map(s=>({...common(s,'camera'),offsetMs:0,keys:[{id:'camera.from.'+s.id,atMs:0,target:'earth.overview',zoom:1,x:0,y:0,easing:'gentle'},{id:'camera.to.'+s.id,atMs:1200,target:'earth.overview',zoom:1,x:0,y:0,easing:'gentle'}]}))},
-      {id:'cursor',kind:'cursor',name:'Cursor',enabled:true,locked:false,clips:scenes.map((s,i)=>({...common(s,'cursor'),offsetMs:0,keys:[{id:'cursor.from.'+s.id,atMs:0,...point(EARTH_CHECKPOINTS[Math.max(0,i-1)])},{id:'cursor.to.'+s.id,atMs:1400,...point(EARTH_CHECKPOINTS[i]),curve:i?28:0}],gestures:[]}))},
+      {id:'cursor',kind:'cursor',name:'Cursor',enabled:true,locked:false,clips:scenes.map((s,i)=>({...common(s,'cursor'),offsetMs:0,keys:[{id:'cursor.from.'+s.id,atMs:0,...point(EARTH_CHECKPOINTS[Math.max(0,i-1)])},{id:'cursor.to.'+s.id,atMs:1400,...point(EARTH_CHECKPOINTS[i]),curve:i?28:0}],gestures:[{id:'click.'+s.id,atMs:1800,kind:'click'}]}))},
       {id:'voice',kind:'voice',name:'Voiceover',enabled:true,locked:false,clips:scenes.map((s,i)=>({...common(s,'voice'),assetId:null,script:EARTH_CHECKPOINTS[i].text,sourceInMs:0,gain:1,fadeInMs:0,fadeOutMs:0}))},
       {id:'cc.en',kind:'captions',name:'CC · English',language:'en',enabled:true,locked:false,clips:scenes.map((s,i)=>({...common(s,'cc'),text:EARTH_CHECKPOINTS[i].text}))},
     ]});

@@ -18,3 +18,11 @@
 /* The globe shares a visual card with its headline; focus belongs around that card. */
 .earth-app .earth-globe:focus-visible{outline:none}
 .earth-app .earth-visual:has(.earth-globe:focus-visible){outline:3px solid #e8f8c4;outline-offset:-3px}
+/* Authored clicks are sampled by the presentation clock; manual clicks own their short life. */
+.earth-click-layer{position:absolute;inset:0;pointer-events:none;z-index:5;overflow:hidden;border-radius:inherit}
+.earth-click-feedback{position:absolute;width:0;height:0;pointer-events:none;color:var(--earth-accent)}
+.earth-click-feedback[hidden]{display:none!important}
+.earth-click-ring,.earth-click-dot{position:absolute;left:0;top:0;display:block;transform:translate(-50%,-50%);border-radius:50%;pointer-events:none}
+.earth-click-ring{width:14px;height:14px;border:2px solid currentColor;box-shadow:0 0 8px #8df2dd38;background:#8df2dd0a}
+.earth-click-dot{width:4px;height:4px;background:currentColor;box-shadow:0 0 5px #8df2dd88}
+.earth-click-feedback[data-static=true]{opacity:.9}

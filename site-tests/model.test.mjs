@@ -50,15 +50,21 @@ test('camera personality changes canonical defaults without mutating the source'
 test('time display is presentation-only with explicit millisecond formatting',()=>{
   assert.equal(timecode(1250),'00:01');assert.equal(timecode(1250,true),'00:01.250');assert.equal(timecode(-1),'00:00');
 });
-test('Earth compiles six real-control conditions without scripted effects or mismatched audio',()=>{
+test('Earth compiles six approved demo actions and preserves all real-control conditions',()=>{
   const tour=createEarthTour(EARTH_CHECKPOINTS),result=compile(tour);
   assert.equal(result.ok,true,JSON.stringify(result.diagnostics));
   assert.deepEqual(tour.modes,['watch','try','guide']);
   assert.deepEqual(tour.assets,{});
-  const cues=tour.scenes.flatMap(scene=>scene.cues),gates=cues.filter(cue=>cue.kind==='gate');
-  assert.equal(gates.length,6);assert.equal(cues.filter(cue=>cue.kind==='action').length,0);
+  const cues=tour.scenes.flatMap(scene=>scene.cues),gates=cues.filter(cue=>cue.kind==='gate'),actions=cues.filter(cue=>cue.kind==='action');
+  assert.equal(gates.length,6);assert.equal(actions.length,6);
   assert.equal(new Set(gates.map(cue=>cue.conditionRef)).size,6);
-  assert.deepEqual(tour.capabilities,[...gates.map(cue=>'condition:'+cue.conditionRef),'fixture:reset']);
+  assert.deepEqual(tour.capabilities,[...gates.flatMap(cue=>['action:'+cue.conditionRef,'condition:'+cue.conditionRef]),'fixture:reset']);
+  for(const scene of tour.scenes){
+    const action=scene.cues.find(cue=>cue.kind==='action'),gate=scene.cues.find(cue=>cue.kind==='gate');
+    assert.equal(action.actionRef,gate.conditionRef);assert.deepEqual(action.args,{});
+    assert.equal(action.at,gate.at);assert.ok(scene.cues.indexOf(action)<scene.cues.indexOf(gate));
+    assert.equal(action.timeoutMs,5000);
+  }
   assert.ok(tour.scenes.every(scene=>!Object.hasOwn(scene.narration,'audioAsset')));
 });
 test('Earth live tutorial and Studio teach the same controls with the same captions and boundaries',()=>{
@@ -72,6 +78,9 @@ test('Earth live tutorial and Studio teach the same controls with the same capti
     assert.equal(scene.narration.cues[0].text,scene.summary);
     assert.equal(scene.narration.cues[0].endMs,scene.durationMs);
     assert.equal(scene.summary,sample.tracks.find(track=>track.kind==='captions').clips[index].text);
+    const action=scene.cues.find(cue=>cue.kind==='action'),gesture=sample.tracks.find(track=>track.kind==='cursor').clips[index].gestures[0];
+    assert.equal(action.at,gesture.atMs);assert.equal(gesture.kind,'click');
+    assert.ok(cursor.at+cursor.durationMs<=action.at,'The public pointer lands before the demonstration.');
   }
 });
 test('Earth timeline locations and camera preferences remain pure presentation data',()=>{

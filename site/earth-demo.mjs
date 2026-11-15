@@ -5,6 +5,8 @@ import {timecode,timeline,createEarthTour} from './model.mjs';
 
 const $=id=>document.getElementById(id);
 const steps=EARTH_CHECKPOINTS;
+const demonstrations={orbit:{rotation:-65,tilt:16},metric:{metric:'energy'},year:{year:2025},region:{region:'asia'},connections:{connections:true},night:{night:true}};
+const clickDurationMs=700;
 export const EARTH_TOUR=createEarthTour(steps);
 
 document.body.classList.add('earth-demo');
@@ -25,7 +27,7 @@ const orbitLink=document.createElement('a');
 orbitLink.href='./?example=orbit';orbitLink.textContent='Original Orbit example ↗';
 document.querySelector('.sdk-tools').append(orbitLink);
 const coach=document.createElement('div');coach.className='earth-coach';
-coach.innerHTML='<div><span id="earth-progress" role="status">0 / 6 controls explored</span><strong id="earth-step-title"></strong><p id="earth-instruction"></p></div><button id="earth-reset" type="button">Reset practice</button>';
+coach.innerHTML='<div><span id="earth-progress" role="status">0 / 6 controls demonstrated</span><strong id="earth-step-title"></strong><p id="earth-instruction"></p></div><button id="earth-reset" type="button">Replay demo</button>';
 $('stage').after(coach);
 $('about-dialog').querySelectorAll('p')[1].textContent='A real 3D globe, editable data layers, a year slider, regional focus, connections and day/night lighting. Six captioned checkpoints use the reusable DOM Director core. The statistics and simplified geography are illustrative demo data.';
 const about=$('about-dialog').querySelectorAll('p');
@@ -38,11 +40,13 @@ let models;
 function on(element,type,listener,options){element.addEventListener(type,listener,options);cleanups.push(()=>element.removeEventListener(type,listener,options));}
 function notify(){for(const callback of [...observers])callback();}
 function toast(text){clearTimeout(toastTimer);$('toast').textContent=text;$('toast').hidden=false;toastTimer=setTimeout(()=>{$('toast').hidden=true;},4200);}
-function result(response){if(response?.ok===false){toast(response.diagnostics[0]?.message||'The walkthrough needs attention.');return false;}return true;}
-function modeName(){return director?.inspect().mode||'try';}
+function result(response){if(response?.ok===false){const issue=response.diagnostics[0];toast(issue?.code==='SEEK_BARRIER'?'Play this checkpoint before skipping ahead, or choose Explore freely.':issue?.message||'The walkthrough needs attention.');return false;}return true;}
+function modeName(){return director?.inspect().mode||'watch';}
 function model(){return models[modeName()];}
 const earth=createEarthApp({root:$('scene'),interactive:true,onChange:(state,event)=>{
   if(!models||disposed)return;
+  // Actual input takes over from Watch; Try's real-input gate can still resume.
+  if(director&&modeName()==='watch')result(director.pause());
   const current=model(),previous=current.state;current.state={...state};current.revision++;
   const control=event.control==='globe'?'orbit':event.control==='lighting'?'night':event.control;
   const satisfied={
@@ -64,9 +68,27 @@ const conditions=Object.fromEntries(steps.map(step=>[step.id,{
   read:context=>context.mode==='watch'||models[context.mode].completed.has(step.id),
   subscribe:callback=>{observers.add(callback);return()=>observers.delete(callback);},
 }]));
+const actions=Object.fromEntries(steps.map(step=>[step.id,{
+  label:'Demonstrate '+step.title,impact:'ephemeral',modes:['watch','try','guide'],
+  validate:args=>!!args&&typeof args==='object'&&!Array.isArray(args)&&Object.keys(args).length===0,
+  execute:(_args,context)=>{
+    if(context.signal.aborted)return {completed:false};
+    // Only Watch applies its approved local demonstration; practice remains real input.
+    if(context.mode==='watch'){
+      const current=models.watch;
+      earth.setState(demonstrations[step.control],{animate:false});
+      current.state=earth.getState();current.revision++;current.completed.add(step.id);
+      notify();
+    }
+    return {completed:true};
+  },
+}]));
 const guidance=createGuidance({
-  authorize:request=>request.capability.startsWith('mode:')||Object.hasOwn(conditions,request.capability.replace(/^condition:/,''))||(request.capability==='fixture:reset'&&request.mode==='try'),
-  conditions,
+  authorize:request=>['mode:watch','mode:try','mode:guide'].includes(request.capability)||
+    (request.capability.startsWith('condition:')&&Object.hasOwn(conditions,request.capability.slice(10)))||
+    (request.capability.startsWith('action:')&&Object.hasOwn(actions,request.capability.slice(7)))||
+    (request.capability==='fixture:reset'&&request.mode==='try'),
+  actions,conditions,
   fixture:{isolated:true,reset:async({signal})=>{
     if(signal.aborted)return {completed:false};
     models.try=fresh(models.try.revision+1);
@@ -79,46 +101,63 @@ director=createDirector({
   targets:Object.fromEntries(Object.entries(earth.targets).map(([key,element])=>[key,()=>element])),
 });
 const checkpoints=createCheckpointStore(director,{
-  versions:()=>({script:'earth-v1-'+script.defaults.easing,host:'earth-v1',fixture:modeName()+':'+model().revision}),
+  versions:()=>({script:'earth-v2-'+script.defaults.easing,host:'earth-v2',fixture:modeName()+':'+model().revision}),
   authorize:()=>true,verify:snapshot=>snapshot.versions.fixture===modeName()+':'+model().revision,
 });
 
 function render(force=false){
   if(disposed)return;
-  const now=performance.now();if(!force&&now-lastUi<80)return;lastUi=now;
   const state=director.inspect(),step=steps.find(step=>step.id===state.sceneId)||steps[0],index=steps.indexOf(step),position=story.position(state);
-  const waiting=state.waitingFor,running=['playing','buffering'].includes(state.status),next=state.reasons?.includes('step');
+  // Visual click feedback follows presentation time, before the text UI throttle.
+  const action=script.scenes.find(scene=>scene.id===step.id).cues.find(cue=>cue.kind==='action');
+  const clickProgress=(state.timeMs-action.at)/clickDurationMs;
+  earth.setReducedMotion(state.reducedMotion);
+  earth.setClickFeedback(started&&state.mode==='watch'&&!state.reducedMotion&&clickProgress>=0&&clickProgress<1?{target:step.target,progress:clickProgress}:null);
+  // System motion changes can arrive on the only frame of a paused player.
+  // Refresh that preference immediately instead of waiting for another tick.
+  const now=performance.now();if(!force&&now-lastUi<80&&$('stage').dataset.reducedMotion===String(state.reducedMotion))return;lastUi=now;
+  const waiting=state.waitingFor?.kind==='gate'?state.waitingFor:null;
+  const running=isPlaying(state),next=state.reasons?.includes('step');
   Object.assign($('stage').dataset,{runtime:'sdk',scene:step.id,status:state.status,mode:state.mode,state:waiting?'waiting':running?'playing':'paused',clock:'text',reducedMotion:String(state.reducedMotion),ready:'true'});
   $('shot-number').textContent='CHECKPOINT '+String(index+1).padStart(2,'0')+' / 06';
   $('shot-title').textContent=step.title;$('earth-step-title').textContent=step.title;
-  $('earth-instruction').textContent=state.status==='completed'?(model().completed.size===steps.length?'You have explored all six controls. Keep experimenting with the live globe.':'Walkthrough complete. Try the controls to explore the globe yourself.'):step.instruction;
-  $('earth-progress').textContent=model().completed.size+' / 6 controls explored';
-  $('earth-reset').disabled=state.mode!=='try'||busy;
-  $('earth-reset').title=state.mode==='try'?'Reset this practice globe and its completed checkpoints.':'Switch to Try it to reset the isolated practice.';
+  $('earth-instruction').textContent=state.status==='completed'?(state.mode==='watch'?'All six controls demonstrated. Explore freely, or choose Try it for a hands-on walkthrough.':model().completed.size===steps.length?'You have explored all six controls. Keep experimenting with the live globe.':'Walkthrough complete. Try the controls to explore the globe yourself.'):state.mode==='watch'?'Watch this control change the globe. You can take over at any time.':step.instruction;
+  $('earth-progress').textContent=model().completed.size+' / 6 controls '+(state.mode==='watch'?'demonstrated':'explored');
+  $('earth-reset').textContent=state.mode==='watch'?'Replay demo':'Reset practice';
+  $('earth-reset').disabled=state.mode==='guide'||busy;
+  $('earth-reset').title=state.mode==='watch'?'Start a fresh automatic Earth demonstration.':state.mode==='try'?'Reset this practice globe and its completed checkpoints.':'Switch to Try it to reset the isolated practice.';
   $('play-icon').textContent=running?'Ⅱ':'▶';$('play').setAttribute('aria-label',running?'Pause walkthrough':'Play walkthrough');$('play').disabled=busy;
   $('current-time').textContent=timecode(position);$('seek').value=String(position/1000);
   $('code-clock').textContent=timecode(position,true);
   $('next-step').hidden=!next;$('next-step').disabled=busy;
-  $('retry-step').hidden=!waiting?.error;$('extend-step').hidden=!waiting;$('hint-step').hidden=!waiting;
+  $('retry-step').hidden=!state.waitingFor?.error;$('extend-step').hidden=!waiting;$('hint-step').hidden=!waiting;
   $('captions').setAttribute('aria-pressed',String(state.captionsEnabled));
   $('motion-toggle').textContent=state.reducedMotion?'Motion off':'Motion on';$('motion-toggle').setAttribute('aria-pressed',String(state.reducedMotion));
-  earth.setReducedMotion(state.reducedMotion);
   $('caption').hidden=!state.captionsEnabled||!started;
   $('caption-label').textContent=waiting?'YOUR TURN':'DIRECTOR';
   $('caption-text').textContent=waiting?.instruction||state.caption||step.text;
   $('rate').textContent=state.rate+'×';
-  $('player-state').textContent=waiting?.error?'Paused · '+waiting.error:waiting?'Your turn · try the highlighted control':next?'Continue when you are ready':state.status==='completed'?'Tour complete. Your world is still live.':running?'Playing · captioned walkthrough':started?'Paused · explore the globe':'Ready · six controls, one living planet';
-  $('mode-hint').textContent={watch:'Watch the controls being introduced, then try any of them yourself.',try:'Each checkpoint waits for you. Every completed interaction changes the globe.',guide:'Learn at your own pace. Try the control, then continue to the next checkpoint.'}[state.mode];
-  $('save-position').disabled=busy||!!waiting||!!state.pendingOperation;
-  $('restore-position').disabled=busy||!saved||!!waiting||!!state.pendingOperation;
+  $('player-state').textContent=state.waitingFor?.error?'Paused · '+state.waitingFor.error:waiting?'Your turn · try the highlighted control':next?'Continue when you are ready':state.status==='completed'?'Tour complete. Your world is still live.':running?'Playing · captioned walkthrough':started?'Paused · explore the globe':'Ready · six controls, one living planet';
+  $('mode-hint').textContent={watch:'Automatic tour. Every demonstrated control changes the globe. Take over at any time.',try:'Each checkpoint waits for you. Every completed interaction changes the globe.',guide:'Learn at your own pace. Try the control, then continue to the next checkpoint.'}[state.mode];
+  $('save-position').disabled=busy||!!state.waitingFor||!!state.pendingOperation;
+  $('restore-position').disabled=busy||!saved||!!state.waitingFor||!!state.pendingOperation;
   document.querySelectorAll('button[data-mode]').forEach(button=>{const active=button.dataset.mode===state.mode;button.classList.toggle('selected',active);button.setAttribute('aria-pressed',String(active));button.disabled=busy;});
   document.querySelectorAll('.chapter-button').forEach(button=>{const active=button.dataset.scene===step.id;button.classList.toggle('active',active);if(active)button.setAttribute('aria-current','step');else button.removeAttribute('aria-current');button.dataset.complete=String(model().completed.has(button.dataset.scene));});
   for(const [key,element] of Object.entries(earth.targets))element.classList.toggle('earth-tutorial-target',key===step.target&&started);
   $('live-code').textContent=JSON.stringify({sceneId:step.id,target:step.target,condition:step.id,mode:state.mode,completed:model().completed.has(step.id)},null,2);
 }
-function play(){started=true;result(director.play());render(true);}
+function isPlaying(state=director.inspect()){return ['playing','buffering'].includes(state.status)||(state.waitingFor?.kind==='action'&&!state.waitingFor.error);}
+function play(){if(busy||disposed)return;if(modeName()==='watch'&&director.inspect().status==='completed'){replayWatch(true);return;}started=true;result(director.play());render(true);}
 function pause(){result(director.pause());render(true);}
 function seek(ms,resume=false){started=true;const ok=result(director.seek(story.locate(ms)));render(true);if(ok&&resume)play();return ok;}
+function replayWatch(resume=false){
+  if(busy||disposed)return false;
+  const rate=director.inspect().rate;result(director.pause());
+  models.watch=fresh(models.watch.revision+1);earth.setState(models.watch.state,{animate:false});earth.setClickFeedback(null);
+  saved=null;checkpoints.clear();
+  if(!result(director.load(script)))return false;
+  result(director.setRate(rate));started=true;render(true);if(resume)play();return true;
+}
 async function transaction(work,notice){
   if(busy||disposed)return;busy=true;render(true);
   try{if(result(await work())&&notice)toast(notice);}
@@ -126,28 +165,32 @@ async function transaction(work,notice){
   finally{busy=false;render(true);}
 }
 async function chooseMode(mode){
+  if(modeName()===mode)return;
+  const rate=director.inspect().rate;
   await transaction(async()=>{
     const response=await director.setMode(mode);
-    if(response.ok){earth.setState(model().state,{animate:false});saved=null;checkpoints.clear();}
-    return response;
+    if(!response.ok)return response;
+    earth.setState(model().state,{animate:false});earth.setClickFeedback(null);saved=null;checkpoints.clear();
+    // A fresh run prevents a Try no-op action from suppressing Watch's demonstration.
+    const loaded=director.load(script);if(loaded.ok)result(director.setRate(rate));return loaded;
   });
   started=true;render(true);
 }
-function begin(){seek(0);$('experience').scrollIntoView({behavior:director.inspect().reducedMotion?'auto':'smooth',block:'start'});play();}
-on($('play'),'click',()=>['playing','buffering'].includes(director.inspect().status)?pause():play());
+function begin(){if(modeName()==='watch'?!replayWatch():!seek(0))return;$('experience').scrollIntoView({behavior:director.inspect().reducedMotion?'auto':'smooth',block:'start'});play();}
+on($('play'),'click',()=>isPlaying()?pause():play());
 for(const id of ['hero-play','footer-play','stage-play'])on($(id),'click',begin);
-on($('restart'),'click',()=>seek(0));
+on($('restart'),'click',()=>modeName()==='watch'?replayWatch():seek(0));
 on($('exit-tour'),'click',()=>{result(director.stop());started=false;render(true);});
 on($('takeover'),'click',()=>{pause();$('scene').querySelector('canvas').focus({preventScroll:true});toast('Explore freely. Play continues from this checkpoint.');});
 on($('seek'),'input',event=>seek(Number(event.target.value)*1000));
 document.querySelectorAll('button[data-mode]').forEach(button=>on(button,'click',()=>chooseMode(button.dataset.mode)));
 on($('try-action'),'click',async()=>{await chooseMode('try');begin();});
 on($('chapter-audio'),'click',()=>{begin();});
-on($('earth-reset'),'click',()=>transaction(async()=>{
+on($('earth-reset'),'click',()=>{if(modeName()==='watch'){replayWatch(true);return;}void transaction(async()=>{
   const response=await director.resetFixture();
   if(response.ok){saved=null;checkpoints.clear();result(director.seek({sceneId:steps[0].id,timeMs:0}));}
   return response;
-},'Practice reset. Start again whenever you are ready.'));
+},'Practice reset. Start again whenever you are ready.');});
 on($('next-step'),'click',()=>{result(director.next());render(true);});
 on($('retry-step'),'click',()=>{result(director.retryBarrier());render(true);});
 on($('extend-step'),'click',()=>{result(director.extendWait());render(true);});
@@ -174,14 +217,14 @@ on($('download-script'),'click',()=>{const url=URL.createObjectURL(new Blob([JSO
 on(document,'keydown',event=>{
   if(document.querySelector('dialog[open]'))return;
   if(event.key==='Escape'){pause();$('scene').querySelector('canvas').focus({preventScroll:true});}
-  if(event.code==='Space'&&!event.altKey&&!event.ctrlKey&&!event.metaKey&&!event.target.closest('input,textarea,select,button,a,canvas,[contenteditable=true]')){const box=$('theater').getBoundingClientRect();if(box.bottom<0||box.top>innerHeight)return;event.preventDefault();['playing','buffering'].includes(director.inspect().status)?pause():play();}
+  if(event.code==='Space'&&!event.altKey&&!event.ctrlKey&&!event.metaKey&&!event.target.closest('input,textarea,select,button,a,canvas,[contenteditable=true]')){const box=$('theater').getBoundingClientRect();if(box.bottom<0||box.top>innerHeight)return;event.preventDefault();isPlaying()?pause():play();}
 });
 cleanups.push(director.on(event=>{if(event.type==='diagnostic')toast(event.detail?.diagnostic?.message||'Playback needs attention.');queueMicrotask(()=>render(true));}),director.onFrame(()=>render()));
 $('seek').max=String(story.total/1000);document.querySelectorAll('[data-duration]').forEach(element=>element.textContent=timecode(story.total));
 $('script-json').textContent=JSON.stringify(script,null,2);
 for(let i=0;i<24;i++){const bar=document.createElement('i');bar.style.height=(8+(i*17%29))+'px';$('decorative-waveform').append(bar);}
 if(!result(director.load(script)))throw new Error('The Earth walkthrough could not load.');
-await director.setMode('try');render(true);
+render(true);
 on(window,'pageshow',event=>{if(event.persisted&&!disposed)render(true);});
 on(window,'pagehide',event=>{
   if(disposed)return;pause();clearTimeout(toastTimer);
