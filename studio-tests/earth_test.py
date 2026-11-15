@@ -693,6 +693,10 @@ class EarthDemoTests(EarthAssertions, StudioTests):
             width:parseFloat(ring.style.width),opacity:Number(node.style.opacity),static:node.dataset.static});
           app.setReducedMotion(false);app.setClickFeedback({target:'earth.metric',progress:.5});
           const normal=sample();let rejected=0;
+          const observer=new MutationObserver(()=>{});
+          observer.observe(root.querySelector('.earth-click-layer'),{subtree:true,attributes:true,childList:true});
+          for(let i=0;i<3;i++)app.setClickFeedback({target:'earth.metric',progress:.5});
+          const sameSampleMutations=observer.takeRecords().length;
           for(const invalid of [undefined,[],{},'earth.metric',{target:'unknown',progress:.5},
             {target:['earth.metric'],progress:.5},{target:'earth.metric',progress:-.1},
             {target:'earth.metric',progress:1.1},{target:'earth.metric',progress:NaN},
@@ -706,16 +710,21 @@ class EarthDemoTests(EarthAssertions, StudioTests):
           const ended=node.hidden&&node.dataset.progress==='1';
           app.setClickFeedback(null);
           const cleared=node.hidden&&!node.hasAttribute('data-target')&&!node.hasAttribute('data-progress');
+          observer.takeRecords();
+          for(let i=0;i<3;i++)app.setClickFeedback(null);
+          const repeatedClearMutations=observer.takeRecords().length;observer.disconnect();
           app.setReducedMotion(true);app.setClickFeedback({target:'earth.year',progress:.75});
           const reduced=sample(),pure=JSON.stringify(app.getState())===initial&&pixels(canvas)===initialPixels;
           const inert=app.getState().metric==='population'&&root.querySelectorAll('[data-source="manual"]').length===0;
           app.destroy();app.destroy();
           const destroyed=root.childElementCount===0&&root.inert&&root.style.position===''&&!root.classList.contains('earth-app');
-          root.remove();return {normal,rejected,retained,frozen,ended,cleared,reduced,pure,inert,destroyed,calls,events};
+          root.remove();return {normal,rejected,retained,frozen,ended,cleared,reduced,pure,inert,destroyed,calls,events,sameSampleMutations,repeatedClearMutations};
         }""")
         self.assertEqual(result['normal'], {'target': 'earth.metric', 'progress': '0.5', 'hidden': False,
                                            'width': 42, 'opacity': .5, 'static': 'false'})
         self.assertEqual(result['rejected'], 11)
+        self.assertEqual(result['sameSampleMutations'], 0, 'An unchanged sample must not re-trigger the scene observer.')
+        self.assertEqual(result['repeatedClearMutations'], 0, 'Repeated clearing must not re-trigger the scene observer.')
         self.assertEqual(result['reduced'], {'target': 'earth.year', 'progress': '0.75', 'hidden': False,
                                             'width': 28, 'opacity': .9, 'static': 'true'})
         for flag in ['retained', 'frozen', 'ended', 'cleared', 'pure', 'inert', 'destroyed']:
