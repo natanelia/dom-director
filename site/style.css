@@ -1,4 +1,16 @@
 /* The original visual language, with a responsive baseline and SDK-owned overlays. */
+.sdk-site.earth-demo .stage{height:540px;background:#071722}
+.sdk-site.earth-demo .scene{height:540px}
+.earth-demo .earth-coach{display:flex;justify-content:space-between;align-items:center;gap:20px;padding:18px 24px;background:#10232d;color:#e6f1f4;border-top:1px solid #314551}
+.earth-demo .earth-coach span{display:block;font:10px ui-monospace,monospace;letter-spacing:.08em;color:#9cddcd;margin-bottom:6px;text-transform:uppercase}
+.earth-demo .earth-coach strong{font-size:17px}
+.earth-demo .earth-coach p{font-size:12px;line-height:1.6;color:#bed0d9;margin:5px 0 0}
+.earth-demo .earth-coach button{flex-shrink:0;border:1px solid #58717c;border-radius:7px;background:transparent;color:#edf6f7;padding:10px 14px;min-height:42px}
+.earth-demo .earth-coach button:disabled{opacity:.5}
+.earth-demo .earth-tutorial-target{outline:2px solid #8cebd2;outline-offset:4px}
+.earth-demo .chapter-button[data-complete=true] .chapter-no::after{content:'  ✓'}
+.earth-demo .transport [hidden]{display:none!important}
+@media(max-width:700px){.sdk-site.earth-demo .stage,.sdk-site.earth-demo .scene{height:900px}.earth-demo .earth-coach{padding:16px;align-items:flex-start;flex-direction:column;gap:12px}.earth-demo .shortcuts{display:none}}
 .sdk-site .stage{height:600px;aspect-ratio:auto;max-height:none}
 .sdk-site .scene{width:100%;height:600px}
 .sdk-site .caption{position:relative;left:auto;bottom:auto;transform:none;max-width:none;width:100%;margin:0;border-radius:0;border-top:1px solid #46533c;box-shadow:none}

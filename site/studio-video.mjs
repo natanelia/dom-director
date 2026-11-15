@@ -33,7 +33,7 @@ function installVideoHandoff() {
   const $ = id => document.getElementById(id);
   if ($('studio')?.dataset.ready !== 'true') return;
   const trigger=$('export-open'), dialog=$('dialog'), title=$('dialog-title'), body=$('dialog-body'), actions=$('dialog-actions');
-  const lifetime=new AbortController();
+  const lifetime=new AbortController(),audioChoices=new Map();
   let values={...VIDEO_DEFAULTS}, epoch=0;
   function node(tag,text,parent) {const element=document.createElement(tag);if(text!==undefined)element.textContent=text;parent?.append(element);return element;}
   function button(label,id,callback) {const element=node('button',label,actions);element.type='button';element.id=id;element.addEventListener('click',callback);return element;}
@@ -51,6 +51,8 @@ function installVideoHandoff() {
   function show() {
     $('stop').click();
     ++epoch;
+    const host=$('studio').dataset.host;
+    values={...values,audio:audioChoices.get(host)??(host!=='earth')};
     title.textContent='Prepare a local video export';body.replaceChildren();actions.replaceChildren();
     node('p','Render an MP4 or WebM on your computer using Python, Chromium and FFmpeg. This panel prepares a command; it does not render video in this browser or upload your project.',body);
     const guide=node('p',undefined,body);
@@ -73,7 +75,7 @@ function installVideoHandoff() {
       fields[id]=input;input.addEventListener('input',update);
     }
     for(const [id,label] of [['audio','Include voiceover'],['captions','Burn in styled captions'],['reduced','Use reduced motion']]){
-      const wrapper=node('label',undefined,body);wrapper.className='field checkbox';const input=node('input',undefined,wrapper);input.type='checkbox';input.id='video-'+id;input.checked=values[id];wrapper.append(document.createTextNode(label));fields[id]=input;input.addEventListener('change',update);
+      const wrapper=node('label',undefined,body);wrapper.className='field checkbox';const input=node('input',undefined,wrapper);input.type='checkbox';input.id='video-'+id;input.checked=values[id];wrapper.append(document.createTextNode(label));fields[id]=input;input.addEventListener('change',()=>{if(id==='audio')audioChoices.set(host,input.checked);update();});
     }
     node('p','These are export settings, independent of Sound off, CC and Motion switches in the preview. The renderer validates targets and voice takes before writing a file.',body).className='note';
     const summary=node('p',undefined,body);summary.id='video-summary';summary.setAttribute('role','status');
@@ -102,7 +104,7 @@ function installVideoHandoff() {
       times.hidden=values.range!=='range';status.textContent='';
       try{
         const result=videoCommand(values);command.value=result.command;copy.disabled=false;summary.className='note';
-        summary.textContent=(result.frames===null?'The renderer checks that the saved project fits the 120-second limit.':result.frames+' frames; the final partial frame holds to its boundary.')+' Compatible Orbit projects only.';
+        summary.textContent=(result.frames===null?'The renderer checks that the saved project fits the 120-second limit.':result.frames+' frames; the final partial frame holds to its boundary.')+' Compatible Earth and Orbit projects. Live globe exploration is not recorded in a project.'+($('studio').dataset.host==='earth'?' Earth starts without recorded narration. Enable audio after attaching voice takes.':'');
         fields.start.removeAttribute('aria-invalid');fields.end.removeAttribute('aria-invalid');
       }catch(error){command.value='';copy.disabled=true;summary.className='error';summary.textContent=error.message;fields.start.setAttribute('aria-invalid','true');fields.end.setAttribute('aria-invalid','true');}
     }

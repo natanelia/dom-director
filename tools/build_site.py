@@ -16,7 +16,7 @@ def render_html(template,css,revision):
     html=replace_once(html,'class="mode-picker" aria-label=','class="mode-picker" role="group" aria-label=')
     html=replace_once(html,'<style>/*__CSS__*/</style>','<style>'+css+'</style>')
     html=replace_once(html,'<script>/*__DATA__*/</script>\n<script>/*__MODEL__*/\n/*__APP__*/</script>',
-        '<div id="sdk-overlay"></div><script type="module" src="./app.mjs"></script>')
+        '<div id="sdk-overlay"></div><script type="module" src="./app-entry.mjs"></script>')
     for id in ['focus-frame','demo-cursor']:
         html,count=re.subn(r'^.*id="'+id+r'".*\n','',html,flags=re.M)
         if count!=1:raise ValueError('Unexpected legacy overlay marker')
@@ -41,11 +41,12 @@ def render_html(template,css,revision):
     html=html.replace('value="gentle">Gentle — a softer landing','value="overview">Overview — a softer landing')
     html=html.replace('value="linear">Linear — see the mechanics','value="direct">Direct — see the mechanics')
     html=html.replace('real-DOM concept demo','real-DOM SDK demo')
-    html=replace_once(html,'</head>',f'<meta name="dom-director-revision" content="{revision}"></head>')
+    html=replace_once(html,'</head>',f'<link rel="stylesheet" href="./earth.css"><meta name="dom-director-revision" content="{revision}"></head>')
     if any(marker in html for marker in ['/*__CSS__*/','/*__DATA__*/','/*__APP__*/','/*__MODEL__*/']):raise ValueError('Unresolved template marker')
     return html
 
 STUDIO_SITE_FILES = ('studio.html', 'studio.css', 'studio.mjs', 'studio-view.mjs', 'studio-video.mjs', 'studio-selection.mjs', 'studio-selection.css', 'studio-captions.mjs')
+EARTH_SITE_FILES = ('app-entry.mjs', 'earth-demo.mjs', 'earth.mjs', 'earth.css')
 STUDIO_MODULES = ('index.js', 'project.js', 'sample.js', 'evaluator.js', 'editing.js', 'media.js', 'subtitles.js', 'audio-export.js', 'timing.js', 'timing-links.js', 'selection.js', 'caption-search.js')
 
 def studio_files(revision):
@@ -84,7 +85,7 @@ def build(output,revision):
         for reference in re.findall(r"^(?:import|export)[^\n]*?from ['\"]([^'\"]+)['\"]",module.read_text(),flags=re.M):
             if not reference.startswith('./') or not (module.parent/reference).is_file():raise ValueError('Unresolved/non-local SDK import: '+reference)
         shutil.copyfile(module,sdk/module.name)
-    for name in ['app.mjs','model.mjs','agent.html','agent.mjs']:
+    for name in ['app.mjs','model.mjs','agent.html','agent.mjs',*EARTH_SITE_FILES]:
         source=ROOT/'site'/name
         if source.is_symlink():raise ValueError('Source symlink is not allowed')
         shutil.copyfile(source,output/name)
@@ -104,7 +105,7 @@ def build(output,revision):
             '-t',str(scene['durationMs']/1000),'-vn','-c:a','libmp3lame','-b:a','64k','-ar','22050','-ac','1','-map_metadata','-1',str(assets/name)],check=True,timeout=30)
         start+=scene['durationMs']
     files={str(path.relative_to(output)):hashlib.sha256(path.read_bytes()).hexdigest() for path in sorted(output.rglob('*')) if path.is_file()}
-    allowed={'.nojekyll','index.html','LICENSE.txt','tour.generated.js','orbit.tour.json','app.mjs','model.mjs','agent.html','agent.mjs','prototype/index.html',*STUDIO_SITE_FILES,*('studio-sdk/'+name for name in STUDIO_MODULES)}
+    allowed={'.nojekyll','index.html','LICENSE.txt','tour.generated.js','orbit.tour.json','app.mjs','model.mjs','agent.html','agent.mjs','prototype/index.html',*EARTH_SITE_FILES,*STUDIO_SITE_FILES,*('studio-sdk/'+name for name in STUDIO_MODULES)}
     if any(name not in allowed and not re.fullmatch(r'sdk/[A-Za-z0-9.-]+\.js|assets/voice\.[A-Za-z0-9.-]+\.mp3',name) for name in files):raise ValueError('Unexpected public artifact path')
     (output/'_build.json').write_text(json.dumps({'revision':revision,'runtime':'@dom-director/core','schemaVersion':tour['schemaVersion'],'files':files},indent=2)+'\n')
     print(json.dumps({'revision':revision,'files':len(files)+1,'bytes':sum(path.stat().st_size for path in output.rglob('*') if path.is_file())}))

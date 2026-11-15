@@ -78,7 +78,7 @@ def load_site(site: Path, project: Path | None) -> tuple[dict[str, bytes], str]:
     site = site.resolve()
     manifest = json.loads((site / '_build.json').read_text())
     from build_site import STUDIO_MODULES
-    names = {'studio.html', 'studio.css', 'studio-view.mjs'}
+    names = {'studio.html', 'studio.css', 'studio-view.mjs', 'earth.mjs', 'earth.css'}
     names.update('studio-sdk/' + name for name in STUDIO_MODULES)
     names.update('assets/' + name + '.mp3' for name in SAMPLES)
     names.update(name for name in manifest['files'] if re.fullmatch(r'sdk/[A-Za-z0-9.-]+\.js', name))
@@ -314,12 +314,12 @@ def render(args, *, on_frame=None) -> dict:
                 if video.stat().st_size > MAX_OUTPUT:
                     raise ValueError('Encoded output exceeds 512 MiB; choose a shorter range.')
                 encoded = probe_output(video, args.width, height, args.fps, frames, not args.silent)
-                report = {'rendererVersion': 1, 'fixture': 'orbit-960x540', 'siteRevision': revision,
+                report = {'rendererVersion': 1, 'fixture': f"{metadata['host']}-960x540", 'siteRevision': revision,
                     **metadata, **encoded, 'width': args.width, 'height': height, 'fps': args.fps, 'frames': frames,
                     'captionsBurnedIn': not args.no_captions, 'reducedMotion': args.reduced_motion,
                     'chromium': browser.version, 'outputSha256': sha(video.read_bytes()), 'bytes': video.stat().st_size,
                     'elapsedSeconds': round(time.monotonic() - started, 2), 'warnings': [
-                        'Fixed linear Orbit fixture, not arbitrary-site capture or interactive output.',
+                        f"Fixed linear {metadata['host'].title()} fixture; live application interactions are not recorded.",
                         'Fonts, browser rasterization and codecs may vary by machine.',
                         'The last video frame is held to the next whole frame boundary; audio tail is padded with silence.',
                     ]}
@@ -342,7 +342,7 @@ def parser():
     result = argparse.ArgumentParser(description=__doc__)
     source = result.add_mutually_exclusive_group(required=True)
     source.add_argument('--sample', action='store_true', help='Render the prepared Orbit sample.')
-    source.add_argument('--project', type=Path, help='Render a saved .director project for the Orbit host.')
+    source.add_argument('--project', type=Path, help='Render a saved .director project for the Earth or Orbit host.')
     result.add_argument('--output', type=Path, required=True, help='New .mp4 or .webm file; existing files are never overwritten.')
     result.add_argument('--site', type=Path, default=ROOT / 'site-dist', help='Local build directory, never a remote URL.')
     result.add_argument('--width', type=int, choices=WIDTHS, default=1280)

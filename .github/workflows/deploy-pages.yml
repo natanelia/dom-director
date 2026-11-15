@@ -46,6 +46,8 @@ jobs:
         run: |
           bash tools/install_site_tools.sh
           python3 tools/build_runtime.py
+          mkdir -p node_modules/@dom-director
+          ln -s ../../packages/core node_modules/@dom-director/core
           python3 tools/build_site.py
           python3 site-tests/deployment_contract_test.py
           node --test site-tests/model.test.mjs

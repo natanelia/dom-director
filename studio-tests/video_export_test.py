@@ -145,6 +145,10 @@ class VideoModelTests(unittest.TestCase):
         self.assertNotIn('project.director', files)
         self.assertNotIn('AGENTS.md', files)
         self.assertIn('render-host.mjs', files)
+        self.assertIn('earth.mjs', files)
+        self.assertIn('earth.css', files)
+        self.assertNotIn('earth-demo.mjs', files)
+        self.assertNotIn('app-entry.mjs', files)
         with tempfile.TemporaryDirectory() as temp:
             site = Path(temp) / 'site';shutil.copytree(ROOT / 'site-dist', site)
             (site / 'studio.css').write_text('changed')
@@ -158,6 +162,8 @@ class VideoBrowserTests(unittest.TestCase):
         # Build pure sample data with the actual local package, not a second format.
         result = subprocess.run(['node', '--input-type=module', '-e', "import {createSample} from './packages/studio/src/index.js'; console.log(JSON.stringify(createSample()));"], cwd=ROOT, capture_output=True, text=True, check=True)
         cls.sample = json.loads(result.stdout)
+        result = subprocess.run(['node', '--input-type=module', '-e', "import {createEarthSample} from './packages/studio/src/index.js'; console.log(JSON.stringify(createEarthSample()));"], cwd=ROOT, capture_output=True, text=True, check=True)
+        cls.earth = json.loads(result.stdout)
         cls.evidence = ROOT / 'video-results';cls.evidence.mkdir(exist_ok=True)
 
     def setUp(self):
@@ -193,6 +199,8 @@ class VideoBrowserTests(unittest.TestCase):
 
     def test_mp4_frame_parity_across_scene_boundary_with_prepared_voice(self):
         output, report, frames = self.render('sample.mp4', start=6750, end=7250, probes=[0, 11])
+        self.assertEqual((report['host'], report['fixture']), ('orbit', 'orbit-960x540'))
+        self.assertIn('Fixed linear Orbit fixture;', report['warnings'][0])
         self.assertEqual((report['frames'],report['videoCodec'],report['audioCodec']), (12,'h264','aac'))
         self.assertNotEqual(frames[0][1]['sceneId'], frames[11][1]['sceneId'])
         parity = []
@@ -283,6 +291,39 @@ class VideoBrowserTests(unittest.TestCase):
         self.assertEqual(frames[0][1]['timeMs'],6980)
         self.assertAlmostEqual(frames[3][1]['timeMs'],7080)
         self.assertAlmostEqual(report['durationSeconds'],4/30,delta=.05)
+
+    def test_saved_earth_renders_its_own_host_and_caption_boundary_without_voice(self):
+        path = self.bundle(self.earth)
+        before = path.read_bytes()
+        output, report, frames = self.render('earth.mp4', start=6750, end=7250,
+                                            extra=['--silent'], project=path, probes=[0, 11])
+        self.assertEqual((report['host'], report['fixture']), ('earth', 'earth-960x540'))
+        self.assertIn('Fixed linear Earth fixture;', report['warnings'][0])
+        self.assertEqual(report['frames'], 12)
+        self.assertIsNone(report['audioCodec'])
+        self.assertIsNone(report['audio'])
+        self.assertEqual(frames[0][1]['sceneId'], 'earth.overview')
+        self.assertEqual(frames[11][1]['sceneId'], 'earth.metric')
+        self.assertEqual(path.read_bytes(), before)
+        parity = []
+        for index, (png, frame) in frames.items():
+            error = difference(rgb(png), video_frame(output, index))
+            self.assertLess(error, 8, 'Encoded Earth frame differs from the controlled host')
+            parity.append({'frame': index, 'timeMs': frame['timeMs'], 'meanAbsoluteRgbError': error})
+            (self.evidence / f'earth-frame-{index}.png').write_bytes(png)
+        self.assertGreater(difference(rgb(frames[0][0]), rgb(frames[11][0])), .1)
+        shutil.copyfile(output, self.evidence / output.name)
+        (self.evidence / 'earth-report.json').write_text(json.dumps({'render': report, 'parity': parity}, indent=2))
+
+    def test_earth_export_rejects_mixed_host_targets_before_publishing(self):
+        project = deepcopy(self.earth)
+        project['tracks'][0]['clips'][0]['keys'][0]['target'] = 'orbit.overview'
+        args = options(self.path / 'mixed-earth.mp4', '--silent')
+        args.project, args.sample = self.bundle(project), False
+        with self.assertRaisesRegex(Exception, 'mix Earth and Orbit'):
+            renderer.render(args)
+        self.assertFalse(args.output.exists())
+        self.assertFalse(args.output.with_suffix('.mp4.json').exists())
 
 
 if __name__=='__main__':unittest.main(verbosity=2)

@@ -5,15 +5,15 @@ const font={sans:'system-ui, sans-serif',serif:'Georgia, serif',mono:'ui-monospa
 function svg(tag,attrs,parent){const n=document.createElementNS(ns,tag);for(const [k,v] of Object.entries(attrs))n.setAttribute(k,String(v));parent.append(n);return n;}
 export const TARGETS=[{id:'orbit.overview',label:'Workspace',element:'scene'},{id:'orbit.metrics',label:'Route metrics',element:'metrics'},{id:'orbit.map',label:'Route map',element:'route-map'},{id:'orbit.review',label:'Review panel',element:'review'},{id:'orbit.action',label:'Review button',element:'app-review'}];
 /** Scene motion uses the existing surface owner. Controls/CC/cursor stay in independent layers. */
-export function createCanvas({stage,scene,overlay,caption,cursor,handles,onInvalidate}){
+export function createCanvas({stage,scene,overlay,caption,cursor,handles,onInvalidate,targets=TARGETS}){
   const surface=createSurface({viewport:stage,scene,overlay});
   if(surface.kind!=='managed-dom'){surface.destroy();throw new Error('This canvas cannot safely own the application transform.');}
   let dirty=true,measurement=null,project=null,evaluator=null,lastFrame=null,lastCaption='',disposed=false,viewZoom=1;
   const unsubscribe=surface.subscribe(()=>{dirty=true;onInvalidate?.();});
   function geometry(){
     if(dirty||!measurement){
-      const elements=TARGETS.map(t=>document.getElementById(t.element)),snap=surface.snapshot(elements),bounds=Object.create(null);
-      TARGETS.forEach((target,i)=>bounds[target.id]=snap.bounds[i].rect);
+      const elements=targets.map(t=>typeof t.element==='string'?document.getElementById(t.element):t.element),snap=surface.snapshot(elements),bounds=Object.create(null);
+      targets.forEach((target,i)=>bounds[target.id]=snap.bounds[i].rect);
       measurement={bounds,box:{x:0,y:0,width:stage.clientWidth,height:stage.clientHeight}};dirty=false;
     }return measurement;
   }
@@ -60,7 +60,7 @@ export function createCanvas({stage,scene,overlay,caption,cursor,handles,onInval
     handles.replaceChildren();if(!lastFrame)return;
     const {bounds,box}=geometry(),cam=surface.pose;handles.setAttribute('viewBox',`0 0 ${box.width} ${box.height}`);
     const point=k=>{const r=bounds[k.target];return {x:cam.x+(r.x+r.width/2+k.x)*cam.scale,y:cam.y+(r.y+r.height/2+k.y)*cam.scale};};
-    if(picking){for(const t of TARGETS){const b=bounds[t.id];svg('rect',{x:cam.x+b.x*cam.scale,y:cam.y+b.y*cam.scale,width:b.width*cam.scale,height:b.height*cam.scale,rx:4,fill:'none',stroke:'#456b3b','stroke-width':2,'stroke-dasharray':'5 4'},handles);}return;}
+    if(picking){for(const t of targets){const b=bounds[t.id];svg('rect',{x:cam.x+b.x*cam.scale,y:cam.y+b.y*cam.scale,width:b.width*cam.scale,height:b.height*cam.scale,rx:4,fill:'none',stroke:'#456b3b','stroke-width':2,'stroke-dasharray':'5 4'},handles);}return;}
     if(!clip?.keys)return;
     const points=clip.keys.map(point);
     if(clip.gestures&&points.length>1){
@@ -71,7 +71,14 @@ export function createCanvas({stage,scene,overlay,caption,cursor,handles,onInval
     clip.keys.forEach((key,i)=>{const p=points[i];const n=svg('circle',{cx:p.x,cy:p.y,r:key.id===keyId?7:5,fill:key.id===keyId?'#f4ce7f':'#fffef6',stroke:'#375641','stroke-width':2,'data-key':key.id,'pointer-events':'all',style:'cursor:move'},handles);svg('title',{},n).textContent=`Keyframe ${i+1}; edit exact values in the inspector`;});
   }
   return {render,showHandles,get pose(){return surface.pose;},geometry,
-    invalidate(){dirty=true;},hitTargets(x,y){const {bounds}=geometry(),cam=surface.pose,px=(x-cam.x)/cam.scale,py=(y-cam.y)/cam.scale;return TARGETS.filter(t=>{const b=bounds[t.id];return px>=b.x&&px<=b.x+b.width&&py>=b.y&&py<=b.y+b.height;});},
+    showApplication(){
+      if(disposed)return;
+      // Explicit handoff suspends the presentation camera. The same live app can
+      // reflow to its native control sizes without changing authored coordinates.
+      surface.apply({x:0,y:0,scale:1});dirty=true;measurement=null;lastFrame=null;
+      caption.hidden=true;cursor.replaceChildren();handles.replaceChildren();
+    },
+    invalidate(){dirty=true;},hitTargets(x,y){const {bounds}=geometry(),cam=surface.pose,px=(x-cam.x)/cam.scale,py=(y-cam.y)/cam.scale;return targets.filter(t=>{const b=bounds[t.id];return px>=b.x&&px<=b.x+b.width&&py>=b.y&&py<=b.y+b.height;});},
     destroy(){if(disposed)return;disposed=true;unsubscribe();surface.destroy();caption.replaceChildren();cursor.replaceChildren();handles.replaceChildren();},
   };
 }

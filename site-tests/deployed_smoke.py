@@ -39,7 +39,7 @@ def expected_files(revision):
         '.nojekyll': b'',
         'prototype/index.html': (ROOT / 'demo/index.html').read_bytes(),
     }
-    for name in ('app.mjs', 'model.mjs', 'agent.html', 'agent.mjs'):
+    for name in ('app.mjs', 'model.mjs', 'agent.html', 'agent.mjs', *builder.EARTH_SITE_FILES):
         files[name] = (ROOT / 'site' / name).read_bytes()
     for module in (ROOT / 'packages/core/src').glob('*.js'):
         files['sdk/' + module.name] = module.read_bytes()
@@ -116,7 +116,7 @@ def verify_browser(base, revision, engine):
         page = browser.new_page(viewport={'width':1440, 'height':1100})
         errors = []
         page.on('pageerror', lambda error: errors.append(str(error)))
-        page.goto(base + '?verify=' + revision)
+        page.goto(base + '?example=orbit&verify=' + revision)
         page.wait_for_function("document.querySelector('#stage')?.dataset.runtime==='sdk'")
         assert page.locator('meta[name="dom-director-revision"]').get_attribute('content') == revision
         page.locator('#stage-play').click()

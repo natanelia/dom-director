@@ -146,3 +146,7 @@ Platform references, consulted 8 November 2026:
 [Playwright screenshot API](https://playwright.dev/python/docs/api/class-locator#locator-screenshot),
 [FFmpeg input/encoding options](https://ffmpeg.org/ffmpeg.html), and
 [FFmpeg image-sequence formats](https://ffmpeg.org/ffmpeg-formats.html#image2).
+
+## Earth example
+
+The renderer also accepts the controlled Earth host. It renders the initial globe view plus the saved presentation tracks; live globe interactions are not recorded in .director files. The default Earth sample has narration text without audio. Choose silent export until actual voice takes are attached. Missing takes still fail explicit audio export.

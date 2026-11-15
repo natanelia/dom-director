@@ -7,7 +7,7 @@ class DisclosureTests(StudioTests):
     def test_caption_edit_then_open_word_controls(self):
         failures = []
         for attempt in range(12):
-            self.page.goto(self.url)
+            self.page.goto(self.fixture_url())
             self.page.wait_for_function("document.querySelector('#studio')?.dataset.ready==='true'")
             self.page.evaluate("""()=>{
               window.disclosureEvents=[];

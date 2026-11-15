@@ -3,11 +3,12 @@ import {createSample, duration} from './studio-sdk/index.js';
 import {createMediaBank, readProjectBundle, digest} from './studio-sdk/media.js';
 import {renderVoiceMix} from './studio-sdk/audio-export.js';
 import {createCanvas, TARGETS} from './studio-view.mjs';
+import {createEarthApp} from './earth.mjs';
 
 const $ = id => document.getElementById(id);
-const targets = new Set(TARGETS.map(target => target.id));
+let targetDescriptors = TARGETS;
 const samples = new Set(['voice.overview', 'voice.signal', 'voice.story']);
-let project, bank, canvas, mix, signature, options, closed = false;
+let project, bank, canvas, earth, mix, signature, options, closed = false;
 function check(value, message) {if (!value) throw new Error(message);}
 function base64(bytes) {
   let text = '';
@@ -16,7 +17,7 @@ function base64(bytes) {
 }
 async function close() {
   if (closed) return;
-  closed = true; mix = null; canvas?.destroy();
+  closed = true; mix = null; canvas?.destroy(); earth?.destroy();
   await bank?.destroy();
 }
 async function prepare(config) {
@@ -29,7 +30,15 @@ async function prepare(config) {
     check(response.ok, 'The local project could not be read.');
     ({project, media} = await readProjectBundle(await response.text()));
   }
-  check(project.canvas.width === 960 && project.canvas.height === 540, 'This renderer supports the controlled 960 × 540 Orbit host only.');
+  check(project.canvas.width === 960 && project.canvas.height === 540, 'This renderer supports the controlled 960 × 540 Earth and Orbit examples only.');
+  const refs=project.tracks.flatMap(track=>track.clips.flatMap(clip=>clip.keys?.map(key=>key.target)||[]));
+  const isEarth=refs.some(id=>id.startsWith('earth.'))||(!refs.length&&project.id==='earth-studio');
+  if(isEarth){
+    check(!refs.some(id=>id.startsWith('orbit.')), 'A project cannot mix Earth and Orbit hosts.');
+    earth=createEarthApp({root:$('scene'),interactive:false});
+    targetDescriptors=Object.entries(earth.targets).map(([id,element])=>({id,element,label:id}));
+  }
+  const targets=new Set(targetDescriptors.map(target=>target.id));
   for (const track of project.tracks) for (const clip of track.clips)
     for (const key of clip.keys || []) check(targets.has(key.target), 'The project needs a focus target this host does not provide.');
   for (const asset of project.assets) if (asset.source === 'sample')
@@ -52,10 +61,10 @@ async function prepare(config) {
     mix = await renderVoiceMix(project, bank, {range: {startMs: config.startMs, endMs}, sampleRate: 48000, channels: 2});
   }
   canvas = createCanvas({stage: $('stage'), scene: $('scene'), overlay: $('stage-overlays'),
-    caption: $('caption-overlay'), cursor: $('cursor-layer'), handles: $('edit-handles')});
+    caption: $('caption-overlay'), cursor: $('cursor-layer'), handles: $('edit-handles'),targets:targetDescriptors});
   await document.fonts.ready;
   check($('scene').inert && $('stage').clientWidth === 960 && $('stage').clientHeight === 540, 'The render-only host did not initialize at its fixed composition size.');
-  const metadata = {projectSha256, startMs: config.startMs, endMs, projectDurationMs: duration(project),
+  const metadata = {host: isEarth ? 'earth' : 'orbit', projectSha256, startMs: config.startMs, endMs, projectDurationMs: duration(project),
     audio: mix ? {bytes: mix.wav.byteLength, sampleRate: mix.sampleRate, channels: mix.channels, peak: mix.peak,
       clippedSamples: mix.clippedSamples, clipCount: mix.clipCount} : null};
   await frame(config.startMs);

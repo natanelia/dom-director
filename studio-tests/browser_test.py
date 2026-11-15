@@ -35,6 +35,12 @@ class Quiet(SimpleHTTPRequestHandler):
 
 
 class StudioTests(unittest.TestCase):
+    # Preserve the established Orbit acceptance fixture alongside the new default Earth demo.
+    example = "orbit"
+
+    def fixture_url(self):
+        return self.url + "?example=" + self.example + "&verify=" + os.environ.get("DEPLOYED_SHA", "local")
+
     @classmethod
     def setUpClass(cls):
         public = os.environ.get('STUDIO_PUBLIC_URL')
@@ -70,7 +76,7 @@ class StudioTests(unittest.TestCase):
         self.requests = []
         self.page.on('pageerror', lambda error: self.errors.append(str(error)))
         self.page.on('request', lambda request: self.requests.append(request.url))
-        navigate_studio(self.page, self.url + '?verify=' + os.environ.get('DEPLOYED_SHA', 'local'),
+        navigate_studio(self.page, self.fixture_url(),
                         self.output / (self.__class__.__name__ + '-' + self._testMethodName + '-startup.json'))
 
     def tearDown(self):

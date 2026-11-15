@@ -24,7 +24,16 @@ export function createDirector({surface:surfaceOptions,targets={},registry:creat
   function safeNotify(set,event){for(const listener of [...set]){try{listener(event);}catch{/* Application subscribers are isolated. */}}}
   const loop=createFrameLoop(timing,()=>!destroyed&&session?.running,()=>session.tick(),error=>session.fail(error));
   function schedule(){loop.sync();}
-  function render(state){if(!plan||destroyed)return;try{lastVisual=renderer.render(plan,state,{reduced,animate:session?.running});mediaClock?.observePresentation(state.timeMs);safeNotify(frames,{...state,caption:captions?lastVisual.caption:''});}catch(error){session?.fail(error);schedule();}}
+  function deferEmptyViewport(){
+    const {viewport,scene,overlay}=surface;
+    if(!viewport.isConnected||!scene.isConnected||!overlay.isConnected||
+      (viewport.clientWidth!==0&&viewport.clientHeight!==0))return false;
+    // Responsive layout can briefly collapse a connected viewport. Keep the
+    // presentation paused until it has an area again; target errors stay strict.
+    if(session?.running)session.pause();
+    return true;
+  }
+  function render(state){if(!plan||destroyed)return;try{if(deferEmptyViewport())return;lastVisual=renderer.render(plan,state,{reduced,animate:session?.running});mediaClock?.observePresentation(state.timeMs);safeNotify(frames,{...state,caption:captions?lastVisual.caption:''});}catch(error){session?.fail(error);schedule();}}
   function event(value){revision++;safeNotify(listeners,{...value,sessionId,revision});schedule();}
   function live(){requireValue(!destroyed,'DESTROYED','The director has been destroyed.');}
   function loaded(){live();requireValue(session,'NOT_LOADED','Load a script before controlling playback.');}
@@ -68,7 +77,7 @@ export function createDirector({surface:surfaceOptions,targets={},registry:creat
       session=new Session(plan,{now:timing.now,mode,barriers:guidance||barriers,clock:mediaClock||clock,onEvent:event,onFrame:render});
       render(session.inspect());requireValue(session.status!=='error','PREPARE_FAILED','The initial visual state could not be prepared.');return session.inspect();
     });},
-    play(){return command(()=>{available();requireValue(!doc.hidden,'PAGE_HIDDEN','Playback requires a visible page.');renderer.invalidate();renderer.render(plan,session.inspect(),{reduced});session.reasons.delete('error');const result=session.play();schedule();return result;});},
+    play(){return command(()=>{available();requireValue(!doc.hidden,'PAGE_HIDDEN','Playback requires a visible page.');if(deferEmptyViewport())return session.inspect();renderer.invalidate();renderer.render(plan,session.inspect(),{reduced});session.reasons.delete('error');const result=session.play();schedule();return result;});},
     pause(){return command(()=>{loaded();cancelOperation();const value=session.pause();schedule();return value;});},
     seek(position){return command(()=>{available();const value=session.seek(position);schedule();return value;});},
     setRate(rate){return command(()=>{available();session.setRate(rate);return session.inspect();});},

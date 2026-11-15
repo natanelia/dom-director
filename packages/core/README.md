@@ -57,6 +57,8 @@ Secret targets cannot resolve. Private targets require an explicit `privateTarge
 
 The geometry cache measures before writes, distinguishes invalidation from changed coordinates, and suppresses subpixel DOMRect round-trip noise. The noise comparison retains accepted numeric geometry, so repeated small true movements accumulate rather than disappearing indefinitely.
 
+The director pauses active playback and defers rendering while its connected viewport has zero width or height. Once layout returns, a resize or other geometry invalidation redraws the paused presentation; an explicit `play()` resumes it. Disconnected surfaces and invalid targets in a nonempty viewport still fail their normal checks.
+
 ## Narration, captions and controls
 
 Provide `narration:{resolveAsset, ...}` to opt into prepared media. The resolver is host-owned; script URI declarations alone do not authorize network access. Silent playback uses presentation time. Opted-in audio has guarded timestamp, startup, stall and early-end handling. `onFailure:'pause'` is explicit recovery; `'text'` continues captioned playback. Playback never completes solely because an untrusted end event fired.

@@ -31,12 +31,12 @@ class StudioStartupTests(StudioTests):
         # Deliberately broken fixtures use a short bound. Ordinary navigation
         # retains the existing 8000 ms deadline and never retries.
         with self.assertRaises(Exception) as caught:
-            navigate_studio(self.page, self.url, self.report, timeout_ms=500)
+            navigate_studio(self.page, self.fixture_url(), self.report, timeout_ms=500)
         self.assertEqual(type(caught.exception).__name__, expected)
         return json.loads(self.report.read_text())
 
     def test_cold_start_requires_ready_and_actual_tracks_without_retries(self):
-        navigate_studio(self.page, self.url, self.report)
+        navigate_studio(self.page, self.fixture_url(), self.report)
         self.assertEqual(self.page.locator('#studio').get_attribute('data-ready'), 'true')
         # Scene navigation is also a lane, not a fifth editing track.
         kinds = self.page.locator('#lanes > .lane').evaluate_all(
@@ -61,7 +61,7 @@ class StudioStartupTests(StudioTests):
         self.assertFalse(any(row['state'] == 'failed' for row in report['requests']))
 
     def test_missing_root_cannot_satisfy_readiness_via_undefined(self):
-        self.page.route('**/studio.html', lambda route: route.fulfill(status=200, content_type='text/html',
+        self.page.route('**/studio.html?*', lambda route: route.fulfill(status=200, content_type='text/html',
                          body='<!doctype html><html lang="en"><title>Missing fixture</title><body>No Studio root</body></html>'))
         report = self.broken('TimeoutError')
         self.assertIsNone(report['state']['ready'])

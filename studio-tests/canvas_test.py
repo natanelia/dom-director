@@ -34,7 +34,7 @@ class StudioCanvasTests(baseline.StudioTests):
         self.page.on('pageerror',lambda error:self.errors.append(str(error)))
         self.page.on('request',lambda request:self.requests.append(request.url))
         self.page.add_init_script('('+PROBE+')()')
-        self.page.goto(self.url+'?verify='+__import__('os').environ.get('DEPLOYED_SHA','local'))
+        self.page.goto(self.fixture_url())
         self.page.wait_for_function("document.querySelector('#studio')?.dataset.ready==='true'")
         self.assert_no_geometry_errors()
 

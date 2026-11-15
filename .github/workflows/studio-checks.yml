@@ -83,6 +83,7 @@ jobs:
         env:
           BROWSER_ENGINE: ${{ matrix.browser }}
         run: |
+          PYTHONPATH=studio-tests python3 -m unittest earth_test.EarthDemoTests.test_all_six_try_checkpoints_require_real_controls_and_change_globe_pixels -v
           python3 studio-tests/browser_test.py
           python3 studio-tests/review_test.py
           python3 studio-tests/startup_browser_test.py

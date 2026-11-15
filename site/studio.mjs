@@ -1,7 +1,8 @@
-import {createSample,createProjectStore,createEvaluator,editProject,findClip,freshId,duration,sceneTimeline,locate,updateClip,moveClip,trimClip,splitClip,deleteClip,duplicateClip,reorderScene,proposeRetime,exportSubtitles,CAPTION_THEME,CURSOR_THEME} from './studio-sdk/index.js';
+import {createSample,createEarthSample,createProjectStore,createEvaluator,editProject,findClip,freshId,duration,sceneTimeline,locate,updateClip,moveClip,trimClip,splitClip,deleteClip,duplicateClip,reorderScene,proposeRetime,exportSubtitles,CAPTION_THEME,CURSOR_THEME} from './studio-sdk/index.js';
 import {createMediaBank,createTransport,saveProjectBundle,readProjectBundle,generateVoiceTake,createTakeAuditioner} from './studio-sdk/media.js';
 import {setAppearance,applyCaptionPreset,distributeCaptionWords,addKeyframe,updateKeyframe,deleteKeyframe,addGesture,addScene,deleteScene,addCaption,proposeCaptionImport,proposeVoiceReplacement,describeVoiceReplacementImpact,createTimelineSnapper,moveTimelineKeyframe,captionWordAnchors} from './studio-sdk/editing.js';
 import {createCanvas,TARGETS,drawWaveform} from './studio-view.mjs';
+import {createEarthApp} from './earth.mjs';
 import {createSelectionTools} from './studio-selection.mjs';
 import {planVoiceMix,renderVoiceMix} from './studio-sdk/audio-export.js';
 import {linkKeyframeToCaptionWord,detachTimingLink,detachCaptionTimingLinks,describeTimingLinks} from './studio-sdk/timing-links.js';
@@ -9,9 +10,13 @@ import {linkKeyframeToCaptionWord,detachTimingLink,detachCaptionTimingLinks,desc
 const $=id=>document.getElementById(id),copy=value=>JSON.parse(JSON.stringify(value)),seconds=ms=>(ms/1000).toFixed(2);
 const clock=ms=>{const n=Math.max(0,ms);return String(Math.floor(n/60000)).padStart(2,'0')+':'+(n/1000%60).toFixed(2).padStart(5,'0');};
 const names={camera:'Camera',cursor:'Cursor',voice:'Voiceover',captions:'Closed captions'};
-const approved=new Set(TARGETS.map(t=>t.id)),samples=new Set(['voice.overview','voice.signal','voice.story']);
+const earthTargets=[['earth.overview','Earth workspace'],['earth.globe','3D Earth'],['earth.metric','Statistic layers'],['earth.year','Year slider'],['earth.region','Region focus'],['earth.connections','Connections'],['earth.lighting','Day and night'],['earth.reset','Reset view']].map(([id,label])=>({id,label}));
+const samples=new Set(['voice.overview','voice.signal','voice.story']);
+const orbitMarkup=$('scene').innerHTML,orbitClass=$('scene').className;
+const initialProject=new URLSearchParams(location.search).get('example')==='orbit'?createSample():createEarthSample();
 const cleanups=[],urls=new Map(),dirtyFields=new Set(),inspectorSections=new Map();
-let store=createProjectStore(createSample()),selected={sceneId:'overview',kind:'captions',clipId:'cc.overview.0',keyId:null};
+let store=createProjectStore(initialProject),selected={sceneId:initialProject.scenes[0].id,kind:'captions',clipId:null,keyId:null};
+let targets=TARGETS,hostKind=null,earthApp=null,trying=false;
 let time=0,scope='clip',viewZoom=1,reduced=matchMedia('(prefers-reduced-motion: reduce)').matches,cc=true,sound=false,loop=false;
 let disposed=false,busy=false,drag=null,recording=null,operation=null,transport,view,ready=false,paintRequest=null,lastExport=-1,dialogCleanup=null,fieldCommit=false;
 // Optional host adapter. No service is contacted or configured by this public fixture.
@@ -26,8 +31,46 @@ function button(text,parent,callback,id){const n=node('button',text,parent);n.ty
 function message(text,error=false){$('status').textContent=text;$('status').classList.toggle('error',error);}
 function hostCheck(p){
   if(p.canvas.width!==960||p.canvas.height!==540)throw Error('This sample host uses a 960 × 540 application. Open this project in its matching host.');
-  for(const target of createEvaluator(p).targets)if(!approved.has(target))throw Error('This host does not expose the focus “'+target+'”. Your current project is unchanged.');
+  const refs=createEvaluator(p).targets,earth=refs.some(id=>id.startsWith('earth.')),orbit=refs.some(id=>id.startsWith('orbit.'));
+  if(earth&&orbit)throw Error('Earth and Orbit focus targets belong to separate example applications. Your current project is unchanged.');
+  const kind=earth?'earth':orbit?'orbit':p.id==='earth-studio'?'earth':'orbit';
+  const approved=new Set((kind==='earth'?earthTargets:TARGETS).map(t=>t.id));
+  for(const target of refs)if(!approved.has(target))throw Error('This host does not expose the focus “'+target+'”. Your current project is unchanged.');
   for(const a of p.assets)if(a.source==='sample'&&!samples.has(a.sample))throw Error('This project needs a prepared voice that this host does not provide.');
+  return kind;
+}
+// The application owns its live state. Preview only directs attention to its controls.
+function mountHost(p){
+  const kind=hostCheck(p);
+  if(trying)setTrying(false,{focus:false});
+  if(kind===hostKind&&view)return;
+  view?.destroy();earthApp?.destroy();earthApp=null;
+  const root=$('scene');root.className=orbitClass;root.innerHTML=orbitMarkup;root.inert=true;
+  if(kind==='earth'){
+    earthApp=createEarthApp({root,interactive:false,onChange:()=>message('Earth updated. Your timeline and saved project are unchanged.')});
+    earthApp.setReducedMotion(reduced);
+    targets=earthTargets.map(t=>({...t,element:earthApp.targets[t.id]}));
+  }else targets=TARGETS;
+  hostKind=kind;$('studio').dataset.host=kind;
+  $('try-controls').hidden=kind!=='earth';
+  $('example-switch').textContent=kind==='earth'?'Orbit example ↗':'Earth example ↗';
+  $('example-switch').href=kind==='earth'?'./studio.html?example=orbit':'./studio.html';
+  $('stage-label').textContent=kind==='earth'?'LIVE EARTH · EDITABLE':'LIVE DOM · EDITABLE';
+  view=createCanvas({stage:$('stage'),scene:root,overlay:$('stage-overlays'),caption:$('caption-overlay'),cursor:$('cursor-layer'),handles:$('edit-handles'),targets,onInvalidate:()=>{if(!ready||disposed||paintRequest!==null)return;paintRequest=requestAnimationFrame(()=>{paintRequest=null;draw();});}});
+}
+function setTrying(value,{focus=true}={}){
+  if(value&&!earthApp)return;
+  if(value)stop();trying=value;earthApp?.setInteractive(value);
+  $('scene').classList.toggle('earth-live',value);
+  $('studio').classList.toggle('trying-controls',value);$('stage-overlays').hidden=value;
+  $('try-controls').textContent=value?'Back to editing':'Try controls';$('try-controls').setAttribute('aria-pressed',String(value));
+  $('canvas-zoom').disabled=value;
+  if(value)$('canvas-picker').hidden=true;
+  $('stage-label').textContent=value?'LIVE EARTH · YOUR CONTROLS':hostKind==='earth'?'LIVE EARTH · EDITABLE':'LIVE DOM · EDITABLE';
+  $('canvas-help').textContent=value?'Change a layer, drag the globe, or try the year slider. Escape returns to editing.':'Select a clip below to edit captions, voice, cursor, or camera.';
+  if(ready)draw();
+  if(focus)$('try-controls').focus({preventScroll:true});
+  if(value)message('Try the Earth controls. Preview is paused; these changes stay in this tab.');
 }
 function makeBank(){return createMediaBank({resolveSample:id=>{if(!samples.has(id))throw Error('Unapproved prepared voice.');return new URL('./assets/'+id+'.mp3',location.href).href;}});}
 let bank=makeBank();
@@ -45,8 +88,8 @@ function flush(){
   if(dirtyFields.size){message('Finish or correct the highlighted field before continuing.',true);[...dirtyFields][0]?.focus();return false;}
   return true;
 }
-function ensure(){return !disposed&&!busy&&!recording&&flush();}
-function seek(at){stop();time=Math.max(0,Math.min(duration(project()),Math.round(at)));transport.seek(time);draw();}
+function ensure(){if(disposed||busy||recording||!flush())return false;if(trying)setTrying(false,{focus:false});return true;}
+function seek(at){if(trying)setTrying(false,{focus:false});stop();time=Math.max(0,Math.min(duration(project()),Math.round(at)));transport.seek(time);draw();}
 function normalizeSelection(){
   if(selectionTools?.normalize())return;
   if(!project().scenes.some(s=>s.id===selected.sceneId))selected.sceneId=project().scenes[0].id;
@@ -114,7 +157,10 @@ function selectTimelineKey(clipId,keyId){
 }
 function draw(override=project()){
   if(!ready||disposed)return;
-  try{if(!view.render(override,time,{reducedMotion:reduced,captions:cc,zoom:viewZoom})){transport.pause();return;}let found;try{found=findClip(override,selected.clipId);}catch{}view.showHandles(transport.inspect().state==='playing'||selectionTools?.size>1?null:found?.clip,selected.keyId);}
+  try{
+    if(trying)view.showApplication();
+    else{if(!view.render(override,time,{reducedMotion:reduced,captions:cc,zoom:viewZoom})){transport.pause();return;}let found;try{found=findClip(override,selected.clipId);}catch{}view.showHandles(transport.inspect().state==='playing'||selectionTools?.size>1?null:found?.clip,selected.keyId);}
+  }
   catch(error){transport.pause();message(error.message,true);}
   $('timecode').textContent=clock(time)+' / '+clock(duration(project()));$('seek').value=String(time/1000);$('playhead').style.left=(135+time/1000*Number($('timeline-zoom').value))+'px';
   const at=locate(project(),time),index=project().scenes.findIndex(s=>s.id===at.scene.id);$('scene-name').textContent=String(index+1).padStart(2,'0')+' / '+at.scene.title;
@@ -234,7 +280,7 @@ function motionInspector(p,track,clip){
   const change=(patch)=>commit(updateKeyframe(project(),clip.id,key.id,patch),'Edit '+track.kind+' keyframe');
   field(p,'key-time','Keyframe in clip (s)',((key.atMs-clip.offsetMs)/1000).toFixed(3),v=>change({atMs:Math.round(v*1000)+clip.offsetMs}),{type:'number',step:.001});
   motionSync(p,track,clip,key);
-  field(p,'key-target','Focus target',key.target,v=>change({target:v}),{options:TARGETS.map(t=>[t.id,t.label])});
+  field(p,'key-target','Focus target',key.target,v=>change({target:v}),{options:targets.map(t=>[t.id,t.label])});
   if(camera)field(p,'camera-zoom','Camera zoom',key.zoom,v=>change({zoom:v}),{type:'number',min:.1,max:8,step:.05});
   const xy=node('div',undefined,p);xy.className='row';for(const prop of ['x','y'])field(xy,'key-'+prop,prop.toUpperCase()+' offset (scene px)',key[prop],v=>change({[prop]:v}),{type:'number',min:prop==='x'?-3840:-2160,max:prop==='x'?3840:2160,step:1});
   if(!camera)field(p,'cursor-curve','Path curve',key.curve,v=>change({curve:v}),{type:'number',min:-1000,max:1000,step:5});
@@ -434,7 +480,7 @@ async function startRecording(clipId){
 }
 async function openProject(file){await runAsync(async signal=>{
   if(file.size>36*1024*1024)throw Error('Project files must be smaller than 36 MiB.');const origin=revision(),bundle=await readProjectBundle(await file.text());hostCheck(bundle.project);signal.throwIfAborted();
-  modal('Open this project?',body=>{node('p',bundle.project.title+' · '+bundle.project.scenes.length+' scenes',body);node('p','This replaces the current draft and its undo history. Save your current project first. Local audio is validated before replacement.',body);},[['Cancel',closeDialog],['Open project',()=>{closeDialog();void runAsync(async signal=>{const staging=makeBank();try{for(const m of bundle.media){const actual=await staging.ingest(m.asset.id,m.asset.name,m.asset.mime,m.bytes,{signal});if(Math.abs(actual.durationMs-m.asset.durationMs)>20)throw Error('Audio duration differs from the saved take.');}signal.throwIfAborted();if(revision()!==origin)throw Error('Your draft changed while opening the project. It was not replaced.');stop();selectionTools?.clear();transport.destroy();const old=bank;bank=staging;store.replace(bundle.project);selected={sceneId:bundle.project.scenes[0].id,kind:'captions',clipId:null,keyId:null};sound=false;loop=false;time=0;lastExport=revision();transport=makeTransport();transport.load(project());dirtyFields.clear();refresh();$('sound').textContent='Sound off';$('sound').setAttribute('aria-pressed','false');await old.destroy();message('Project reopened. Audio and all style tracks retained.');}catch(e){await staging.destroy();throw e;}});},true]]);
+  modal('Open this project?',body=>{node('p',bundle.project.title+' · '+bundle.project.scenes.length+' scenes',body);node('p','This replaces the current draft and its undo history. Save your current project first. Local audio is validated before replacement.',body);},[['Cancel',closeDialog],['Open project',()=>{closeDialog();void runAsync(async signal=>{const staging=makeBank();try{for(const m of bundle.media){const actual=await staging.ingest(m.asset.id,m.asset.name,m.asset.mime,m.bytes,{signal});if(Math.abs(actual.durationMs-m.asset.durationMs)>20)throw Error('Audio duration differs from the saved take.');}signal.throwIfAborted();if(revision()!==origin)throw Error('Your draft changed while opening the project. It was not replaced.');stop();selectionTools?.clear();transport.destroy();const old=bank;bank=staging;store.replace(bundle.project);mountHost(project());selected={sceneId:bundle.project.scenes[0].id,kind:'captions',clipId:null,keyId:null};sound=false;loop=false;time=0;lastExport=revision();transport=makeTransport();transport.load(project());dirtyFields.clear();refresh();$('sound').textContent='Sound off';$('sound').setAttribute('aria-pressed','false');await old.destroy();message('Project reopened. Audio and all style tracks retained.');}catch(e){await staging.destroy();throw e;}});},true]]);
 });}
 function exportDialog(){if(!ensure())return;modal('Keep or share your work',body=>{node('p','Save project keeps all tracks, styles and local audio in a .director file. Subtitle files keep text and timing, not the visual theme.',body);node('p','Rendered video and interactive publishing are not available in this Studio build.',body).className='note';},[['Close',closeDialog],['VTT',()=>exportCC('vtt')],['SRT',()=>exportCC('srt')],['Voice WAV…',voiceMixDialog],['Save project',()=>{closeDialog();void save();},true]]);}
 function voiceMixDialog(){
@@ -497,21 +543,28 @@ function play(fromStart=false){if(!ensure())return;activeAudition?.stop();if(fro
 function selectKind(kind){if(!ensure())return;selectionTools?.clear();stop();selected.kind=kind;selected.clipId=null;selected.keyId=null;normalizeSelection();const c=selectedClip();if(c)seek(sceneTimeline(project()).find(s=>s.id===c.clip.sceneId).startMs+c.clip.startMs);refresh();}
 function changeSelection(work){act(()=>{work();refresh();});}
 function setup(){
-  view=createCanvas({stage:$('stage'),scene:$('scene'),overlay:$('stage-overlays'),caption:$('caption-overlay'),cursor:$('cursor-layer'),handles:$('edit-handles'),onInvalidate:()=>{if(!ready||disposed||paintRequest!==null)return;paintRequest=requestAnimationFrame(()=>{paintRequest=null;draw();});}});
+  mountHost(project());
   transport=makeTransport();transport.load(project());
   selectionTools=createSelectionTools({document,snapshot:()=>store.snapshot(),active:()=>selected,
     setActive:value=>{selected=value;scope='clip';},ensure,stop,commit,refresh,message,modal,closeDialog,
     selectSingle:selectClip,time:()=>time,resetLoop:()=>{loop=false;transport.setLoop(null);$('loop').setAttribute('aria-pressed','false');}});
   ready=true;refresh();$('studio').dataset.ready='true';
+  on($('try-controls'),'click',()=>{if(trying)setTrying(false);else if(ensure())setTrying(true);});
+  on($('example-switch'),'click',event=>{
+    if(event.ctrlKey||event.metaKey||event.shiftKey||event.altKey)return;
+    event.preventDefault();if(!ensure())return;
+    const destination=$('example-switch').href,label=hostKind==='earth'?'Orbit':'Earth';
+    modal('Open the '+label+' example?',body=>node('p','This opens a fresh example and leaves your current draft. Save your project before switching.',body),[['Cancel',closeDialog],['Open '+label+' example',()=>location.assign(destination),true]]);
+  });
   for(const b of document.querySelectorAll('.inspector-tabs button'))on(b,'click',()=>selectKind(b.dataset.kind));
   on($('project-title'),'input',()=>{stop();dirtyFields.add($('project-title'));});on($('project-title'),'change',()=>{try{dirtyFields.delete($('project-title'));commit(editProject(project(),p=>{p.title=$('project-title').value;}),'Rename project');}catch(e){dirtyFields.add($('project-title'));message(e.message,true);}});
   on($('play'),'click',()=>play());on($('preview-tour'),'click',()=>play(true));on($('stop'),'click',()=>{stop();message('Preview stopped. Your application and draft were not reset.');});on($('restart'),'click',()=>act(()=>seek(0)));
   on($('seek'),'input',()=>{if(flush())seek(Number($('seek').value)*1000);});
   on($('sound'),'click',()=>act(()=>{sound=!sound;transport.setSound(sound);$('sound').textContent=sound?'Sound on':'Sound off';$('sound').setAttribute('aria-pressed',String(sound));message(sound?'Sound enabled. Play prepares the selected takes.':'Silent preview.');}));
-  on($('captions'),'click',()=>{cc=!cc;draw();});on($('motion'),'click',()=>{reduced=!reduced;draw();});on($('canvas-zoom'),'change',()=>{viewZoom=Number($('canvas-zoom').value);draw();});
+  on($('captions'),'click',()=>{cc=!cc;draw();});on($('motion'),'click',()=>{reduced=!reduced;earthApp?.setReducedMotion(reduced);draw();});on($('canvas-zoom'),'change',()=>{viewZoom=Number($('canvas-zoom').value);draw();});
   on($('loop'),'click',()=>act(()=>{const range=selectionTools.bounds();loop=!loop;transport.setLoop(loop?{startMs:range.startMs,endMs:range.endMs}:null);$('loop').setAttribute('aria-pressed',String(loop));}));
   for(const command of ['undo','redo'])on($(command),'click',()=>act(()=>restoreHistory(command)));
-  on($('add-scene'),'click',()=>act(()=>modal('Choose the new scene’s focus',body=>{for(const target of TARGETS)button(target.label,body,()=>{try{const r=addScene(project(),{afterId:selected.sceneId,target:target.id,title:target.label});selectionTools?.clear();selected.sceneId=r.sceneId;selected.clipId=null;commit(r.value,'Add scene');seek(sceneTimeline(project()).find(s=>s.id===r.sceneId).startMs);closeDialog();}catch(e){message(e.message,true);}}).className='clip-list-item';},[['Cancel',closeDialog]])));
+  on($('add-scene'),'click',()=>act(()=>modal('Choose the new scene’s focus',body=>{for(const target of targets)button(target.label,body,()=>{try{const r=addScene(project(),{afterId:selected.sceneId,target:target.id,title:target.label});selectionTools?.clear();selected.sceneId=r.sceneId;selected.clipId=null;commit(r.value,'Add scene');seek(sceneTimeline(project()).find(s=>s.id===r.sceneId).startMs);closeDialog();}catch(e){message(e.message,true);}}).className='clip-list-item';},[['Cancel',closeDialog]])));
   for(const [id,delta] of [['scene-up',-1],['scene-down',1]])on($(id),'click',()=>act(()=>commit(reorderScene(project(),selected.sceneId,delta),'Reorder scene')));
   on($('scene-delete'),'click',()=>act(()=>commit(deleteScene(project(),selected.sceneId),'Delete scene')));
   on($('split'),'click',()=>act(()=>{if(selectionTools.size>1)throw Error('Select one clip before splitting.');const c=selectedClip()?.clip;if(!c)throw Error('Select a clip first.');const at=locate(project(),time);if(at.scene.id!==c.sceneId)throw Error('Place the playhead inside the clip.');commit(splitClip(project(),c.id,Math.round(at.timeMs)),'Split clip');}));
@@ -527,8 +580,9 @@ function setup(){
   on($('shortcuts'),'click',()=>modal('Editing shortcuts',body=>node('p','Shift/Ctrl/Cmd-click timeline clips to select several, or use the checkbox Clip list. Left/Right on a selected group nudges 10 ms (Shift: 100 ms). Group moves have no ripple. Space: play or pause. S: split one selected clip. Delete: remove selected clip. Ctrl/Cmd+Z: undo. Ctrl/Cmd+Shift+Z: redo. Escape: cancel a drag, stop playback or close a dialog. On a timeline keyframe, Left/Right nudges 10 ms (Shift: 100 ms) and Delete removes only that key. Alt-drag bypasses magnetic and grid snapping. Shortcuts do not override text editing. Every operation also has a labeled button.',body),[['Close',closeDialog]]));
   on(document,'keydown',e=>{
     if(e.defaultPrevented||e.isComposing)return;
-    if(e.key==='Escape'){stop();if(recording)closeDialog();return;}
+    if(e.key==='Escape'){if(trying)setTrying(false);stop();if(recording)closeDialog();return;}
     const target=e.target instanceof Element?e.target:null;
+    if(trying&&target?.closest('#scene'))return;
     if(target?.closest('input,textarea,select,[contenteditable]:not([contenteditable=false])')||$('dialog').open)return;
     if((e.ctrlKey||e.metaKey)&&!e.altKey&&e.key.toLowerCase()==='z'){e.preventDefault();$(e.shiftKey?'redo':'undo').click();return;}
     if(e.ctrlKey||e.metaKey||e.altKey||e.repeat)return;
@@ -536,9 +590,9 @@ function setup(){
     else if(e.key.toLowerCase()==='s')$('split').click();else if(e.key==='Delete')$('delete-clip').click();
   });
   installDrags();
-  const preference=matchMedia('(prefers-reduced-motion: reduce)');on(preference,'change',event=>{reduced=event.matches;draw();});
+  const preference=matchMedia('(prefers-reduced-motion: reduce)');on(preference,'change',event=>{reduced=event.matches;earthApp?.setReducedMotion(reduced);draw();});
   on(document,'visibilitychange',()=>{if(document.hidden){stop();if(recording)closeDialog();}});
-  on(window,'pagehide',e=>{stop();operation?.abort();if(recording)closeDialog();if(e.persisted)return;selectionTools.destroy();closeDialog();disposed=true;cleanups.splice(0).forEach(off=>off());if(paintRequest!==null)cancelAnimationFrame(paintRequest);for(const [url,timer] of urls){clearTimeout(timer);URL.revokeObjectURL(url);}urls.clear();transport.destroy();view.destroy();void bank.destroy();});
+  on(window,'pagehide',e=>{stop();operation?.abort();if(recording)closeDialog();if(e.persisted)return;selectionTools.destroy();closeDialog();disposed=true;cleanups.splice(0).forEach(off=>off());if(paintRequest!==null)cancelAnimationFrame(paintRequest);for(const [url,timer] of urls){clearTimeout(timer);URL.revokeObjectURL(url);}urls.clear();transport.destroy();view.destroy();earthApp?.destroy();void bank.destroy();});
 }
 function installDrags(){
   let cancelGesture=null,clickTimer=null;
