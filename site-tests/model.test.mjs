@@ -13,6 +13,32 @@ test('flagship uses the canonical grammar with one safe condition and no scripte
 test('every scene has prepared narration captions and matching timing',()=>{
   for(const scene of script.scenes){assert.ok(script.assets[scene.narration.audioAsset]);assert.equal(scene.narration.cues[0].endMs,scene.durationMs);assert.equal(scene.narration.cues[0].text,scene.summary);}
 });
+test('each Orbit camera pan explicitly starts a neutral cursor journey to its actual destination',()=>{
+  for(const scene of script.scenes){
+    const camera=scene.cues.find(cue=>cue.kind==='camera');
+    if(!camera.durationMs)continue;
+    const travel=scene.cues.find(cue=>cue.id==='cursor.travel.'+scene.id);
+    const arrival=scene.cues.find(cue=>cue.id==='cursor.'+scene.id);
+    assert.ok(travel,scene.id+' must not wait until the camera settles to move its cursor');
+    assert.deepEqual(travel,{id:'cursor.travel.'+scene.id,kind:'cursor',at:camera.at,
+      durationMs:arrival?arrival.at-camera.at:camera.durationMs,
+      target:arrival?.target||camera.target,gesture:'point'});
+    assert.ok(travel.durationMs>0);
+  }
+});
+test('new pointer travel preserves the original cue and real checkpoint timings',()=>{
+  const originals=script.scenes.flatMap(scene=>scene.cues.filter(cue=>cue.id==='cursor.'+scene.id));
+  assert.deepEqual(originals,[
+    {id:'cursor.signal',kind:'cursor',at:900,durationMs:7308,target:'metrics',gesture:'point'},
+    {id:'cursor.story',kind:'cursor',at:900,durationMs:6509,target:'routes',gesture:'point'},
+    {id:'cursor.handoff',kind:'cursor',at:900,durationMs:6882,target:'approve',gesture:'point'},
+    {id:'cursor.possibility',kind:'cursor',at:900,durationMs:6791,target:'approve',gesture:'point'},
+  ]);
+  const gate=script.scenes.flatMap(scene=>scene.cues).find(cue=>cue.id==='approval');
+  assert.equal(gate.kind,'gate');assert.equal(gate.at,1700);
+  assert.equal(gate.conditionRef,'orbit.approved');assert.equal(gate.timeoutMs,30000);
+  assert.equal(gate.onTimeout,'pause');
+});
 test('global UI positions translate to bounded scene-local positions',()=>{
   const track=timeline(script);for(const scene of track.scenes){assert.deepEqual(track.locate(scene.startMs+100),{sceneId:scene.id,timeMs:100});assert.equal(track.position({sceneId:scene.id,timeMs:100}),scene.startMs+100);}
   assert.deepEqual(track.locate(-100),{sceneId:'overview',timeMs:0});assert.equal(track.locate(1e9).timeMs,script.scenes.at(-1).durationMs);
@@ -57,4 +83,18 @@ test('Earth timeline locations and camera preferences remain pure presentation d
   }
   for(const value of ['gentle','direct','overview','instant'])assert.equal(compile(withEasing(tour,value)).ok,true);
   assert.equal(JSON.stringify(tour),before);
+});
+test('Earth moves its cursor immediately while preserving all original arrival and gate timings',()=>{
+  const tour=createEarthTour(EARTH_CHECKPOINTS);
+  for(const [index,scene] of tour.scenes.entries()){
+    const target=EARTH_CHECKPOINTS[index].target.split('.')[1];
+    assert.deepEqual(scene.cues.find(cue=>cue.id==='cursor.travel.'+scene.id),
+      {id:'cursor.travel.'+scene.id,kind:'cursor',at:0,durationMs:700,target,gesture:'point'});
+    assert.deepEqual(scene.cues.find(cue=>cue.id==='cursor.'+scene.id),
+      {id:'cursor.'+scene.id,kind:'cursor',at:700,durationMs:6300,target,gesture:'point'});
+    const camera=scene.cues.find(cue=>cue.kind==='camera'),gate=scene.cues.find(cue=>cue.kind==='gate');
+    assert.equal(camera.at,0);assert.equal(camera.durationMs,index?1000:0);assert.equal(camera.target,'overview');
+    assert.equal(gate.at,1800);assert.equal(gate.timeoutMs,60000);assert.equal(gate.conditionRef,scene.id);
+    assert.equal(scene.cues.find(cue=>cue.kind==='highlight').at,700);
+  }
 });
