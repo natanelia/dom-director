@@ -80,15 +80,19 @@ class PublicSDKTests(unittest.TestCase):
         scenes={};start=0
         for scene in script['scenes']:
             scenes[scene['id']]={**scene,'startMs':start};start+=scene['durationMs']
+        target_selectors={'overview':'#scene','metrics':'#metrics-target','routes':'#map-target',
+                          'review':'#review-target','approve':'#approve-route'}
         self.page.locator('#stage').scroll_into_view_if_needed()
 
         def sample(scene_id,local_ms):
             # The public scrubber has a 10 ms step; round upward so a scene's
             # first sample cannot accidentally land in its preceding scene.
             at=math.ceil((scenes[scene_id]['startMs']+local_ms)/10)*10
-            frame=self.page.locator('#seek').evaluate('''(field, at) => {
+            cue=[cue for cue in scenes[scene_id]['cues'] if cue['kind']=='cursor' and cue['at']<=local_ms][-1]
+            frame=self.page.locator('#seek').evaluate('''(field, {at,target}) => {
               field.value=String(at/1000);field.dispatchEvent(new Event('input',{bubbles:true}));
               const stage=document.querySelector('#stage'),box=stage.getBoundingClientRect();
+              const destination=document.querySelector(target).getBoundingClientRect();
               const nodes=document.querySelectorAll('[data-director-overlay] [data-kind="cursor"]');
               const node=nodes[0],rect=node?.getBoundingClientRect(),style=node?getComputedStyle(node):null;
               const matrix=style?new DOMMatrix(style.transform):null;
@@ -98,9 +102,10 @@ class PublicSDKTests(unittest.TestCase):
                 inside:!!rect&&rect.left>=box.left-2&&rect.right<=box.right+2&&
                   rect.top>=box.top-2&&rect.bottom<=box.bottom+2,
                 point:matrix?{x:matrix.e-box.left,y:matrix.f-box.top}:null,
+                target:{x:destination.x+destination.width/2-box.left,y:destination.y+destination.height/2-box.top},
                 camera:document.querySelector('#scene').style.transform,
                 toast:document.querySelector('#toast').textContent};
-            }''',at)
+            }''',{'at':at,'target':target_selectors[cue['target']]})
             self.assertEqual(frame['sceneId'],scene_id,frame)
             self.assertEqual(frame['status'],'paused',frame)
             self.assertAlmostEqual(frame['timeMs'],at,delta=.01,msg=str(frame))
@@ -118,7 +123,16 @@ class PublicSDKTests(unittest.TestCase):
             frames=[sample(current,at) for at in [0,150,450,750,880,900,1050,1200]]
             self.assertLess(distance(before,frames[0]),1,'The cursor jumped at the scene boundary.')
             self.assertNotEqual(frames[0]['camera'],frames[-1]['camera'])
+            self.assertNotEqual(frames[0]['camera'],frames[2]['camera'])
+            self.assertGreater(distance(frames[0],frames[2]),1,
+                               'The cursor waited while the camera panned during the first 900 ms.')
+            self.assertGreater(distance(frames[1],frames[3]),1,
+                               'The cursor must keep travelling before the original arrival cue.')
             self.assertLess(distance(frames[4],frames[5]),40,'The cursor jumped when its next cue became active.')
+            travel=next(cue for cue in scenes[current]['cues'] if cue['id']=='cursor.travel.'+current)
+            arrival=sample(current,travel['at']+travel['durationMs'])
+            self.assertLess(distance(arrival,{'point':arrival['target']}),1,
+                            'The cursor did not reach its actual target at the end of the travel cue.')
             return frames[2]
 
         remembered=transition('signal','story')
@@ -159,6 +173,11 @@ class PublicSDKTests(unittest.TestCase):
         self.assertIsNone(playback['error'],playback)
         self.assertGreater(len(playback['frames']),20,playback)
         self.assertGreater(len({frame['camera'] for frame in playback['frames']}),1,playback)
+        early=[frame for frame in playback['frames'] if frame['timeMs']<scenes['story']['startMs']+900]
+        self.assertGreater(len(early),2,playback)
+        self.assertTrue(any(frame['camera']!=early[0]['camera'] and distance(early[0],frame)>1
+                            for frame in early[1:]),
+                        'Live playback kept the cursor still while the camera was panning: '+str(early))
         for frame in playback['frames']:
             self.assertEqual(frame['count'],1,frame)
             self.assertTrue(frame['visible'],frame)
@@ -175,7 +194,7 @@ class PublicSDKTests(unittest.TestCase):
         self.page.locator('#play').click()
         transition('handoff','possibility')
         transition('possibility','outro')
-        sample('outro',2000)  # A cursorless scene retains the pointer after its pan, too.
+        sample('outro',2000)  # The pointer persists after the explicit outro travel cue ends.
         self.assertLess(distance(remembered,sample('story',450)),.2)
         self.assertEqual(self.page.locator('#flag-count').inner_text(),'01')
         self.page.locator('#motion-toggle').click()

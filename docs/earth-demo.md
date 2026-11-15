@@ -28,6 +28,11 @@ Seeking, replaying captions or restoring a visual position never applies or
 reverses globe settings. Changing globe settings invalidates a saved position's
 fixture version; the checkpoint store reports that mismatch.
 
+Each checkpoint starts a neutral cursor journey toward its control at scene time
+zero, alongside the camera cue. The existing highlight and arrival cues still
+start at 700 ms, and the real interaction gate remains at 1800 ms. Cursor travel
+continues between controls even when the camera keeps the same overview pose.
+
 This story is caption-first. It does not reuse the unrelated Orbit narration.
 Studio's six voice clips have text and no audio asset, ready for an explicitly
 imported or recorded take through the existing controls.

@@ -27,6 +27,7 @@ return {
     narration:{transcript:step.text,cues:[{id:'speech.'+step.id,startMs:0,endMs:step.durationMs,text:step.text}]},
     cues:[
       {id:'camera.'+step.id,kind:'camera',at:0,durationMs:index?1000:0,target:'overview',minScale:0.1,maxScale:1,paddingPx:0},
+      {id:'cursor.travel.'+step.id,kind:'cursor',at:0,durationMs:700,target:step.target.split('.')[1],gesture:'point'},
       {id:'focus.'+step.id,kind:'highlight',at:700,durationMs:6300,target:step.target.split('.')[1],style:'outline'},
       {id:'cursor.'+step.id,kind:'cursor',at:700,durationMs:6300,target:step.target.split('.')[1],gesture:'point'},
       {id:'try.'+step.id,kind:'gate',at:1800,conditionRef:step.id,timeoutMs:60000,onTimeout:'pause',instruction:step.instruction},

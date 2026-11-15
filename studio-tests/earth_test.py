@@ -4,6 +4,7 @@ Pixel digests verify that interactions change the drawn globe, not only labels.
 The fictional Earth fixture is exercised locally and on the existing verified site.
 """
 import json
+import math
 import os
 import unittest
 from browser_test import StudioTests
@@ -231,6 +232,87 @@ class EarthDemoTests(EarthAssertions, StudioTests):
         self.assertFalse([url for url in self.requests if '.mp3' in url])
         self.assertIn('Illustrative', self.page.locator('.earth-app').inner_text())
         self.page.screenshot(path=str(self.output / 'earth-demo-desktop.png'), full_page=True)
+
+    def test_watch_cursor_moves_from_globe_to_metric_before_its_arrival_cue(self):
+        self.page.emulate_media(reduced_motion='no-preference')
+        self.mode('watch')
+        self.page.wait_for_function("document.querySelector('#stage').dataset.reducedMotion==='false'")
+        state, pixels = self.earth_state(), self.pixels()
+        # Resolve the first Watch gate normally before seeking near the boundary.
+        self.page.locator('#play').click()
+        self.page.wait_for_function("Number(document.querySelector('#seek').value)>2 && document.querySelector('#stage').dataset.status==='playing'")
+        self.page.locator('#play').click()
+        self.assert_tutorial_healthy()
+        self.seek(6.9)
+        self.page.evaluate("""() => {
+          window.readEarthCursor=()=>{
+            const stage=document.querySelector('#stage'),box=stage.getBoundingClientRect();
+            const nodes=document.querySelectorAll('[data-director-overlay] [data-kind="cursor"]');
+            const node=nodes[0],r=node?.getBoundingClientRect(),style=node?getComputedStyle(node):null;
+            const matrix=style?new DOMMatrix(style.transform):null;
+            const target=document.querySelector('.earth-metric-control').getBoundingClientRect();
+            return {scene:stage.dataset.scene,status:stage.dataset.status,timeMs:Number(document.querySelector('#seek').value)*1000,
+              count:nodes.length,cue:node?.dataset.cue||null,point:matrix?{x:matrix.e-box.left,y:matrix.f-box.top}:null,
+              target:{x:target.x+target.width/2-box.left,y:target.y+target.height/2-box.top},
+              visible:!!r&&r.width>0&&r.height>0&&style.visibility==='visible'&&Number(style.opacity)>0,
+              inside:!!r&&r.left>=box.left-2&&r.right<=box.right+2&&r.top>=box.top-2&&r.bottom<=box.bottom+2};
+          };
+          const run=window.earthCursorRun={done:false,error:null,frames:[]},deadline=performance.now()+6000;
+          function observe(){
+            const frame=readEarthCursor();
+            if(frame.status==='error'||performance.now()>deadline){run.error=frame;run.done=true;return;}
+            if(frame.scene==='earth.metric'&&frame.status==='playing'){
+              run.frames.push(frame);if(frame.timeMs>=7850){run.done=true;return;}
+            }
+            requestAnimationFrame(observe);
+          }
+          requestAnimationFrame(observe);
+        }""")
+        self.page.locator('#play').click()
+        self.page.wait_for_function('window.earthCursorRun.done', timeout=8000)
+        observed = self.page.evaluate('window.earthCursorRun')
+        self.assertIsNone(observed['error'], observed)
+        self.page.locator('#play').click()
+
+        def distance(a, b):
+            return math.hypot(a['point']['x']-b['point']['x'], a['point']['y']-b['point']['y'])
+
+        def assert_pointer(frame):
+            self.assertEqual(frame['count'], 1, frame)
+            self.assertTrue(frame['visible'] and frame['inside'], frame)
+            self.assertTrue(all(math.isfinite(value) for value in frame['point'].values()), frame)
+
+        for frame in observed['frames']:
+            assert_pointer(frame)
+        # Cue identity is frame-exact even though the public time display is throttled.
+        early = [frame for frame in observed['frames'] if frame['cue'] == 'cursor.travel.earth.metric']
+        self.assertGreater(len(early), 2, observed)
+        self.assertGreater(max(distance(early[0], frame) for frame in early), 5,
+                           'The live cursor waited for the 700 ms arrival cue.')
+        frames = []
+        for at in [7, 7.15, 7.35, 7.55, 7.69, 7.7, 8, 7.35]:
+            self.seek(at)
+            self.assert_tutorial_healthy()
+            frame = self.page.evaluate('readEarthCursor()')
+            self.assertEqual(frame['scene'], 'earth.metric', frame)
+            self.assertEqual(frame['status'], 'paused', frame)
+            self.assertAlmostEqual(frame['timeMs'], at*1000, delta=.01)
+            assert_pointer(frame)
+            frames.append(frame)
+        self.assertGreater(distance(frames[0], frames[2]), 5)
+        self.assertLess(distance(frames[4], frames[5]), 5)
+        self.assertLess(distance(frames[5], {'point': frames[5]['target']}), 1)
+        self.assertLess(distance(frames[2], frames[-1]), .2)
+        self.assertEqual(self.earth_state(), state)
+        self.assertEqual(self.pixels(), pixels)
+        self.assertEqual(self.page.locator('#earth-progress').text_content(), '0 / 6 controls explored')
+        # Watching a visual journey never supplies proof for an unfinished Try gate.
+        self.mode('try')
+        self.seek(7.35)
+        self.assertEqual(self.page.locator('#stage').get_attribute('data-scene'), 'earth.overview')
+        self.assertNotEqual(self.page.locator('#stage').get_attribute('data-status'), 'error')
+        self.assertEqual(self.earth_state(), state)
+        self.assertEqual(self.pixels(), pixels)
 
     def test_all_six_try_checkpoints_require_real_controls_and_change_globe_pixels(self):
         self.mode('try')
